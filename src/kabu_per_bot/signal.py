@@ -225,16 +225,9 @@ def evaluate_cooldown(
     if cooldown_hours <= 0:
         raise ValueError("cooldown_hours must be > 0")
 
-    now = datetime.fromisoformat(now_iso)
+    now = _parse_iso_datetime(now_iso)
     threshold = now - timedelta(hours=cooldown_hours)
     normalized_ticker = normalize_ticker(candidate_ticker)
-
-    if candidate_is_strong:
-        for entry in recent_entries:
-            if entry.ticker != normalized_ticker:
-                continue
-            if not entry.is_strong and _is_recent(entry.sent_at, threshold):
-                return CooldownDecision(should_send=True, reason="通常→強遷移のため即時通知")
 
     for entry in recent_entries:
         if entry.ticker != normalized_ticker:
@@ -245,6 +238,18 @@ def evaluate_cooldown(
             continue
         if _is_recent(entry.sent_at, threshold):
             return CooldownDecision(should_send=False, reason="2時間クールダウン中")
+
+    if candidate_is_strong:
+        metric_prefix = candidate_condition_key.split(":", 1)[0]
+        for entry in recent_entries:
+            if entry.ticker != normalized_ticker:
+                continue
+            if entry.is_strong:
+                continue
+            if _metric_prefix(entry.condition_key) != metric_prefix:
+                continue
+            if _is_recent(entry.sent_at, threshold):
+                return CooldownDecision(should_send=True, reason="通常→強遷移のため即時通知")
 
     return CooldownDecision(should_send=True, reason="送信可")
 
@@ -260,7 +265,7 @@ def _is_same_signal(previous: SignalState, current: SignalEvaluation) -> bool:
 
 
 def _is_recent(sent_at: str, threshold: datetime) -> bool:
-    sent = datetime.fromisoformat(sent_at)
+    sent = _parse_iso_datetime(sent_at)
     return sent >= threshold
 
 
@@ -268,3 +273,14 @@ def _as_float(value: Any) -> float | None:
     if value is None:
         return None
     return float(value)
+
+
+def _metric_prefix(condition_key: str) -> str:
+    return condition_key.split(":", 1)[0]
+
+
+def _parse_iso_datetime(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed

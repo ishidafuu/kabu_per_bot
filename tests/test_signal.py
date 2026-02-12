@@ -150,6 +150,39 @@ class SignalTest(unittest.TestCase):
         )
         self.assertTrue(decision.should_send)
 
+    def test_evaluate_cooldown_blocks_duplicate_strong_even_if_normal_exists(self) -> None:
+        decision = evaluate_cooldown(
+            now_iso="2026-02-12T10:00:00+00:00",
+            cooldown_hours=2,
+            candidate_ticker="3901:TSE",
+            candidate_category="超PER割安",
+            candidate_condition_key="PER:1Y+3M+1W",
+            candidate_is_strong=True,
+            recent_entries=[
+                NotificationLogEntry(
+                    entry_id="n1",
+                    ticker="3901:TSE",
+                    category="PER割安",
+                    condition_key="PER:1Y+3M",
+                    sent_at="2026-02-12T09:00:00+00:00",
+                    channel="DISCORD",
+                    payload_hash="a",
+                    is_strong=False,
+                ),
+                NotificationLogEntry(
+                    entry_id="s1",
+                    ticker="3901:TSE",
+                    category="超PER割安",
+                    condition_key="PER:1Y+3M+1W",
+                    sent_at="2026-02-12T09:30:00+00:00",
+                    channel="DISCORD",
+                    payload_hash="b",
+                    is_strong=True,
+                ),
+            ],
+        )
+        self.assertFalse(decision.should_send)
+
 
 if __name__ == "__main__":
     unittest.main()

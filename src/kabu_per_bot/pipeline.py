@@ -23,7 +23,7 @@ from kabu_per_bot.signal import (
     evaluate_signal,
 )
 from kabu_per_bot.storage.firestore_schema import normalize_trade_date
-from kabu_per_bot.watchlist import MetricType, WatchlistItem
+from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchlistItem
 
 
 LOGGER = logging.getLogger(__name__)
@@ -105,16 +105,24 @@ def run_daily_pipeline(
     for item in watchlist_items:
         if not item.is_active:
             continue
-        ticker_result = _process_single_ticker(
-            watch_item=item,
-            market_data_source=market_data_source,
-            daily_metrics_repo=daily_metrics_repo,
-            medians_repo=medians_repo,
-            signal_state_repo=signal_state_repo,
-            notification_log_repo=notification_log_repo,
-            sender=sender,
-            config=config,
-        )
+        if not _is_channel_enabled(item, config.channel):
+            continue
+        if item.notify_timing is NotifyTiming.OFF:
+            continue
+        try:
+            ticker_result = _process_single_ticker(
+                watch_item=item,
+                market_data_source=market_data_source,
+                daily_metrics_repo=daily_metrics_repo,
+                medians_repo=medians_repo,
+                signal_state_repo=signal_state_repo,
+                notification_log_repo=notification_log_repo,
+                sender=sender,
+                config=config,
+            )
+        except Exception as exc:
+            LOGGER.exception("銘柄処理失敗: ticker=%s error=%s", item.ticker, exc)
+            ticker_result = PipelineResult(processed_tickers=1, errors=1)
         result = result.merge(ticker_result)
     return result
 
@@ -214,6 +222,8 @@ def _process_single_ticker(
     daily_metrics_repo.upsert(metric_row)
 
     missing_fields = metric_row.missing_fields(metric_type=watch_item.metric_type)
+    if not snapshot.earnings_date:
+        missing_fields.append("earnings_date")
     if missing_fields:
         unknown_message = format_data_unknown_message(
             ticker=watch_item.ticker,
@@ -304,24 +314,34 @@ def _run_earnings_pipeline(
         watch_item = watch_map.get(entry.ticker)
         if watch_item is None:
             continue
-        message = format_earnings_message(
-            ticker=entry.ticker,
-            company_name=watch_item.name,
-            earnings_date=entry.earnings_date,
-            earnings_time=entry.earnings_time,
-            category=category,
-        )
-        sent, skipped = _dispatch_with_cooldown(
-            message=message,
-            ticker=entry.ticker,
-            is_strong=False,
-            notification_log_repo=notification_log_repo,
-            sender=sender,
-            cooldown_hours=cooldown_hours,
-            now_iso=now_value,
-            channel=channel,
-        )
-        result = result.merge(PipelineResult(processed_tickers=1, sent_notifications=sent, skipped_notifications=skipped))
+        if not _is_channel_enabled(watch_item, channel):
+            continue
+        if watch_item.notify_timing is NotifyTiming.OFF:
+            continue
+        try:
+            message = format_earnings_message(
+                ticker=entry.ticker,
+                company_name=watch_item.name,
+                earnings_date=entry.earnings_date,
+                earnings_time=entry.earnings_time,
+                category=category,
+            )
+            sent, skipped = _dispatch_with_cooldown(
+                message=message,
+                ticker=entry.ticker,
+                is_strong=False,
+                notification_log_repo=notification_log_repo,
+                sender=sender,
+                cooldown_hours=cooldown_hours,
+                now_iso=now_value,
+                channel=channel,
+            )
+            result = result.merge(
+                PipelineResult(processed_tickers=1, sent_notifications=sent, skipped_notifications=skipped)
+            )
+        except Exception as exc:
+            LOGGER.exception("決算通知処理失敗: ticker=%s error=%s", entry.ticker, exc)
+            result = result.merge(PipelineResult(processed_tickers=1, errors=1))
     return result
 
 
@@ -368,3 +388,14 @@ def _dispatch_with_cooldown(
 def _notification_id(*, message: NotificationMessage, channel: str, sent_at: str) -> str:
     raw = f"{message.ticker}|{message.category}|{message.condition_key}|{channel}|{sent_at}"
     return sha1(raw.encode("utf-8")).hexdigest()
+
+
+def _is_channel_enabled(item: WatchlistItem, channel: str) -> bool:
+    normalized = channel.strip().upper()
+    if item.notify_channel is NotifyChannel.OFF:
+        return False
+    if normalized == "DISCORD":
+        return item.notify_channel in {NotifyChannel.DISCORD, NotifyChannel.BOTH}
+    if normalized == "LINE":
+        return item.notify_channel in {NotifyChannel.LINE, NotifyChannel.BOTH}
+    return True

@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 import argparse
 import json
 import logging
 import os
 import sys
+from zoneinfo import ZoneInfo
 
 from kabu_per_bot.discord_notifier import DiscordNotifier
 from kabu_per_bot.market_data import MarketDataSnapshot, MarketDataSource
@@ -93,7 +94,8 @@ class StdoutSender:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run MVP daily pipeline in local demo mode.")
-    parser.add_argument("--trade-date", default=date.today().isoformat(), help="Trade date (YYYY-MM-DD)")
+    jst_today = datetime.now(ZoneInfo("Asia/Tokyo")).date().isoformat()
+    parser.add_argument("--trade-date", default=jst_today, help="Trade date (YYYY-MM-DD)")
     parser.add_argument("--now-iso", default=None, help="Current time in ISO8601. Default: now(UTC)")
     parser.add_argument(
         "--discord-webhook-url",
