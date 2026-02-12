@@ -287,3 +287,9 @@
   - 再現率
   - 速報性
   - 追加コスト
+
+## 5. Web管理画面タスク
+
+Web管理画面のIssue一覧は以下を参照する。
+
+- `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/Web実装タスク_Issue一覧.md`

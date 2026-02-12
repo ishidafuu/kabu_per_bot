@@ -13,6 +13,7 @@
   - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/技術スタック定義.md`
   - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/Firestoreスキーマ設計.md`
   - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/Web管理画面_仕様（画面一覧・API一覧）.md`
+  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/Web実装タスク_Issue一覧.md`
 
 ## 2. スコープ管理
 
