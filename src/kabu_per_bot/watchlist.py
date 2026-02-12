@@ -48,6 +48,11 @@ class NotifyTiming(str, Enum):
     OFF = "OFF"
 
 
+class WatchlistHistoryAction(str, Enum):
+    ADD = "ADD"
+    REMOVE = "REMOVE"
+
+
 @dataclass(frozen=True)
 class WatchlistItem:
     ticker: str
@@ -88,6 +93,54 @@ class WatchlistItem:
         }
 
 
+@dataclass(frozen=True)
+class WatchlistHistoryRecord:
+    record_id: str
+    ticker: str
+    action: WatchlistHistoryAction
+    reason: str | None
+    acted_at: str
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        ticker: str,
+        action: WatchlistHistoryAction,
+        acted_at: str,
+        reason: str | None = None,
+    ) -> "WatchlistHistoryRecord":
+        normalized_ticker = normalize_ticker(ticker)
+        normalized_reason = _normalize_reason(reason)
+        return cls(
+            record_id=f"{normalized_ticker}|{action.value}|{acted_at}",
+            ticker=normalized_ticker,
+            action=action,
+            reason=normalized_reason,
+            acted_at=acted_at,
+        )
+
+    @classmethod
+    def from_document(cls, data: dict[str, Any]) -> "WatchlistHistoryRecord":
+        raw_reason = data.get("reason")
+        return cls(
+            record_id=str(data["id"]).strip(),
+            ticker=normalize_ticker(str(data["ticker"])),
+            action=WatchlistHistoryAction(str(data["action"]).strip().upper()),
+            reason=_normalize_reason(raw_reason),
+            acted_at=str(data["acted_at"]).strip(),
+        )
+
+    def to_document(self) -> dict[str, Any]:
+        return {
+            "id": self.record_id,
+            "ticker": self.ticker,
+            "action": self.action.value,
+            "reason": self.reason,
+            "acted_at": self.acted_at,
+        }
+
+
 class WatchlistRepository(Protocol):
     def try_create(self, item: WatchlistItem, *, max_items: int) -> CreateResult:
         """Try creating item atomically with max item constraint."""
@@ -111,12 +164,24 @@ class WatchlistRepository(Protocol):
         """Delete item and return whether the item existed."""
 
 
+class WatchlistHistoryRepository(Protocol):
+    def append(self, record: WatchlistHistoryRecord) -> None:
+        """Append watchlist operation history."""
+
+
 class WatchlistService:
-    def __init__(self, repository: WatchlistRepository, *, max_items: int = 100) -> None:
+    def __init__(
+        self,
+        repository: WatchlistRepository,
+        *,
+        max_items: int = 100,
+        history_repository: WatchlistHistoryRepository | None = None,
+    ) -> None:
         if max_items <= 0:
             raise WatchlistError("max_items must be > 0.")
         self._repository = repository
         self._max_items = max_items
+        self._history_repository = history_repository
 
     @staticmethod
     def _now_iso() -> str:
@@ -135,6 +200,25 @@ class WatchlistService:
             return str(value.value).strip().upper()
         return str(value).strip().upper()
 
+    def _record_history(
+        self,
+        *,
+        ticker: str,
+        action: WatchlistHistoryAction,
+        acted_at: str,
+        reason: str | None = None,
+    ) -> None:
+        if self._history_repository is None:
+            return
+        self._history_repository.append(
+            WatchlistHistoryRecord.create(
+                ticker=ticker,
+                action=action,
+                reason=reason,
+                acted_at=acted_at,
+            )
+        )
+
     def add_item(
         self,
         *,
@@ -146,6 +230,7 @@ class WatchlistService:
         ai_enabled: bool = False,
         is_active: bool = True,
         now_iso: str | None = None,
+        reason: str | None = None,
     ) -> WatchlistItem:
         normalized_ticker = normalize_ticker(ticker)
 
@@ -168,6 +253,12 @@ class WatchlistService:
             raise WatchlistLimitExceededError(f"watchlist limit exceeded: max={self._max_items}")
         if create_result is not CreateResult.CREATED:
             raise WatchlistError(f"unexpected create result: {create_result}")
+        self._record_history(
+            ticker=normalized_ticker,
+            action=WatchlistHistoryAction.ADD,
+            reason=reason,
+            acted_at=current_time,
+        )
         return item
 
     def list_items(self) -> list[WatchlistItem]:
@@ -221,11 +312,23 @@ class WatchlistService:
         self._repository.update(updated)
         return updated
 
-    def delete_item(self, ticker: str) -> None:
+    def delete_item(
+        self,
+        ticker: str,
+        *,
+        now_iso: str | None = None,
+        reason: str | None = None,
+    ) -> None:
         normalized_ticker = normalize_ticker(ticker)
         deleted = self._repository.delete(normalized_ticker)
         if not deleted:
             raise WatchlistNotFoundError(f"{normalized_ticker} not found.")
+        self._record_history(
+            ticker=normalized_ticker,
+            action=WatchlistHistoryAction.REMOVE,
+            reason=reason,
+            acted_at=now_iso or self._now_iso(),
+        )
 
 
 def _coerce_bool(value: Any, *, field_name: str, default: bool) -> bool:
@@ -243,3 +346,10 @@ def _coerce_bool(value: Any, *, field_name: str, default: bool) -> bool:
         if lowered in {"0", "false", "no", "off"}:
             return False
     raise WatchlistError(f"{field_name} must be boolean-compatible.")
+
+
+def _normalize_reason(reason: Any) -> str | None:
+    if reason is None:
+        return None
+    normalized = str(reason).strip()
+    return normalized or None

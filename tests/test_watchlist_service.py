@@ -9,6 +9,8 @@ from kabu_per_bot.watchlist import (
     NotifyChannel,
     NotifyTiming,
     WatchlistAlreadyExistsError,
+    WatchlistHistoryAction,
+    WatchlistHistoryRecord,
     WatchlistItem,
     WatchlistLimitExceededError,
     WatchlistNotFoundError,
@@ -48,6 +50,14 @@ class InMemoryWatchlistRepository:
             return False
         del self.docs[ticker]
         return True
+
+
+@dataclass
+class InMemoryWatchlistHistoryRepository:
+    records: list[WatchlistHistoryRecord] = field(default_factory=list)
+
+    def append(self, record: WatchlistHistoryRecord) -> None:
+        self.records.append(record)
 
 
 class WatchlistServiceTest(unittest.TestCase):
@@ -159,6 +169,31 @@ class WatchlistServiceTest(unittest.TestCase):
                     "is_active": True,
                 }
             )
+
+    def test_add_and_delete_write_history(self) -> None:
+        repo = InMemoryWatchlistRepository()
+        history_repo = InMemoryWatchlistHistoryRepository()
+        service = WatchlistService(repo, history_repository=history_repo)
+        service.add_item(
+            ticker="3901:tse",
+            name="富士フイルム",
+            metric_type="PER",
+            notify_channel="DISCORD",
+            notify_timing="IMMEDIATE",
+            now_iso="2026-02-12T00:00:00+00:00",
+            reason="初回登録",
+        )
+        service.delete_item(
+            "3901:tse",
+            now_iso="2026-02-13T00:00:00+00:00",
+            reason="不要",
+        )
+
+        self.assertEqual(len(history_repo.records), 2)
+        self.assertEqual(history_repo.records[0].action, WatchlistHistoryAction.ADD)
+        self.assertEqual(history_repo.records[0].reason, "初回登録")
+        self.assertEqual(history_repo.records[1].action, WatchlistHistoryAction.REMOVE)
+        self.assertEqual(history_repo.records[1].reason, "不要")
 
 
 if __name__ == "__main__":
