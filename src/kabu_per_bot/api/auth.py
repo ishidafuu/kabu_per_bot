@@ -8,6 +8,9 @@ from fastapi import Request
 
 from kabu_per_bot.api.errors import ForbiddenError, InternalServerError, UnauthorizedError
 
+API_V1_PREFIX = "/api/v1/"
+PUBLIC_API_PATHS = {"/api/v1/healthz"}
+
 
 class TokenVerifier(Protocol):
     def verify(self, token: str) -> Mapping[str, Any]:
@@ -95,9 +98,9 @@ def get_token_verifier(request: Request) -> TokenVerifier:
 
 
 def is_protected_path(path: str) -> bool:
-    if path == "/api/v1/watchlist":
-        return True
-    return path.startswith("/api/v1/watchlist/")
+    if not path.startswith(API_V1_PREFIX):
+        return False
+    return path not in PUBLIC_API_PATHS
 
 
 def authenticate_request(
