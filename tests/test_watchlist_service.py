@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 import unittest
 
 from kabu_per_bot.watchlist import (
+    CreateResult,
     MetricType,
     NotifyChannel,
     NotifyTiming,
@@ -18,6 +19,14 @@ from kabu_per_bot.watchlist import (
 @dataclass
 class InMemoryWatchlistRepository:
     docs: dict[str, WatchlistItem] = field(default_factory=dict)
+
+    def try_create(self, item: WatchlistItem, *, max_items: int) -> CreateResult:
+        if item.ticker in self.docs:
+            return CreateResult.DUPLICATE
+        if len(self.docs) >= max_items:
+            return CreateResult.LIMIT_EXCEEDED
+        self.docs[item.ticker] = item
+        return CreateResult.CREATED
 
     def count(self) -> int:
         return len(self.docs)
@@ -122,7 +131,35 @@ class WatchlistServiceTest(unittest.TestCase):
         with self.assertRaises(WatchlistNotFoundError):
             service.update_item("3901:TSE", name="A")
 
+    def test_from_document_boolean_parsing(self) -> None:
+        item = WatchlistItem.from_document(
+            {
+                "ticker": "3901:tse",
+                "name": "A",
+                "metric_type": "per",
+                "notify_channel": "discord",
+                "notify_timing": "immediate",
+                "ai_enabled": "false",
+                "is_active": "1",
+            }
+        )
+        self.assertFalse(item.ai_enabled)
+        self.assertTrue(item.is_active)
+
+    def test_from_document_invalid_boolean_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            WatchlistItem.from_document(
+                {
+                    "ticker": "3901:tse",
+                    "name": "A",
+                    "metric_type": "per",
+                    "notify_channel": "discord",
+                    "notify_timing": "immediate",
+                    "ai_enabled": "not-bool",
+                    "is_active": True,
+                }
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
-

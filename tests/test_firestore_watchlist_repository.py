@@ -4,7 +4,13 @@ from dataclasses import dataclass, field
 import unittest
 
 from kabu_per_bot.storage.firestore_watchlist_repository import FirestoreWatchlistRepository
-from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchlistItem
+from kabu_per_bot.watchlist import (
+    CreateResult,
+    MetricType,
+    NotifyChannel,
+    NotifyTiming,
+    WatchlistItem,
+)
 
 
 @dataclass
@@ -81,7 +87,7 @@ class FirestoreWatchlistRepositoryTest(unittest.TestCase):
             updated_at="2026-02-12T00:00:00+00:00",
         )
 
-        repo.create(item)
+        self.assertEqual(repo.try_create(item, max_items=100), CreateResult.CREATED)
         self.assertEqual(repo.count(), 1)
         self.assertIsNotNone(repo.get("3901:TSE"))
 
@@ -105,7 +111,27 @@ class FirestoreWatchlistRepositoryTest(unittest.TestCase):
         self.assertFalse(repo.delete("3901:TSE"))
         self.assertEqual(repo.list_all(), [])
 
+    def test_try_create_limit_and_duplicate(self) -> None:
+        repo = FirestoreWatchlistRepository(FakeFirestoreClient())
+        first = WatchlistItem(
+            ticker="3901:TSE",
+            name="A",
+            metric_type=MetricType.PER,
+            notify_channel=NotifyChannel.DISCORD,
+            notify_timing=NotifyTiming.IMMEDIATE,
+        )
+        second = WatchlistItem(
+            ticker="3902:TSE",
+            name="B",
+            metric_type=MetricType.PER,
+            notify_channel=NotifyChannel.DISCORD,
+            notify_timing=NotifyTiming.IMMEDIATE,
+        )
+
+        self.assertEqual(repo.try_create(first, max_items=1), CreateResult.CREATED)
+        self.assertEqual(repo.try_create(first, max_items=1), CreateResult.DUPLICATE)
+        self.assertEqual(repo.try_create(second, max_items=1), CreateResult.LIMIT_EXCEEDED)
+
 
 if __name__ == "__main__":
     unittest.main()
-

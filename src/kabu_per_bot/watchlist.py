@@ -24,6 +24,12 @@ class WatchlistAlreadyExistsError(WatchlistError):
     """Raised when creating an already-existing ticker."""
 
 
+class CreateResult(str, Enum):
+    CREATED = "CREATED"
+    DUPLICATE = "DUPLICATE"
+    LIMIT_EXCEEDED = "LIMIT_EXCEEDED"
+
+
 class MetricType(str, Enum):
     PER = "PER"
     PSR = "PSR"
@@ -62,8 +68,8 @@ class WatchlistItem:
             metric_type=MetricType(str(data["metric_type"]).strip().upper()),
             notify_channel=NotifyChannel(str(data["notify_channel"]).strip().upper()),
             notify_timing=NotifyTiming(str(data["notify_timing"]).strip().upper()),
-            ai_enabled=bool(data.get("ai_enabled", False)),
-            is_active=bool(data.get("is_active", True)),
+            ai_enabled=_coerce_bool(data.get("ai_enabled"), field_name="ai_enabled", default=False),
+            is_active=_coerce_bool(data.get("is_active"), field_name="is_active", default=True),
             created_at=(str(data["created_at"]) if data.get("created_at") else None),
             updated_at=(str(data["updated_at"]) if data.get("updated_at") else None),
         )
@@ -83,6 +89,9 @@ class WatchlistItem:
 
 
 class WatchlistRepository(Protocol):
+    def try_create(self, item: WatchlistItem, *, max_items: int) -> CreateResult:
+        """Try creating item atomically with max item constraint."""
+
     def count(self) -> int:
         """Return current watchlist count."""
 
@@ -139,10 +148,6 @@ class WatchlistService:
         now_iso: str | None = None,
     ) -> WatchlistItem:
         normalized_ticker = normalize_ticker(ticker)
-        if self._repository.get(normalized_ticker) is not None:
-            raise WatchlistAlreadyExistsError(f"{normalized_ticker} already exists.")
-        if self._repository.count() >= self._max_items:
-            raise WatchlistLimitExceededError(f"watchlist limit exceeded: max={self._max_items}")
 
         current_time = now_iso or self._now_iso()
         item = WatchlistItem(
@@ -156,7 +161,13 @@ class WatchlistService:
             created_at=current_time,
             updated_at=current_time,
         )
-        self._repository.create(item)
+        create_result = self._repository.try_create(item, max_items=self._max_items)
+        if create_result is CreateResult.DUPLICATE:
+            raise WatchlistAlreadyExistsError(f"{normalized_ticker} already exists.")
+        if create_result is CreateResult.LIMIT_EXCEEDED:
+            raise WatchlistLimitExceededError(f"watchlist limit exceeded: max={self._max_items}")
+        if create_result is not CreateResult.CREATED:
+            raise WatchlistError(f"unexpected create result: {create_result}")
         return item
 
     def list_items(self) -> list[WatchlistItem]:
@@ -215,3 +226,20 @@ class WatchlistService:
         deleted = self._repository.delete(normalized_ticker)
         if not deleted:
             raise WatchlistNotFoundError(f"{normalized_ticker} not found.")
+
+
+def _coerce_bool(value: Any, *, field_name: str, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        if value in (0, 1):
+            return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "off"}:
+            return False
+    raise WatchlistError(f"{field_name} must be boolean-compatible.")
