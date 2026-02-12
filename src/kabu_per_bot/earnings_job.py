@@ -16,6 +16,7 @@ from kabu_per_bot.watchlist import WatchlistItem
 
 
 EarningsJobType = Literal["weekly", "tomorrow"]
+JST_TIMEZONE = "Asia/Tokyo"
 
 
 class WatchlistReader(Protocol):
@@ -28,7 +29,9 @@ class EarningsCalendarReader(Protocol):
         """List all earnings calendar rows."""
 
 
-def resolve_today_jst(*, now_iso: str | None = None, timezone_name: str = "Asia/Tokyo") -> str:
+def resolve_today_jst(*, now_iso: str | None = None, timezone_name: str = JST_TIMEZONE) -> str:
+    if timezone_name != JST_TIMEZONE:
+        raise ValueError(f"timezone_name must be fixed to {JST_TIMEZONE}.")
     now = _parse_now_iso(now_iso)
     tz = ZoneInfo(timezone_name)
     return now.astimezone(tz).date().isoformat()
@@ -48,7 +51,7 @@ def run_earnings_job(
     sender: MessageSender,
     cooldown_hours: int,
     now_iso: str | None = None,
-    timezone_name: str = "Asia/Tokyo",
+    timezone_name: str = JST_TIMEZONE,
     channel: str = "DISCORD",
 ) -> PipelineResult:
     today = resolve_today_jst(now_iso=now_iso, timezone_name=timezone_name)
@@ -86,5 +89,5 @@ def _parse_now_iso(now_iso: str | None) -> datetime:
         return datetime.now(timezone.utc)
     parsed = datetime.fromisoformat(now_iso)
     if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
+        raise ValueError("now_iso must include timezone offset, e.g. '+09:00'.")
     return parsed

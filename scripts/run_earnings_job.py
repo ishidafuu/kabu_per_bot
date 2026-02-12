@@ -7,7 +7,7 @@ import logging
 import os
 
 from kabu_per_bot.discord_notifier import DiscordNotifier
-from kabu_per_bot.earnings_job import run_earnings_job
+from kabu_per_bot.earnings_job import JST_TIMEZONE, run_earnings_job
 from kabu_per_bot.settings import load_settings
 from kabu_per_bot.storage.firestore_earnings_calendar_repository import FirestoreEarningsCalendarRepository
 from kabu_per_bot.storage.firestore_notification_log_repository import FirestoreNotificationLogRepository
@@ -26,7 +26,11 @@ class StdoutSender:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run earnings notification job.")
     parser.add_argument("--job", required=True, choices=("weekly", "tomorrow"), help="Job type.")
-    parser.add_argument("--now-iso", default=None, help="Current time in ISO8601. Default: now(UTC)")
+    parser.add_argument(
+        "--now-iso",
+        default=None,
+        help="Current time in ISO8601 with timezone (e.g. 2026-02-14T21:00:00+09:00). Default: now(UTC)",
+    )
     parser.add_argument(
         "--discord-webhook-url",
         default=os.environ.get("DISCORD_WEBHOOK_URL", "").strip(),
@@ -78,7 +82,7 @@ def main() -> int:
         sender=sender,
         cooldown_hours=settings.cooldown_hours,
         now_iso=args.now_iso,
-        timezone_name=settings.timezone,
+        timezone_name=JST_TIMEZONE,
         channel="DISCORD",
     )
     print(json.dumps(result.__dict__, ensure_ascii=False))
