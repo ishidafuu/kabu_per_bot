@@ -18,6 +18,19 @@ pip install -e ".[gcp]"
 python -m kabu_per_bot
 ```
 
+### Web API（FastAPI）起動
+
+```bash
+uvicorn kabu_per_bot.api.app:app --reload
+```
+
+- OpenAPI: `http://127.0.0.1:8000/docs`
+- ヘルスチェック: `GET /api/v1/healthz` -> `{"status":"ok"}`
+- ウォッチリストAPI: `GET/POST/PATCH/DELETE /api/v1/watchlist`
+- 認証: `Authorization: Bearer <Firebase IDトークン>`
+
+`google-cloud-firestore` と `firebase-admin` が必要なため、`pip install -e ".[gcp]"` を事前に実行してください。
+
 ### テスト
 
 ```bash
