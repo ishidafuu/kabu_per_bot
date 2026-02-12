@@ -3,7 +3,13 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from kabu_per_bot.api.auth import FirebaseAdminTokenVerifier, TokenVerifier
-from kabu_per_bot.api.dependencies import create_watchlist_service
+from kabu_per_bot.api.dependencies import (
+    NotificationLogReader,
+    WatchlistHistoryReader,
+    create_notification_log_repository,
+    create_watchlist_history_repository,
+    create_watchlist_service,
+)
 from kabu_per_bot.api.errors import install_exception_handlers
 from kabu_per_bot.api.middleware import install_auth_middleware
 from kabu_per_bot.api.routes import api_router
@@ -13,6 +19,8 @@ from kabu_per_bot.watchlist import WatchlistService
 def create_app(
     *,
     watchlist_service: WatchlistService | None = None,
+    watchlist_history_repository: WatchlistHistoryReader | None = None,
+    notification_log_repository: NotificationLogReader | None = None,
     token_verifier: TokenVerifier | None = None,
 ) -> FastAPI:
     app = FastAPI(
@@ -26,6 +34,12 @@ def create_app(
 
     app.state.watchlist_service = watchlist_service
     app.state.watchlist_service_factory = create_watchlist_service
+
+    app.state.watchlist_history_repository = watchlist_history_repository
+    app.state.watchlist_history_repository_factory = create_watchlist_history_repository
+
+    app.state.notification_log_repository = notification_log_repository
+    app.state.notification_log_repository_factory = create_notification_log_repository
 
     app.state.token_verifier = token_verifier
     app.state.token_verifier_factory = _default_token_verifier_factory

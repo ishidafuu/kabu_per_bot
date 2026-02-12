@@ -24,6 +24,10 @@ class WatchlistAlreadyExistsError(WatchlistError):
     """Raised when creating an already-existing ticker."""
 
 
+class WatchlistPersistenceError(RuntimeError):
+    """Raised when consistency could not be guaranteed in storage operations."""
+
+
 class CreateResult(str, Enum):
     CREATED = "CREATED"
     DUPLICATE = "DUPLICATE"
@@ -253,12 +257,26 @@ class WatchlistService:
             raise WatchlistLimitExceededError(f"watchlist limit exceeded: max={self._max_items}")
         if create_result is not CreateResult.CREATED:
             raise WatchlistError(f"unexpected create result: {create_result}")
-        self._record_history(
-            ticker=normalized_ticker,
-            action=WatchlistHistoryAction.ADD,
-            reason=reason,
-            acted_at=current_time,
-        )
+        try:
+            self._record_history(
+                ticker=normalized_ticker,
+                action=WatchlistHistoryAction.ADD,
+                reason=reason,
+                acted_at=current_time,
+            )
+        except Exception as exc:
+            rollback_succeeded = False
+            try:
+                rollback_succeeded = self._repository.delete(normalized_ticker)
+            except Exception as rollback_exc:
+                raise WatchlistPersistenceError(
+                    "watchlist履歴保存に失敗し、watchlist追加のロールバックにも失敗しました。"
+                ) from rollback_exc
+            if not rollback_succeeded:
+                raise WatchlistPersistenceError(
+                    "watchlist履歴保存に失敗し、watchlist追加のロールバック対象が見つかりませんでした。"
+                ) from exc
+            raise WatchlistPersistenceError("watchlist履歴保存に失敗したため、watchlist追加をロールバックしました。") from exc
         return item
 
     def list_items(self) -> list[WatchlistItem]:
@@ -320,15 +338,29 @@ class WatchlistService:
         reason: str | None = None,
     ) -> None:
         normalized_ticker = normalize_ticker(ticker)
+        existing = self._repository.get(normalized_ticker)
+        if existing is None:
+            raise WatchlistNotFoundError(f"{normalized_ticker} not found.")
+
         deleted = self._repository.delete(normalized_ticker)
         if not deleted:
             raise WatchlistNotFoundError(f"{normalized_ticker} not found.")
-        self._record_history(
-            ticker=normalized_ticker,
-            action=WatchlistHistoryAction.REMOVE,
-            reason=reason,
-            acted_at=now_iso or self._now_iso(),
-        )
+        acted_at = now_iso or self._now_iso()
+        try:
+            self._record_history(
+                ticker=normalized_ticker,
+                action=WatchlistHistoryAction.REMOVE,
+                reason=reason,
+                acted_at=acted_at,
+            )
+        except Exception as exc:
+            try:
+                self._repository.create(existing)
+            except Exception as rollback_exc:
+                raise WatchlistPersistenceError(
+                    "watchlist履歴保存に失敗し、watchlist削除のロールバックにも失敗しました。"
+                ) from rollback_exc
+            raise WatchlistPersistenceError("watchlist履歴保存に失敗したため、watchlist削除をロールバックしました。") from exc
 
 
 def _coerce_bool(value: Any, *, field_name: str, default: bool) -> bool:

@@ -73,6 +73,12 @@ class FirestoreWatchlistHistoryRepositoryTest(unittest.TestCase):
         self.assertEqual(records[0].reason, "監視終了")
         self.assertEqual(records[1].action, WatchlistHistoryAction.ADD)
 
+        paged = repo.list_timeline(ticker="3901:TSE", limit=1, offset=1)
+        self.assertEqual(len(paged), 1)
+        self.assertEqual(paged[0].action, WatchlistHistoryAction.ADD)
+
+        self.assertEqual(repo.count_timeline(ticker="3901:TSE"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

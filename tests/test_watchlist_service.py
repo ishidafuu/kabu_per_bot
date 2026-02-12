@@ -14,6 +14,7 @@ from kabu_per_bot.watchlist import (
     WatchlistItem,
     WatchlistLimitExceededError,
     WatchlistNotFoundError,
+    WatchlistPersistenceError,
     WatchlistService,
 )
 
@@ -58,6 +59,11 @@ class InMemoryWatchlistHistoryRepository:
 
     def append(self, record: WatchlistHistoryRecord) -> None:
         self.records.append(record)
+
+
+class FailingWatchlistHistoryRepository:
+    def append(self, record: WatchlistHistoryRecord) -> None:
+        raise RuntimeError(f"history append failed: {record.record_id}")
 
 
 class WatchlistServiceTest(unittest.TestCase):
@@ -194,6 +200,42 @@ class WatchlistServiceTest(unittest.TestCase):
         self.assertEqual(history_repo.records[0].reason, "初回登録")
         self.assertEqual(history_repo.records[1].action, WatchlistHistoryAction.REMOVE)
         self.assertEqual(history_repo.records[1].reason, "不要")
+
+    def test_add_rolls_back_when_history_append_fails(self) -> None:
+        repo = InMemoryWatchlistRepository()
+        service = WatchlistService(repo, history_repository=FailingWatchlistHistoryRepository())
+
+        with self.assertRaises(WatchlistPersistenceError):
+            service.add_item(
+                ticker="3901:TSE",
+                name="富士フイルム",
+                metric_type="PER",
+                notify_channel="DISCORD",
+                notify_timing="IMMEDIATE",
+                now_iso="2026-02-12T00:00:00+00:00",
+            )
+
+        self.assertIsNone(repo.get("3901:TSE"))
+
+    def test_delete_rolls_back_when_history_append_fails(self) -> None:
+        repo = InMemoryWatchlistRepository()
+        seed = WatchlistItem(
+            ticker="3901:TSE",
+            name="富士フイルム",
+            metric_type=MetricType.PER,
+            notify_channel=NotifyChannel.DISCORD,
+            notify_timing=NotifyTiming.IMMEDIATE,
+            created_at="2026-02-12T00:00:00+00:00",
+            updated_at="2026-02-12T00:00:00+00:00",
+        )
+        repo.create(seed)
+        service = WatchlistService(repo, history_repository=FailingWatchlistHistoryRepository())
+
+        with self.assertRaises(WatchlistPersistenceError):
+            service.delete_item("3901:TSE", now_iso="2026-02-12T01:00:00+00:00")
+
+        restored = repo.get("3901:TSE")
+        self.assertIsNotNone(restored)
 
 
 if __name__ == "__main__":

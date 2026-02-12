@@ -131,13 +131,37 @@
   - 204: 削除成功
   - 404: 該当なし
 
-### 4.3 履歴/ログ（将来API）
+### 4.3 ダッシュボード
+
+1. `GET /dashboard/summary`
+  - 目的: ダッシュボード集計値の取得
+  - 200レスポンス:
+    - `watchlist_count`
+    - `today_notification_count`
+    - `today_data_unknown_count`
+    - `failed_job_exists`（取得不可時は `null`）
+
+### 4.4 履歴/ログ
 
 1. `GET /watchlist/history`
-  - Issue 04 で実装
+  - 目的: 監視履歴の時系列取得
+  - クエリ:
+    - `ticker`（任意）
+    - `limit`（任意）
+    - `offset`（任意）
+  - 200レスポンス:
+    - `items[]`
+    - `total`
 
 2. `GET /notifications/logs`
-  - Issue 17 で実装
+  - 目的: 通知ログの時系列取得
+  - クエリ:
+    - `ticker`（任意）
+    - `limit`（任意）
+    - `offset`（任意）
+  - 200レスポンス:
+    - `items[]`
+    - `total`
 
 ## 5. 認証・認可
 
@@ -164,4 +188,3 @@
 3. ログイン画面 + ウォッチリスト一覧/編集画面
 4. ダッシュボード最小版
 5. 履歴画面・通知ログ画面
-

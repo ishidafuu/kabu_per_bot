@@ -136,9 +136,31 @@ class FirestoreMetricRepositoriesTest(unittest.TestCase):
                 is_strong=True,
             )
         )
+        log_repo.append(
+            NotificationLogEntry(
+                entry_id="log2",
+                ticker="3901:TSE",
+                category="データ不明",
+                condition_key="UNKNOWN:eps",
+                sent_at="2026-02-13T00:00:00+00:00",
+                channel="DISCORD",
+                payload_hash="hash2",
+                is_strong=False,
+            )
+        )
         logs = log_repo.list_recent("3901:TSE")
-        self.assertEqual(len(logs), 1)
-        self.assertEqual(logs[0].category, "超PER割安")
+        self.assertEqual(len(logs), 2)
+        self.assertEqual(logs[0].category, "データ不明")
+        self.assertEqual(log_repo.count_timeline(ticker="3901:TSE"), 2)
+        ranged = log_repo.list_timeline(
+            ticker="3901:TSE",
+            sent_at_from="2026-02-12T12:00:00+00:00",
+            sent_at_to="2026-02-14T00:00:00+00:00",
+            limit=10,
+            offset=0,
+        )
+        self.assertEqual(len(ranged), 1)
+        self.assertEqual(ranged[0].entry_id, "log2")
 
     def test_earnings_repository(self) -> None:
         repo = FirestoreEarningsCalendarRepository(FakeFirestoreClient())
