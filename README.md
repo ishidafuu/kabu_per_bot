@@ -29,3 +29,5 @@ python -m unittest discover -s tests
 ```bash
 PYTHONPATH=src python scripts/migrate_firestore_v0001.py --project-id <GCP_PROJECT_ID>
 ```
+
+`--project-id` を省略する場合は、`.env` または環境変数で `FIRESTORE_PROJECT_ID` を設定してください。

@@ -6,6 +6,10 @@ import unittest
 from kabu_per_bot.storage.firestore_store import FirestoreDocumentStore
 
 
+class AlreadyExists(Exception):
+    pass
+
+
 @dataclass
 class FakeSnapshot:
     exists: bool
@@ -35,6 +39,14 @@ class FakeDocumentRef:
         if self.path not in self.db:
             return FakeSnapshot(exists=False, data=None)
         return FakeSnapshot(exists=True, data=dict(self.db[self.path]))
+
+    def create(self, data: dict) -> None:
+        if self.path in self.db:
+            raise AlreadyExists("already exists")
+        self.db[self.path] = dict(data)
+
+    def delete(self) -> None:
+        self.db.pop(self.path, None)
 
 
 @dataclass
@@ -68,7 +80,21 @@ class FirestoreDocumentStoreTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             store.get_document("watchlist")
 
+    def test_create_document(self) -> None:
+        store = FirestoreDocumentStore(FakeFirestoreClient())
+        first = store.create_document("watchlist/3901:TSE", {"ticker": "3901:TSE"})
+        second = store.create_document("watchlist/3901:TSE", {"ticker": "3901:TSE"})
+
+        self.assertTrue(first)
+        self.assertFalse(second)
+
+    def test_delete_document(self) -> None:
+        store = FirestoreDocumentStore(FakeFirestoreClient())
+        store.set_document("watchlist/3901:TSE", {"ticker": "3901:TSE"})
+        store.delete_document("watchlist/3901:TSE")
+
+        self.assertIsNone(store.get_document("watchlist/3901:TSE"))
+
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -47,6 +47,8 @@ FirestoreはRDBの一意制約を持たないため、ドキュメントIDを合
   - `_meta/schema` にスキーマバージョン保存
   - `_meta/schema/migrations/0001_initial` に適用記録保存
   - `_meta/schema/collections/{collection}` にコレクション登録
+- 並行実行対策:
+  - `_meta/schema/migrations/0001_initial_lock` をロックとして使用し、同時適用を抑制する
+  - 適用記録（`0001_initial`）は最後に保存する
 
 この仕組みにより、同じマイグレーションの二重適用を防止する。
-

@@ -33,3 +33,16 @@ class FirestoreDocumentStore:
         ref = self._document_ref(path)
         ref.set(dict(data), merge=merge)
 
+    def create_document(self, path: str, data: Mapping[str, Any]) -> bool:
+        ref = self._document_ref(path)
+        try:
+            ref.create(dict(data))
+            return True
+        except Exception as exc:
+            if exc.__class__.__name__ in {"AlreadyExists", "Conflict"}:
+                return False
+            raise
+
+    def delete_document(self, path: str) -> None:
+        ref = self._document_ref(path)
+        ref.delete()
