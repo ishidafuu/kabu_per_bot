@@ -11,6 +11,26 @@ export const LoginPage = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const runAuthAction = async (
+    action: () => Promise<void>,
+    fallbackError: string,
+  ): Promise<void> => {
+    setErrorMessage('');
+    setIsSubmitting(true);
+
+    try {
+      await action();
+    } catch (error) {
+      if (error instanceof Error) {
+        setErrorMessage(error.message);
+      } else {
+        setErrorMessage(fallbackError);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     if (status === 'authenticated') {
       const destination =
@@ -21,33 +41,11 @@ export const LoginPage = () => {
 
   const handleLogin = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
-    setErrorMessage('');
-    setIsSubmitting(true);
-
-    try {
-      await login({ email: email.trim(), password });
-    } catch (error) {
-      if (error instanceof Error) {
-        setErrorMessage(error.message);
-      } else {
-        setErrorMessage('ログインに失敗しました。');
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+    await runAuthAction(() => login({ email: email.trim(), password }), 'ログインに失敗しました。');
   };
 
   const handleMockLogin = async (): Promise<void> => {
-    setErrorMessage('');
-    setIsSubmitting(true);
-
-    try {
-      await mockLogin();
-    } catch {
-      setErrorMessage('モックログインに失敗しました。');
-    } finally {
-      setIsSubmitting(false);
-    }
+    await runAuthAction(() => mockLogin(), 'モックログインに失敗しました。');
   };
 
   return (

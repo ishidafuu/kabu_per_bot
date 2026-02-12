@@ -19,7 +19,7 @@ export const WatchlistPage = () => {
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [offset, setOffset] = useState(0);
-  const [limit] = useState(appConfig.pageSize);
+  const limit = appConfig.pageSize;
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [noticeMessage, setNoticeMessage] = useState('');
@@ -27,6 +27,12 @@ export const WatchlistPage = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [formError, setFormError] = useState('');
+
+  const closeForm = (): void => {
+    setIsFormOpen(false);
+    setEditingItem(null);
+    setFormError('');
+  };
 
   const fetchWatchlist = useCallback(async (): Promise<void> => {
     setIsLoading(true);
@@ -77,8 +83,7 @@ export const WatchlistPage = () => {
   };
 
   const openCreateForm = (): void => {
-    setEditingItem(null);
-    setFormError('');
+    closeForm();
     setIsFormOpen(true);
   };
 
@@ -94,31 +99,27 @@ export const WatchlistPage = () => {
     setIsSubmittingForm(true);
 
     try {
+      const payload = {
+        name: values.name,
+        metric_type: values.metric_type,
+        notify_channel: values.notify_channel,
+        notify_timing: values.notify_timing,
+        is_active: values.is_active,
+        ai_enabled: values.ai_enabled,
+      };
+
       if (!editingItem) {
         await client.create({
           ticker: values.ticker,
-          name: values.name,
-          metric_type: values.metric_type,
-          notify_channel: values.notify_channel,
-          notify_timing: values.notify_timing,
-          is_active: values.is_active,
-          ai_enabled: values.ai_enabled,
+          ...payload,
         });
         setNoticeMessage(`追加しました: ${values.ticker}`);
       } else {
-        await client.update(editingItem.ticker, {
-          name: values.name,
-          metric_type: values.metric_type,
-          notify_channel: values.notify_channel,
-          notify_timing: values.notify_timing,
-          is_active: values.is_active,
-          ai_enabled: values.ai_enabled,
-        });
+        await client.update(editingItem.ticker, payload);
         setNoticeMessage(`更新しました: ${editingItem.ticker}`);
       }
 
-      setIsFormOpen(false);
-      setEditingItem(null);
+      closeForm();
       await fetchWatchlist();
     } catch (error) {
       setFormError(toUserMessage(error));
@@ -254,16 +255,13 @@ export const WatchlistPage = () => {
 
       {isFormOpen && (
         <WatchlistForm
+          key={editingItem?.ticker ?? 'create'}
           mode={editingItem ? 'edit' : 'create'}
           initialValue={editingItem ?? undefined}
           submitting={isSubmittingForm}
           apiErrorMessage={formError}
           onSubmit={handleFormSubmit}
-          onCancel={() => {
-            setIsFormOpen(false);
-            setEditingItem(null);
-            setFormError('');
-          }}
+          onCancel={closeForm}
         />
       )}
     </main>

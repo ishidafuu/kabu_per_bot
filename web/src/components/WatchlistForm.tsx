@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import type {
   MetricType,
   NotifyChannel,
@@ -51,16 +51,15 @@ export const WatchlistForm = ({
   const [localError, setLocalError] = useState<string>('');
 
   const title = mode === 'create' ? '銘柄を追加' : '銘柄を編集';
-
   const canEditTicker = mode === 'create';
+  const submitLabel = submitting ? '送信中...' : mode === 'create' ? '追加する' : '更新する';
 
-  const submitLabel = useMemo(() => {
-    if (submitting) {
-      return '送信中...';
-    }
-
-    return mode === 'create' ? '追加する' : '更新する';
-  }, [mode, submitting]);
+  const updateField = <K extends keyof WatchlistFormValues>(
+    key: K,
+    value: WatchlistFormValues[K],
+  ): void => {
+    setValues((prev) => ({ ...prev, [key]: value }));
+  };
 
   const handleSubmit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
@@ -98,7 +97,7 @@ export const WatchlistForm = ({
             type="text"
             value={values.ticker}
             onChange={(event) => {
-              setValues((prev) => ({ ...prev, ticker: event.target.value }));
+              updateField('ticker', event.target.value);
             }}
             placeholder="例: 7203:TSE"
             disabled={!canEditTicker}
@@ -112,7 +111,7 @@ export const WatchlistForm = ({
             type="text"
             value={values.name}
             onChange={(event) => {
-              setValues((prev) => ({ ...prev, name: event.target.value }));
+              updateField('name', event.target.value);
             }}
             required
           />
@@ -123,10 +122,7 @@ export const WatchlistForm = ({
           <select
             value={values.metric_type}
             onChange={(event) => {
-              setValues((prev) => ({
-                ...prev,
-                metric_type: event.target.value as MetricType,
-              }));
+              updateField('metric_type', event.target.value as MetricType);
             }}
           >
             <option value="PER">PER</option>
@@ -139,10 +135,7 @@ export const WatchlistForm = ({
           <select
             value={values.notify_channel}
             onChange={(event) => {
-              setValues((prev) => ({
-                ...prev,
-                notify_channel: event.target.value as NotifyChannel,
-              }));
+              updateField('notify_channel', event.target.value as NotifyChannel);
             }}
           >
             <option value="DISCORD">DISCORD</option>
@@ -157,10 +150,7 @@ export const WatchlistForm = ({
           <select
             value={values.notify_timing}
             onChange={(event) => {
-              setValues((prev) => ({
-                ...prev,
-                notify_timing: event.target.value as NotifyTiming,
-              }));
+              updateField('notify_timing', event.target.value as NotifyTiming);
             }}
           >
             <option value="IMMEDIATE">IMMEDIATE</option>
@@ -175,7 +165,7 @@ export const WatchlistForm = ({
               type="checkbox"
               checked={values.is_active}
               onChange={(event) => {
-                setValues((prev) => ({ ...prev, is_active: event.target.checked }));
+                updateField('is_active', event.target.checked);
               }}
             />
             有効
@@ -185,7 +175,7 @@ export const WatchlistForm = ({
               type="checkbox"
               checked={values.ai_enabled}
               onChange={(event) => {
-                setValues((prev) => ({ ...prev, ai_enabled: event.target.checked }));
+                updateField('ai_enabled', event.target.checked);
               }}
             />
             AI通知
