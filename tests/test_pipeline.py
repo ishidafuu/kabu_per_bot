@@ -3,9 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import unittest
 
+from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.market_data import MarketDataFetchError, MarketDataSnapshot
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
-from kabu_per_bot.pipeline import DailyPipelineConfig, run_daily_pipeline
+from kabu_per_bot.pipeline import (
+    DailyPipelineConfig,
+    run_daily_pipeline,
+    run_tomorrow_earnings_pipeline,
+    run_weekly_earnings_pipeline,
+)
 from kabu_per_bot.signal import NotificationLogEntry, SignalState
 from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchlistItem
 
@@ -101,6 +107,17 @@ def _watch_item(ticker: str, name: str) -> WatchlistItem:
         metric_type=MetricType.PER,
         notify_channel=NotifyChannel.DISCORD,
         notify_timing=NotifyTiming.IMMEDIATE,
+    )
+
+
+def _earnings_entry(ticker: str, earnings_date: str) -> EarningsCalendarEntry:
+    return EarningsCalendarEntry(
+        ticker=ticker,
+        earnings_date=earnings_date,
+        earnings_time="15:00",
+        quarter="3Q",
+        source="株探",
+        fetched_at="2026-02-12T00:00:00+00:00",
     )
 
 
@@ -372,6 +389,99 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.sent_notifications, 1)
         self.assertIn("【データ不明】", sender.messages[0])
         self.assertIn("earnings_date", sender.messages[0])
+
+    def test_weekly_earnings_pipeline_notifies_watch_targets_only(self) -> None:
+        watchlist_items = [
+            WatchlistItem(
+                ticker="3901:TSE",
+                name="A",
+                metric_type=MetricType.PER,
+                notify_channel=NotifyChannel.DISCORD,
+                notify_timing=NotifyTiming.AT_21,
+            ),
+            WatchlistItem(
+                ticker="3902:TSE",
+                name="B",
+                metric_type=MetricType.PER,
+                notify_channel=NotifyChannel.LINE,
+                notify_timing=NotifyTiming.AT_21,
+            ),
+            WatchlistItem(
+                ticker="3903:TSE",
+                name="C",
+                metric_type=MetricType.PER,
+                notify_channel=NotifyChannel.DISCORD,
+                notify_timing=NotifyTiming.OFF,
+            ),
+            WatchlistItem(
+                ticker="3904:TSE",
+                name="D",
+                metric_type=MetricType.PER,
+                notify_channel=NotifyChannel.DISCORD,
+                notify_timing=NotifyTiming.AT_21,
+                is_active=False,
+            ),
+        ]
+        entries = [
+            _earnings_entry("3901:TSE", "2026-02-16"),
+            _earnings_entry("3902:TSE", "2026-02-16"),
+            _earnings_entry("3903:TSE", "2026-02-16"),
+            _earnings_entry("3904:TSE", "2026-02-16"),
+            _earnings_entry("3999:TSE", "2026-02-16"),
+        ]
+        log_repo = InMemoryNotificationLogRepo()
+        sender = SpySender()
+
+        result = run_weekly_earnings_pipeline(
+            today="2026-02-14",
+            watchlist_items=watchlist_items,
+            earnings_entries=entries,
+            notification_log_repo=log_repo,
+            sender=sender,
+            cooldown_hours=2,
+            now_iso="2026-02-14T12:00:00+00:00",
+        )
+
+        self.assertEqual(result.processed_tickers, 1)
+        self.assertEqual(result.sent_notifications, 1)
+        self.assertEqual(len(sender.messages), 1)
+        self.assertIn("【今週決算】", sender.messages[0])
+        self.assertIn("3901:TSE", sender.messages[0])
+        self.assertEqual(len(log_repo.rows), 1)
+        self.assertEqual(log_repo.rows[0].category, "今週決算")
+
+    def test_tomorrow_earnings_pipeline_sets_category_and_applies_cooldown(self) -> None:
+        watchlist_items = [_watch_item("3901:TSE", "富士フイルム")]
+        entries = [_earnings_entry("3901:TSE", "2026-02-13")]
+        log_repo = InMemoryNotificationLogRepo()
+        sender = SpySender()
+
+        first = run_tomorrow_earnings_pipeline(
+            today="2026-02-12",
+            watchlist_items=watchlist_items,
+            earnings_entries=entries,
+            notification_log_repo=log_repo,
+            sender=sender,
+            cooldown_hours=2,
+            now_iso="2026-02-12T12:00:00+00:00",
+        )
+        second = run_tomorrow_earnings_pipeline(
+            today="2026-02-12",
+            watchlist_items=watchlist_items,
+            earnings_entries=entries,
+            notification_log_repo=log_repo,
+            sender=sender,
+            cooldown_hours=2,
+            now_iso="2026-02-12T13:00:00+00:00",
+        )
+
+        self.assertEqual(first.sent_notifications, 1)
+        self.assertEqual(second.sent_notifications, 0)
+        self.assertEqual(second.skipped_notifications, 1)
+        self.assertEqual(len(sender.messages), 1)
+        self.assertIn("【明日決算】", sender.messages[0])
+        self.assertEqual(len(log_repo.rows), 1)
+        self.assertEqual(log_repo.rows[0].category, "明日決算")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ from kabu_per_bot.earnings import (
     select_tomorrow_entries,
     sync_earnings_calendar_for_ticker,
 )
+from kabu_per_bot.earnings_job import resolve_today_jst
 from kabu_per_bot.storage.firestore_earnings_calendar_repository import FirestoreEarningsCalendarRepository
 
 
@@ -365,6 +366,22 @@ class EarningsTest(unittest.TestCase):
                     fetched_at="2026-02-12T00:00:00+00:00",
                 )
         self.assertIn("決算カレンダー変換失敗", logs.output[0])
+
+    def test_resolve_today_jst_keeps_date_before_midnight(self) -> None:
+        today = resolve_today_jst(now_iso="2026-02-14T14:59:59+00:00")
+        self.assertEqual(today, "2026-02-14")
+
+    def test_resolve_today_jst_rolls_date_after_midnight(self) -> None:
+        today = resolve_today_jst(now_iso="2026-02-14T15:00:00+00:00")
+        self.assertEqual(today, "2026-02-15")
+
+    def test_resolve_today_jst_rejects_non_jst_timezone(self) -> None:
+        with self.assertRaises(ValueError):
+            resolve_today_jst(now_iso="2026-02-14T15:00:00+00:00", timezone_name="UTC")
+
+    def test_resolve_today_jst_rejects_naive_now_iso(self) -> None:
+        with self.assertRaises(ValueError):
+            resolve_today_jst(now_iso="2026-02-14T21:00:00")
 
 
 if __name__ == "__main__":

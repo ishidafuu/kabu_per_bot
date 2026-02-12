@@ -57,6 +57,19 @@ Discord送信まで疎通確認する場合:
 PYTHONPATH=src python scripts/run_daily_job.py --discord-webhook-url <DISCORD_WEBHOOK_URL>
 ```
 
+## 決算通知ジョブ実行（Issue 15）
+
+Firestoreの `watchlist` / `earnings_calendar` を使って通知する実行コマンド:
+
+```bash
+PYTHONPATH=src python scripts/run_earnings_job.py --job weekly --discord-webhook-url <DISCORD_WEBHOOK_URL>
+PYTHONPATH=src python scripts/run_earnings_job.py --job tomorrow --discord-webhook-url <DISCORD_WEBHOOK_URL>
+```
+
+- `weekly`: 土曜21時（JST）想定。来週分を `今週決算` カテゴリで通知。
+- `tomorrow`: 毎日21時（JST）想定。翌日分を `明日決算` カテゴリで通知。
+- `--discord-webhook-url` 未指定時は `DISCORD_WEBHOOK_URL` を利用。
+
 ## Discord疎通テスト（Issue 12）
 
 ```bash

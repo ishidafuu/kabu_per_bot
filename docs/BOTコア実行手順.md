@@ -50,7 +50,18 @@ export DISCORD_WEBHOOK_URL=<DISCORD_WEBHOOK_URL>
 PYTHONPATH=src python scripts/send_discord_test_notification.py
 ```
 
-## 6. マイグレーション
+## 6. 決算通知ジョブ（Issue 15）
+
+```bash
+PYTHONPATH=src python scripts/run_earnings_job.py --job weekly --discord-webhook-url <DISCORD_WEBHOOK_URL>
+PYTHONPATH=src python scripts/run_earnings_job.py --job tomorrow --discord-webhook-url <DISCORD_WEBHOOK_URL>
+```
+
+- `weekly`: 土曜21時（JST）想定。来週決算を `今週決算` として通知。
+- `tomorrow`: 毎日21時（JST）想定。翌日決算を `明日決算` として通知。
+- `FIRESTORE_PROJECT_ID` と `DISCORD_WEBHOOK_URL` を利用する。
+
+## 7. マイグレーション
 
 ```bash
 PYTHONPATH=src python scripts/migrate_firestore_v0001.py --project-id <GCP_PROJECT_ID>
