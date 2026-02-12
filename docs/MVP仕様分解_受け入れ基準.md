@@ -140,3 +140,6 @@ MVP外（第2段階）:
 4. 「来週」は月曜開始〜日曜終了の暦週で判定
 5. LINEはMessaging API前提で実装（Notifyは非推奨扱い）
 6. 通知チャネル実装順は `Discord → LINE`
+7. SNS取得（第2段階）は `X API` を標準採用
+8. AI要約（第2段階）は `Vertex AI Gemini` を標準採用
+9. Grokは第2段階初期では採用しない（品質不足時のみ比較PoC）
