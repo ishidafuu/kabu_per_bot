@@ -24,6 +24,8 @@ FirestoreはRDBの一意制約を持たないため、ドキュメントIDを合
    - doc id: `{ticker}|{trade_date}`
 5. `earnings_calendar`
    - doc id: `{ticker}|{earnings_date}|{quarter_or_NA}`
+   - 必須フィールド: `ticker`, `earnings_date`
+   - 欠損許容フィールド: `earnings_time`, `quarter`, `source`, `fetched_at`
 
 ## 3. インデックス
 
