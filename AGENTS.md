@@ -10,6 +10,7 @@
 - 仕様の正本は以下とする。
   - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/MVP仕様分解_受け入れ基準.md`
   - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/実装タスク_Issue一覧.md`
+  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/技術スタック定義.md`
 
 ## 2. スコープ管理
 
