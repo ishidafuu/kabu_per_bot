@@ -143,3 +143,5 @@ MVP外（第2段階）:
 7. SNS取得（第2段階）は `X API` を標準採用
 8. AI要約（第2段階）は `Vertex AI Gemini` を標準採用
 9. Grokは第2段階初期では採用しない（品質不足時のみ比較PoC）
+10. Web管理画面は `React + TypeScript + Firebase Hosting` を採用
+11. 管理APIは `FastAPI（Python）+ Cloud Run` を採用
