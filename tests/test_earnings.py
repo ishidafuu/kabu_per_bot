@@ -30,6 +30,10 @@ class FakeDocumentRef:
     def set(self, data: dict, merge: bool = False) -> None:
         self.db[self.path] = dict(data)
 
+    def delete(self) -> None:
+        if self.path in self.db:
+            del self.db[self.path]
+
 
 @dataclass
 class FakeCollectionRef:
@@ -72,6 +76,15 @@ class FailingEarningsSource:
 
     def fetch_earnings_calendar(self, ticker: str) -> list[dict]:
         raise RuntimeError(f"failed for {ticker}")
+
+
+class InvalidPayloadEarningsSource:
+    def __init__(self, source_name: str = "不正ソース") -> None:
+        self.source_name = source_name
+
+    def fetch_earnings_calendar(self, ticker: str) -> list[dict]:
+        _ = ticker
+        return None  # type: ignore[return-value]
 
 
 class EarningsTest(unittest.TestCase):
@@ -188,6 +201,66 @@ class EarningsTest(unittest.TestCase):
         self.assertEqual(rows[0].earnings_time, "16:00")
         self.assertEqual(rows[0].fetched_at, "2026-02-12T01:00:00+00:00")
 
+    def test_sync_replaces_stale_rows_for_ticker(self) -> None:
+        repo = FirestoreEarningsCalendarRepository(FakeFirestoreClient())
+        first_source = StaticEarningsSource(
+            source_name="株探",
+            rows=[
+                {
+                    "earnings_date": "2026-02-13",
+                    "quarter": "3Q",
+                }
+            ],
+        )
+        second_source = StaticEarningsSource(
+            source_name="株探",
+            rows=[
+                {
+                    "earnings_date": "2026-02-20",
+                    "quarter": "3Q",
+                }
+            ],
+        )
+
+        sync_earnings_calendar_for_ticker(
+            ticker="3901:TSE",
+            source=first_source,
+            repository=repo,
+            fetched_at="2026-02-12T00:00:00+00:00",
+        )
+        sync_earnings_calendar_for_ticker(
+            ticker="3901:TSE",
+            source=second_source,
+            repository=repo,
+            fetched_at="2026-02-12T01:00:00+00:00",
+        )
+
+        rows = repo.list_by_ticker("3901:TSE")
+        self.assertEqual([(row.earnings_date, row.quarter) for row in rows], [("2026-02-20", "3Q")])
+
+    def test_sync_clears_rows_when_source_returns_empty(self) -> None:
+        repo = FirestoreEarningsCalendarRepository(FakeFirestoreClient())
+        first_source = StaticEarningsSource(
+            source_name="株探",
+            rows=[{"earnings_date": "2026-02-13", "quarter": "3Q"}],
+        )
+        empty_source = StaticEarningsSource(source_name="株探", rows=[])
+
+        sync_earnings_calendar_for_ticker(
+            ticker="3901:TSE",
+            source=first_source,
+            repository=repo,
+            fetched_at="2026-02-12T00:00:00+00:00",
+        )
+        sync_earnings_calendar_for_ticker(
+            ticker="3901:TSE",
+            source=empty_source,
+            repository=repo,
+            fetched_at="2026-02-12T01:00:00+00:00",
+        )
+
+        self.assertEqual(repo.list_by_ticker("3901:TSE"), [])
+
     def test_sync_allows_date_only_row(self) -> None:
         repo = FirestoreEarningsCalendarRepository(FakeFirestoreClient())
         source = StaticEarningsSource(
@@ -265,6 +338,19 @@ class EarningsTest(unittest.TestCase):
                     repository=repo,
                 )
         self.assertIn("決算カレンダー取得失敗", logs.output[0])
+
+    def test_sync_raises_visible_error_when_fetch_payload_is_invalid(self) -> None:
+        repo = FirestoreEarningsCalendarRepository(FakeFirestoreClient())
+        source = InvalidPayloadEarningsSource()
+
+        with self.assertLogs("kabu_per_bot.earnings", level="ERROR") as logs:
+            with self.assertRaises(EarningsCalendarSyncError):
+                sync_earnings_calendar_for_ticker(
+                    ticker="3901:TSE",
+                    source=source,
+                    repository=repo,
+                )
+        self.assertIn("決算カレンダー取得結果不正", logs.output[0])
 
     def test_sync_raises_visible_error_when_row_is_invalid(self) -> None:
         repo = FirestoreEarningsCalendarRepository(FakeFirestoreClient())

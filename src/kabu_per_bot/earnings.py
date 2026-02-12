@@ -20,8 +20,8 @@ class EarningsCalendarSource(Protocol):
 
 
 class EarningsCalendarRepository(Protocol):
-    def upsert(self, entry: "EarningsCalendarEntry") -> None:
-        """Persist one earnings calendar row."""
+    def replace_by_ticker(self, ticker: str, entries: list["EarningsCalendarEntry"]) -> None:
+        """Replace earnings calendar rows for one ticker."""
 
 
 @dataclass(frozen=True)
@@ -73,8 +73,18 @@ def sync_earnings_calendar_for_ticker(
         raise EarningsCalendarSyncError(
             f"決算カレンダー取得に失敗しました: ticker={normalized_ticker} source={source_name}"
         ) from exc
+    if not isinstance(raw_entries, list):
+        LOGGER.error(
+            "決算カレンダー取得結果不正: ticker=%s source=%s type=%s",
+            normalized_ticker,
+            source_name,
+            type(raw_entries).__name__,
+        )
+        raise EarningsCalendarSyncError(
+            f"決算カレンダー取得結果が不正です: ticker={normalized_ticker} source={source_name}"
+        )
 
-    saved_entries: list[EarningsCalendarEntry] = []
+    normalized_entries: list[EarningsCalendarEntry] = []
     for index, raw_entry in enumerate(raw_entries):
         try:
             entry = _normalize_entry(
@@ -95,25 +105,25 @@ def sync_earnings_calendar_for_ticker(
                 f"決算カレンダー変換に失敗しました: ticker={normalized_ticker} source={source_name} index={index}"
             ) from exc
 
-        try:
-            repository.upsert(entry)
-        except Exception as exc:
-            LOGGER.exception(
-                "決算カレンダー保存失敗: ticker=%s source=%s earnings_date=%s quarter=%s",
-                normalized_ticker,
-                source_name,
-                entry.earnings_date,
-                entry.quarter,
-            )
-            raise EarningsCalendarSyncError(
-                f"決算カレンダー保存に失敗しました: ticker={normalized_ticker} source={source_name}"
-            ) from exc
-        saved_entries.append(entry)
+        normalized_entries.append(entry)
 
-    if not saved_entries:
+    try:
+        repository.replace_by_ticker(normalized_ticker, normalized_entries)
+    except Exception as exc:
+        LOGGER.exception(
+            "決算カレンダー保存失敗: ticker=%s source=%s rows=%s",
+            normalized_ticker,
+            source_name,
+            len(normalized_entries),
+        )
+        raise EarningsCalendarSyncError(
+            f"決算カレンダー保存に失敗しました: ticker={normalized_ticker} source={source_name}"
+        ) from exc
+
+    if not normalized_entries:
         LOGGER.warning("決算カレンダー0件: ticker=%s source=%s", normalized_ticker, source_name)
 
-    return saved_entries
+    return normalized_entries
 
 
 def select_next_week_entries(entries: list[EarningsCalendarEntry], *, today: str) -> list[EarningsCalendarEntry]:

@@ -31,6 +31,43 @@ class FirestoreEarningsCalendarRepository:
             )
             raise
 
+    def replace_by_ticker(self, ticker: str, entries: list[EarningsCalendarEntry]) -> None:
+        normalized_ticker = normalize_ticker(ticker)
+        expected_doc_ids: set[str] = set()
+        for entry in entries:
+            if normalize_ticker(entry.ticker) != normalized_ticker:
+                raise ValueError(f"ticker mismatch: {entry.ticker} != {normalized_ticker}")
+            expected_doc_ids.add(earnings_calendar_doc_id(entry.ticker, entry.earnings_date, entry.quarter))
+
+        stale_doc_ids: list[str] = []
+        for snapshot in self._collection.stream():
+            data = snapshot.to_dict() or {}
+            if str(data.get("ticker", "")).upper() != normalized_ticker:
+                continue
+            try:
+                existing = EarningsCalendarEntry.from_document(data)
+            except Exception as exc:
+                LOGGER.error(
+                    "earnings_calendar既存読込失敗: ticker=%s data=%s error=%s",
+                    normalized_ticker,
+                    data,
+                    exc,
+                )
+                continue
+            doc_id = earnings_calendar_doc_id(existing.ticker, existing.earnings_date, existing.quarter)
+            if doc_id not in expected_doc_ids:
+                stale_doc_ids.append(doc_id)
+
+        for doc_id in stale_doc_ids:
+            try:
+                self._collection.document(doc_id).delete()
+            except Exception:
+                LOGGER.exception("earnings_calendar削除失敗: ticker=%s doc_id=%s", normalized_ticker, doc_id)
+                raise
+
+        for entry in entries:
+            self.upsert(entry)
+
     def list_all(self) -> list[EarningsCalendarEntry]:
         rows: list[EarningsCalendarEntry] = []
         for snapshot in self._collection.stream():
