@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 import os
 
@@ -62,12 +61,6 @@ class FirebaseAdminTokenVerifier:
             raise UnauthorizedError("認証に失敗しました。") from exc
 
 
-@dataclass(frozen=True)
-class AuthContext:
-    uid: str
-    claims: Mapping[str, Any]
-
-
 def parse_bearer_token(authorization: str | None) -> str:
     if not authorization:
         raise UnauthorizedError("Authorization ヘッダーが必要です。")
@@ -105,7 +98,7 @@ def is_protected_path(path: str) -> bool:
 
 def authenticate_request(
     request: Request,
-) -> AuthContext:
+) -> None:
     token = parse_bearer_token(request.headers.get("Authorization"))
     verifier = get_token_verifier(request)
     claims = verifier.verify(token)
@@ -116,4 +109,3 @@ def authenticate_request(
     allowed_uids = _allowed_uids_from_env()
     if allowed_uids is not None and uid not in allowed_uids:
         raise ForbiddenError("このユーザーは許可されていません。")
-    return AuthContext(uid=uid, claims=claims)

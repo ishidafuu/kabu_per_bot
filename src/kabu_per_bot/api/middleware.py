@@ -17,7 +17,7 @@ def install_auth_middleware(app: FastAPI) -> None:
     ) -> Response:
         if request.method != "OPTIONS" and is_protected_path(request.url.path):
             try:
-                request.state.auth = authenticate_request(request)
+                authenticate_request(request)
             except APIError as exc:
                 return build_error_response(
                     status_code=exc.status_code,
