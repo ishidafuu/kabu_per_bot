@@ -54,6 +54,18 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.window_3m_days, 63)
         self.assertEqual(settings.window_1y_days, 252)
 
+    def test_env_has_priority_over_dotenv(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dotenv = Path(tmpdir) / ".env"
+            dotenv.write_text("WINDOW_1W_DAYS=6\n", encoding="utf-8")
+
+            settings = load_settings(
+                env={"WINDOW_1W_DAYS": "8"},
+                dotenv_path=dotenv,
+            )
+
+        self.assertEqual(settings.window_1w_days, 8)
+
     def test_invalid_integer_raises(self) -> None:
         with self.assertRaises(SettingsError):
             load_settings(
@@ -61,7 +73,24 @@ class LoadSettingsTest(unittest.TestCase):
                 dotenv_path="does-not-exist.env",
             )
 
+    def test_invalid_timezone_raises(self) -> None:
+        with self.assertRaises(SettingsError):
+            load_settings(
+                env={"APP_TIMEZONE": "Invalid/Timezone"},
+                dotenv_path="does-not-exist.env",
+            )
+
+    def test_invalid_window_order_raises(self) -> None:
+        with self.assertRaises(SettingsError):
+            load_settings(
+                env={
+                    "WINDOW_1W_DAYS": "70",
+                    "WINDOW_3M_DAYS": "63",
+                    "WINDOW_1Y_DAYS": "252",
+                },
+                dotenv_path="does-not-exist.env",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
-

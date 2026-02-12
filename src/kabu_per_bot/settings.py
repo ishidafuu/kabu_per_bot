@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 import os
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 DEFAULT_TIMEZONE = "Asia/Tokyo"
@@ -80,12 +81,23 @@ def load_settings(
     dotenv_values = _read_dotenv(Path(dotenv_path))
     merged: dict[str, str] = {**dotenv_values, **env_values}
 
+    timezone = _get_str(merged, "APP_TIMEZONE", DEFAULT_TIMEZONE)
+    try:
+        ZoneInfo(timezone)
+    except ZoneInfoNotFoundError as exc:
+        raise SettingsError(f"APP_TIMEZONE is invalid: {timezone}") from exc
+
+    window_1w_days = _get_int(merged, "WINDOW_1W_DAYS", DEFAULT_WINDOW_1W_DAYS)
+    window_3m_days = _get_int(merged, "WINDOW_3M_DAYS", DEFAULT_WINDOW_3M_DAYS)
+    window_1y_days = _get_int(merged, "WINDOW_1Y_DAYS", DEFAULT_WINDOW_1Y_DAYS)
+    if not (window_1w_days <= window_3m_days <= window_1y_days):
+        raise SettingsError("WINDOW_* must satisfy 1W <= 3M <= 1Y.")
+
     return AppSettings(
         app_env=_get_str(merged, "APP_ENV", "development"),
-        timezone=_get_str(merged, "APP_TIMEZONE", DEFAULT_TIMEZONE),
-        window_1w_days=_get_int(merged, "WINDOW_1W_DAYS", DEFAULT_WINDOW_1W_DAYS),
-        window_3m_days=_get_int(merged, "WINDOW_3M_DAYS", DEFAULT_WINDOW_3M_DAYS),
-        window_1y_days=_get_int(merged, "WINDOW_1Y_DAYS", DEFAULT_WINDOW_1Y_DAYS),
+        timezone=timezone,
+        window_1w_days=window_1w_days,
+        window_3m_days=window_3m_days,
+        window_1y_days=window_1y_days,
         cooldown_hours=_get_int(merged, "COOLDOWN_HOURS", DEFAULT_COOLDOWN_HOURS),
     )
-
