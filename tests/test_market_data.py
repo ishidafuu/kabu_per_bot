@@ -130,18 +130,25 @@ class MarketDataSourceTest(unittest.TestCase):
         </table>
         """
         finance_html = """
-        <table>
-          <tr>
-            <th scope='row'><span class='kubun1'>I 予 </span>2026.03</th>
-            <td>50,000,000</td>
-            <td>3,800,000</td>
-            <td>5,020,000</td>
-            <td>3,570,000</td>
-            <td>273.9</td>
-            <td>95</td>
-            <td class='fb_pdf1'>26/02/06</td>
-          </tr>
-        </table>
+        <div class="fin_year_t0_d fin_year_result_d">
+          <table>
+            <tr>
+              <th scope="col" colspan="2">
+                <div>日経平均 <time datetime="2026-02-12T15:30+09:00">15:30</time></div>
+              </th>
+            </tr>
+            <tr>
+              <th scope='row'><span class='kubun1'>I 予 </span>2026.03</th>
+              <td>50,000,000</td>
+              <td>3,800,000</td>
+              <td>5,020,000</td>
+              <td>3,570,000</td>
+              <td>273.9</td>
+              <td>95</td>
+              <td class='fb_pdf1'>26/02/06</td>
+            </tr>
+          </table>
+        </div>
         """
         client = FakeHttpClient(
             {
@@ -163,12 +170,14 @@ class MarketDataSourceTest(unittest.TestCase):
         finance_url = "https://kabutan.jp/stock/finance?code=7203"
         stock_html = "<th scope='row'>終値</th><td>3,705</td>"
         finance_html = """
-        <table>
-          <tr>
-            <th scope='row'>I 予 2026.03</th>
-            <td>50,000,000</td><td>3,800,000</td><td>5,020,000</td><td>3,570,000</td><td>-</td><td>95</td><td>26/02/06</td>
-          </tr>
-        </table>
+        <div class="fin_year_t0_d fin_year_result_d">
+          <table>
+            <tr>
+              <th scope='row'>I 予 2026.03</th>
+              <td>50,000,000</td><td>3,800,000</td><td>5,020,000</td><td>3,570,000</td><td>-</td><td>95</td><td>26/02/06</td>
+            </tr>
+          </table>
+        </div>
         """
         client = FakeHttpClient(
             {

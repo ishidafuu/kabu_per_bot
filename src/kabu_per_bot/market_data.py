@@ -225,27 +225,7 @@ class KabutanMarketDataSource(_HttpMarketDataSource):
 
         close_price = _try_parse_number(stock_page, [r"<th[^>]*>\s*終値\s*</th>\s*<td[^>]*>\s*([^<]+)"], label="close_price")
 
-        forecast_row = _find_first(finance_page, [r"<tr[^>]*>\s*<th[^>]*>.*?予.*?</th>(.*?)</tr>"])
-        sales_forecast: float | None = None
-        eps_forecast: float | None = None
-        earnings_date: str | None = None
-
-        if forecast_row:
-            cells = re.findall(r"<td[^>]*>(.*?)</td>", forecast_row, flags=re.S)
-            if len(cells) >= 5:
-                try:
-                    sales_forecast = _parse_number(_strip_tags(cells[0]))
-                except ValueError:
-                    sales_forecast = None
-                try:
-                    eps_forecast = _parse_number(_strip_tags(cells[4]))
-                except ValueError:
-                    eps_forecast = None
-            if cells:
-                try:
-                    earnings_date = _parse_date_text(_strip_tags(cells[-1]))
-                except ValueError:
-                    earnings_date = None
+        sales_forecast, eps_forecast, earnings_date = _extract_kabutan_forecast_fields(finance_page)
 
         errors = _required_field_errors(
             close_price=close_price,
@@ -497,3 +477,48 @@ _SALES_PATTERNS = [
 _EARNINGS_DATE_PATTERNS = [
     r"(?:決算発表日|発表日|決算日)[^\d]{0,40}(\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{2}/\d{1,2}/\d{1,2}|\d{4}年\d{1,2}月\d{1,2}日)",
 ]
+
+
+def _extract_kabutan_forecast_fields(finance_page: str) -> tuple[float | None, float | None, str | None]:
+    # stock/finance ページには別テーブルにも「予」が含まれるため、今期業績テーブル内の予想行に限定する。
+    section = _find_first(
+        finance_page,
+        [
+            r'<div class="fin_year_t0_d fin_year_result_d">\s*<table>(.*?)</table>',
+            r"今期の業績予想(.*?)</table>",
+        ],
+    )
+    if not section:
+        return None, None, None
+
+    rows = re.findall(r"<tr[^>]*>(.*?)</tr>", section, flags=re.S)
+    for row in rows:
+        header = _find_first(row, [r"<th[^>]*>(.*?)</th>"])
+        if not header:
+            continue
+        header_text = _strip_tags(header)
+        if "予" not in header_text:
+            continue
+        cells = re.findall(r"<td[^>]*>(.*?)</td>", row, flags=re.S)
+        if len(cells) < 6:
+            continue
+
+        sales_forecast: float | None = None
+        eps_forecast: float | None = None
+        earnings_date: str | None = None
+        try:
+            sales_forecast = _parse_number(_strip_tags(cells[0]))
+        except ValueError:
+            sales_forecast = None
+        try:
+            eps_forecast = _parse_number(_strip_tags(cells[4]))
+        except ValueError:
+            eps_forecast = None
+        try:
+            earnings_date = _parse_date_text(_strip_tags(cells[-1]))
+        except ValueError:
+            earnings_date = None
+
+        return sales_forecast, eps_forecast, earnings_date
+
+    return None, None, None
