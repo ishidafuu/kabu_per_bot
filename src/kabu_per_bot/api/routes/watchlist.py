@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from kabu_per_bot.api.dependencies import get_watchlist_service
@@ -29,6 +32,20 @@ router = APIRouter(
     prefix="/watchlist",
     tags=["watchlist"],
 )
+
+
+@contextmanager
+def _translate_watchlist_error() -> Iterator[None]:
+    try:
+        yield
+    except WatchlistNotFoundError as exc:
+        raise NotFoundError(str(exc)) from exc
+    except WatchlistAlreadyExistsError as exc:
+        raise ConflictError(str(exc)) from exc
+    except WatchlistLimitExceededError as exc:
+        raise TooManyRequestsError(str(exc)) from exc
+    except (ValueError, WatchlistError) as exc:
+        raise UnprocessableEntityError(str(exc)) from exc
 
 
 @router.get(
@@ -62,12 +79,8 @@ def get_watchlist_item(
     ticker: str,
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> WatchlistItemResponse:
-    try:
+    with _translate_watchlist_error():
         item = service.get_item(ticker)
-    except WatchlistNotFoundError as exc:
-        raise NotFoundError(str(exc)) from exc
-    except (ValueError, WatchlistError) as exc:
-        raise UnprocessableEntityError(str(exc)) from exc
     return WatchlistItemResponse.from_domain(item)
 
 
@@ -81,7 +94,7 @@ def create_watchlist_item(
     payload: WatchlistCreateRequest,
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> WatchlistItemResponse:
-    try:
+    with _translate_watchlist_error():
         created = service.add_item(
             ticker=payload.ticker,
             name=payload.name,
@@ -91,12 +104,6 @@ def create_watchlist_item(
             ai_enabled=payload.ai_enabled,
             is_active=payload.is_active,
         )
-    except WatchlistAlreadyExistsError as exc:
-        raise ConflictError(str(exc)) from exc
-    except WatchlistLimitExceededError as exc:
-        raise TooManyRequestsError(str(exc)) from exc
-    except (ValueError, WatchlistError) as exc:
-        raise UnprocessableEntityError(str(exc)) from exc
     return WatchlistItemResponse.from_domain(created)
 
 
@@ -113,7 +120,7 @@ def update_watchlist_item(
     if not payload.has_updates():
         raise BadRequestError("更新対象のフィールドを1つ以上指定してください。")
 
-    try:
+    with _translate_watchlist_error():
         updated = service.update_item(
             ticker,
             name=payload.name,
@@ -123,10 +130,6 @@ def update_watchlist_item(
             ai_enabled=payload.ai_enabled,
             is_active=payload.is_active,
         )
-    except WatchlistNotFoundError as exc:
-        raise NotFoundError(str(exc)) from exc
-    except (ValueError, WatchlistError) as exc:
-        raise UnprocessableEntityError(str(exc)) from exc
     return WatchlistItemResponse.from_domain(updated)
 
 
@@ -139,10 +142,6 @@ def delete_watchlist_item(
     ticker: str,
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> Response:
-    try:
+    with _translate_watchlist_error():
         service.delete_item(ticker)
-    except WatchlistNotFoundError as exc:
-        raise NotFoundError(str(exc)) from exc
-    except (ValueError, WatchlistError) as exc:
-        raise UnprocessableEntityError(str(exc)) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)

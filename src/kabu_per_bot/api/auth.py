@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 import os
 
-from fastapi import Header, Request
+from fastapi import Request
 
 from kabu_per_bot.api.errors import ForbiddenError, InternalServerError, UnauthorizedError
 
@@ -28,7 +28,9 @@ class FirebaseAdminTokenVerifier:
                 "firebase-admin が未インストールです。`pip install -e '.[gcp]'` を実行してください。"
             ) from exc
 
-        if not firebase_admin._apps:
+        try:
+            firebase_admin.get_app()
+        except ValueError:
             firebase_admin.initialize_app()
         self._initialized = True
 
@@ -100,10 +102,8 @@ def is_protected_path(path: str) -> bool:
 
 def authenticate_request(
     request: Request,
-    *,
-    authorization_header: str | None = None,
 ) -> AuthContext:
-    token = parse_bearer_token(authorization_header or request.headers.get("Authorization"))
+    token = parse_bearer_token(request.headers.get("Authorization"))
     verifier = get_token_verifier(request)
     claims = verifier.verify(token)
     uid = str(claims.get("uid", "")).strip()
@@ -114,10 +114,3 @@ def authenticate_request(
     if allowed_uids is not None and uid not in allowed_uids:
         raise ForbiddenError("このユーザーは許可されていません。")
     return AuthContext(uid=uid, claims=claims)
-
-
-def require_auth(
-    request: Request,
-    authorization: str | None = Header(default=None),
-) -> AuthContext:
-    return authenticate_request(request, authorization_header=authorization)
