@@ -8,6 +8,8 @@ version = "0.1.0"
 description = "Stock watch bot for PER/PSR notifications"
 requires-python = ">=3.12"
 
+[project.optional-dependencies]
+gcp = ["google-cloud-firestore>=2.16.0"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
-

@@ -11,6 +11,7 @@
   - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/MVP仕様分解_受け入れ基準.md`
   - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/実装タスク_Issue一覧.md`
   - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/技術スタック定義.md`
+  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/Firestoreスキーマ設計.md`
 
 ## 2. スコープ管理
 

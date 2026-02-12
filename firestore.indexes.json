@@ -1,0 +1,62 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "watchlist_history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ticker", "order": "ASCENDING" },
+        { "fieldPath": "acted_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "daily_metrics",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ticker", "order": "ASCENDING" },
+        { "fieldPath": "trade_date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "metric_medians",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ticker", "order": "ASCENDING" },
+        { "fieldPath": "trade_date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "signal_state",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ticker", "order": "ASCENDING" },
+        { "fieldPath": "trade_date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "earnings_calendar",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "earnings_date", "order": "ASCENDING" },
+        { "fieldPath": "ticker", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notification_log",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ticker", "order": "ASCENDING" },
+        { "fieldPath": "sent_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notification_log",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "sent_at", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
+

@@ -31,11 +31,13 @@
 
 - 目的: MVP要件の永続化を成立させる
 - スコープ:
-  - `watchlist`, `watchlist_history`, `daily_metrics`, `metric_medians`, `signal_state`, `earnings_calendar`, `notification_log`
-  - インデックスと一意制約（`ticker`, `trade_date` 等）
+  - Firestoreコレクション定義（`watchlist`, `watchlist_history`, `daily_metrics`, `metric_medians`, `signal_state`, `earnings_calendar`, `notification_log`）
+  - インデックス定義と一意制約（ドキュメントIDの合成キー）
+  - 初期マイグレーション（`0001_initial`）実行スクリプト
 - 受け入れ基準:
-  - マイグレーション1回で全テーブルが作成される
-  - 重複登録防止制約が有効
+  - マイグレーション1回で初期スキーマ登録が完了する
+  - 同一マイグレーションの二重適用が防止される
+  - 重複登録防止のためのドキュメントID規約が定義されている
 - 依存: Issue 01
 
 ### Issue 03: ウォッチリストCRUD（最大100銘柄）を実装する

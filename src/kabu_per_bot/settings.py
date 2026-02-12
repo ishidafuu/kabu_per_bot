@@ -26,6 +26,7 @@ class AppSettings:
     window_3m_days: int
     window_1y_days: int
     cooldown_hours: int
+    firestore_project_id: str
 
 
 def _read_dotenv(dotenv_path: Path) -> dict[str, str]:
@@ -100,4 +101,5 @@ def load_settings(
         window_3m_days=window_3m_days,
         window_1y_days=window_1y_days,
         cooldown_hours=_get_int(merged, "COOLDOWN_HOURS", DEFAULT_COOLDOWN_HOURS),
+        firestore_project_id=merged.get("FIRESTORE_PROJECT_ID", "").strip(),
     )

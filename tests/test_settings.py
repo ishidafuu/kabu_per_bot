@@ -17,6 +17,7 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.window_3m_days, 63)
         self.assertEqual(settings.window_1y_days, 252)
         self.assertEqual(settings.cooldown_hours, 2)
+        self.assertEqual(settings.firestore_project_id, "")
 
     def test_env_override(self) -> None:
         settings = load_settings(
@@ -27,6 +28,7 @@ class LoadSettingsTest(unittest.TestCase):
                 "WINDOW_3M_DAYS": "70",
                 "WINDOW_1Y_DAYS": "260",
                 "COOLDOWN_HOURS": "3",
+                "FIRESTORE_PROJECT_ID": "demo-project",
             },
             dotenv_path="does-not-exist.env",
         )
@@ -37,6 +39,7 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.window_3m_days, 70)
         self.assertEqual(settings.window_1y_days, 260)
         self.assertEqual(settings.cooldown_hours, 3)
+        self.assertEqual(settings.firestore_project_id, "demo-project")
 
     def test_dotenv_loaded_when_env_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
