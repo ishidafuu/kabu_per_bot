@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { WatchlistForm, type WatchlistFormValues } from '../components/WatchlistForm';
 import { createWatchlistClient } from '../lib/api';
@@ -140,9 +140,14 @@ export const WatchlistPage = () => {
           <h1>ウォッチリスト管理</h1>
           <p className="muted">ログイン中: {user?.email ?? 'unknown'}</p>
         </div>
-        <button type="button" className="ghost" onClick={() => void logout()}>
-          ログアウト
-        </button>
+        <div className="top-actions">
+          <Link to="/dashboard" className="nav-link">
+            ダッシュボードへ
+          </Link>
+          <button type="button" className="ghost" onClick={() => void logout()}>
+            ログアウト
+          </button>
+        </div>
       </header>
 
       <nav className="panel page-nav" aria-label="ページ遷移">

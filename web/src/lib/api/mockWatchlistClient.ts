@@ -251,3 +251,7 @@ export class MockWatchlistClient implements WatchlistClient {
 export const resetMockWatchlist = (): void => {
   mockStore = [...seedWatchlist];
 };
+
+export const getMockWatchlistCount = (): number => {
+  return mockStore.length;
+};

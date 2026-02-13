@@ -32,6 +32,10 @@ export const toUserMessage = (error: unknown): string => {
     }
   }
 
+  if (error instanceof TypeError) {
+    return 'APIに接続できません。サーバー起動とURL設定を確認してください。';
+  }
+
   if (error instanceof Error) {
     return error.message;
   }

@@ -34,7 +34,7 @@ export const LoginPage = () => {
   useEffect(() => {
     if (status === 'authenticated') {
       const destination =
-        (location.state as { from?: string } | null)?.from ?? '/watchlist';
+        (location.state as { from?: string } | null)?.from ?? '/dashboard';
       navigate(destination, { replace: true });
     }
   }, [status, navigate, location.state]);
