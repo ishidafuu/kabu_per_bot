@@ -1,4 +1,4 @@
-# Webフロントエンド（W06〜W09）
+# Webフロントエンド（W06〜W12）
 
 `kabu_per_bot` の管理画面向けフロントエンドです。  
 実装技術は `React + TypeScript + Vite`、認証は `Firebase Auth`、API連携は分離したクライアント層で扱います。
@@ -9,11 +9,17 @@
 - W07: ログイン画面（Firebase Auth導線 + モック認証）
 - W08: ウォッチリスト一覧（検索、ページング）
 - W09: ウォッチリスト作成/編集/削除（409/422/429 エラー表示）
+- W10: ダッシュボード最小版（監視銘柄数/通知件数/データ不明件数/失敗ジョブ有無）
+- W11: 履歴画面/通知ログ画面（時系列表示 + ticker絞り込み）
+- W12: Playwright E2E（主要導線）と実行手順整備
 
 ## 画面
 
 - `/login`: ログイン画面
+- `/dashboard`: ダッシュボード（保護画面）
 - `/watchlist`: ウォッチリスト管理（保護画面）
+- `/watchlist/history`: ウォッチリスト履歴（保護画面）
+- `/notifications/logs`: 通知ログ（保護画面）
 
 ## 起動手順
 
@@ -59,3 +65,26 @@ cp .env.example .env.local
 npm run lint
 npm run build
 ```
+
+## E2Eテスト（Playwright）
+
+ローカルで主要導線E2Eを再現する手順:
+
+```bash
+cd web
+npm install
+npm run test:e2e:install
+npm run test:e2e
+```
+
+補助コマンド:
+
+```bash
+npm run test:e2e:headed
+npm run test:e2e:ui
+```
+
+注意:
+
+- E2Eは `VITE_USE_MOCK_API=true` / `VITE_USE_MOCK_AUTH=true` で実行されるため、バックエンド起動は不要です。
+- 対象ケースは `web/e2e/web-flows.spec.ts` に定義しています。

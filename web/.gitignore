@@ -11,6 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
+playwright-report/
+test-results/
+.playwright/
 
 # ルートの `lib/` ignore を打ち消し、APIクライアント実装を追跡する
 !src/lib/

@@ -70,6 +70,18 @@ PYTHONPATH=src python scripts/run_earnings_job.py --job tomorrow --discord-webho
 - `tomorrow`: 毎日21時（JST）想定。翌日分を `明日決算` カテゴリで通知。
 - `--discord-webhook-url` 未指定時は `DISCORD_WEBHOOK_URL` を利用。
 
+## Web E2E（W12）
+
+```bash
+cd web
+npm install
+npm run test:e2e:install
+npm run test:e2e
+```
+
+- 詳細: `web/README.md`
+- ステージング反映手順: `docs/Web_E2Eテストとステージング反映手順.md`
+
 ## Discord疎通テスト（Issue 12）
 
 ```bash
