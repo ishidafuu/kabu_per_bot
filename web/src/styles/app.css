@@ -310,7 +310,7 @@ th {
     align-items: flex-start;
   }
 
-  .page-nav {
+  .page-nav,
   .top-actions {
     width: 100%;
     flex-direction: column;
