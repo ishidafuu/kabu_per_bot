@@ -77,6 +77,17 @@ npm run test:e2e:install
 npm run test:e2e
 ```
 
+API結合E2E（FastAPI連携）:
+
+```bash
+cd /Users/ishidafuu/Documents/repository/kabu_per_bot
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+cd web
+E2E_API_PYTHON=../.venv/bin/python npm run test:e2e:api
+```
+
 補助コマンド:
 
 ```bash
@@ -87,4 +98,6 @@ npm run test:e2e:ui
 注意:
 
 - E2Eは `VITE_USE_MOCK_API=true` / `VITE_USE_MOCK_AUTH=true` で実行されるため、バックエンド起動は不要です。
-- 対象ケースは `web/e2e/web-flows.spec.ts` に定義しています。
+- `npm run test:e2e:api` は `scripts/run_web_test_api.py` を自動起動し、`VITE_USE_MOCK_API=false` で API結合テストを実行します。
+- `E2E_API_PYTHON` 未指定時は `../.venv/bin/python`（存在する場合）を優先し、なければ `python3` を使用します。
+- 対象ケースは `e2e/web-flows.spec.ts` に定義しています。

@@ -77,6 +77,7 @@ cd web
 npm install
 npm run test:e2e:install
 npm run test:e2e
+E2E_API_PYTHON=../.venv/bin/python npm run test:e2e:api
 ```
 
 - 詳細: `web/README.md`

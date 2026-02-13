@@ -10,6 +10,15 @@ const loginWithMock = async (page: Page, destinationPath = '/dashboard'): Promis
   await expect(page).toHaveURL(new RegExp(`${destinationPath}$`));
 };
 
+const readTotalCount = async (page: Page): Promise<number> => {
+  const text = await page.getByText(/^総件数:/).first().textContent();
+  const matched = text?.match(/\d+/);
+  if (!matched) {
+    throw new Error(`総件数の取得に失敗しました: ${text ?? '(empty)'}`);
+  }
+  return Number(matched[0]);
+};
+
 test('ログイン後にダッシュボード主要KPIが表示される', async ({ page }) => {
   await page.goto('/login');
 
@@ -22,7 +31,7 @@ test('ログイン後にダッシュボード主要KPIが表示される', async
   await expect(page.getByText('当日通知件数')).toBeVisible();
   await expect(page.getByText('データ不明件数')).toBeVisible();
   await expect(page.getByText('失敗ジョブ有無')).toBeVisible();
-  await expect(page.getByText('12', { exact: true })).toBeVisible();
+  await expect(page.locator('.kpi-card .kpi-value')).toHaveCount(4);
 });
 
 test('ウォッチリスト一覧で作成・編集・削除できる', async ({ page }) => {
@@ -33,8 +42,9 @@ test('ウォッチリスト一覧で作成・編集・削除できる', async ({
   await loginWithMock(page, '/watchlist');
 
   await expect(page.getByRole('heading', { name: 'ウォッチリスト管理' })).toBeVisible();
-  await expect(page.getByText('総件数: 12')).toBeVisible();
-  await expect(page.getByRole('cell', { name: '7203:TSE' })).toBeVisible();
+  await expect.poll(() => readTotalCount(page)).toBeGreaterThan(0);
+  const beforeTotal = await readTotalCount(page);
+  await expect(page.locator('tbody tr .empty-cell')).toHaveCount(0);
 
   await page.getByRole('button', { name: '新規追加' }).click();
   await expect(page.getByRole('heading', { name: '銘柄を追加' })).toBeVisible();
@@ -47,7 +57,9 @@ test('ウォッチリスト一覧で作成・編集・削除できる', async ({
   await page.getByRole('button', { name: '追加する' }).click();
 
   await expect(page.getByText(`追加しました: ${ticker}`)).toBeVisible();
-  await expect(page.getByText('総件数: 13')).toBeVisible();
+  await expect.poll(() => readTotalCount(page)).toBe(beforeTotal + 1);
+  await page.getByRole('searchbox').fill(ticker);
+  await page.getByRole('button', { name: '検索' }).click();
   await expect(page.locator('tbody tr', { hasText: new RegExp(`${ticker}.*${createdName}`) })).toBeVisible();
 
   const createdRow = page.locator('tbody tr', { hasText: ticker });
@@ -66,7 +78,9 @@ test('ウォッチリスト一覧で作成・編集・削除できる', async ({
   await page.locator('tbody tr', { hasText: ticker }).getByRole('button', { name: '削除' }).click();
 
   await expect(page.getByText(`削除しました: ${ticker}`)).toBeVisible();
-  await expect(page.getByText('総件数: 12')).toBeVisible();
+  await page.getByRole('searchbox').fill('');
+  await page.getByRole('button', { name: '検索' }).click();
+  await expect.poll(() => readTotalCount(page)).toBe(beforeTotal);
   await expect(page.locator('tbody tr', { hasText: ticker })).toHaveCount(0);
 });
 
@@ -76,23 +90,25 @@ test('履歴画面と通知ログ画面が表示される', async ({ page }) => 
   await page.getByRole('link', { name: '履歴' }).click();
   await expect(page).toHaveURL(/\/watchlist\/history$/);
   await expect(page.getByRole('heading', { name: 'ウォッチリスト履歴' })).toBeVisible();
-  await expect(page.getByText('総件数: 5')).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'hist-20260211-01' })).toBeVisible();
+  await expect(page.locator('tbody tr .empty-cell')).toHaveCount(0);
 
   await page.getByRole('searchbox').fill('9432:tse');
   await page.getByRole('button', { name: '検索' }).click();
-  await expect(page.getByText('総件数: 2')).toBeVisible();
   await expect(page.getByText('絞り込み: 9432:TSE')).toBeVisible();
+  const historyRows = page.locator('tbody tr');
+  expect(await historyRows.count()).toBeGreaterThan(0);
+  await expect(page.locator('tbody tr', { hasText: '9432:TSE' }).first()).toBeVisible();
 
   await page.getByRole('link', { name: '通知ログ' }).click();
   await expect(page).toHaveURL(/\/notifications\/logs$/);
   await expect(page.getByRole('heading', { name: '通知ログ' })).toBeVisible();
-  await expect(page.getByText('総件数: 4')).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'log-20260212-01' })).toBeVisible();
+  await expect(page.locator('tbody tr .empty-cell')).toHaveCount(0);
 
   await page.getByRole('searchbox').fill('6501:tse');
   await page.getByRole('button', { name: '検索' }).click();
-  await expect(page.getByText('総件数: 1')).toBeVisible();
   await expect(page.getByText('絞り込み: 6501:TSE')).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'PSR', exact: true })).toBeVisible();
+  const logRows = page.locator('tbody tr');
+  expect(await logRows.count()).toBeGreaterThan(0);
+  await expect(page.locator('tbody tr', { hasText: '6501:TSE' }).first()).toBeVisible();
+  await expect(page.locator('tbody tr', { hasText: '6501:TSE' }).first()).toContainText('PSR');
 });

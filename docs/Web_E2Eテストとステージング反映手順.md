@@ -18,12 +18,16 @@
 5. 履歴・通知ログ表示（W11）:
    - `/watchlist/history` と `/notifications/logs` が表示される。
    - ticker絞り込みが機能する。
+6. API結合テスト（主要導線）:
+   - FastAPIローカルテストサーバーに対して、上記 1〜5 の導線を実行できる。
 
 実装ファイル:
 
 - `web/e2e/web-flows.spec.ts`
 
 ## 3. ローカル再現手順（E2E）
+
+### 3.1 UI E2E（モックAPI）
 
 前提:
 
@@ -48,7 +52,31 @@ npm run test:e2e:ui
 
 補足:
 
-- E2Eは `playwright.config.ts` で `VITE_USE_MOCK_API=true` / `VITE_USE_MOCK_AUTH=true` を使うため、バックエンド起動は不要。
+- `playwright.config.ts` で `VITE_USE_MOCK_API=true` / `VITE_USE_MOCK_AUTH=true` を使うため、バックエンド起動は不要。
+
+### 3.2 API結合 E2E（FastAPI）
+
+前提:
+
+- Python 3.12+
+- `kabu_per_bot` ルートで `pip install -e .` 済み
+
+実行:
+
+```bash
+cd /Users/ishidafuu/Documents/repository/kabu_per_bot
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+cd web
+E2E_API_PYTHON=../.venv/bin/python npm run test:e2e:api
+```
+
+補足:
+
+- `npm run test:e2e:api` は `scripts/run_web_test_api.py` を自動起動する。
+- `E2E_API_PYTHON` 未指定時は `../.venv/bin/python`（存在する場合）を優先し、なければ `python3` を使用する。
+- フロントは `VITE_USE_MOCK_AUTH=true` / `VITE_USE_MOCK_API=false` で動作し、認証はテスト用トークン（`mock-token`）を使用する。
 
 ## 4. ステージング反映（現行運用の最小手順）
 
@@ -69,6 +97,7 @@ npm run test:e2e:ui
 ```bash
 cd /Users/ishidafuu/Documents/repository/kabu_per_bot/web
 npm run test:e2e
+E2E_API_PYTHON=../.venv/bin/python npm run test:e2e:api
 ```
 
 2. ステージング向けにビルド
