@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { WatchlistForm, type WatchlistFormValues } from '../components/WatchlistForm';
 import { createWatchlistClient } from '../lib/api';
@@ -143,6 +144,28 @@ export const WatchlistPage = () => {
           ログアウト
         </button>
       </header>
+
+      <nav className="panel page-nav" aria-label="ページ遷移">
+        <NavLink
+          to="/watchlist"
+          end
+          className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+        >
+          ウォッチリスト
+        </NavLink>
+        <NavLink
+          to="/watchlist/history"
+          className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+        >
+          履歴
+        </NavLink>
+        <NavLink
+          to="/notifications/logs"
+          className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+        >
+          通知ログ
+        </NavLink>
+      </nav>
 
       <section className="panel controls-panel">
         <div className="search-row">
