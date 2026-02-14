@@ -35,7 +35,7 @@
   - ticker
   - 会社名
   - 監視方式（PER/PSR）
-  - 通知先（DISCORD/LINE/BOTH/OFF）
+  - 通知先（DISCORD/OFF）
   - 通知時間（IMMEDIATE/AT_21/OFF）
   - 有効状態（is_active）
 - 操作:

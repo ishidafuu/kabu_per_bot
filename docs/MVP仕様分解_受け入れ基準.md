@@ -7,7 +7,7 @@ MVPで実装する対象は以下とする。
 1. ウォッチリスト管理（最大100銘柄、PER/PSR切替、通知先設定、追加/削除履歴）
 2. PER/PSR日次計算（終値ベース、1Y/3M/1W中央値、under判定、連続日数）
 3. 通知（PER/PSR、今週決算、明日決算、データ不明）
-4. Discord/LINEへの配信（Discord先行）
+4. Discordへの配信
 5. クールダウン（同条件2時間抑制）
 
 MVP外（第2段階）:
@@ -119,8 +119,7 @@ MVP外（第2段階）:
 3. 通知判定（クールダウン、通常/強遷移）
 4. 決算通知ジョブ（土曜21時/毎日21時）
 5. Discord配信アダプタ
-6. LINE配信アダプタ（Discord完了後）
-7. 欠損通知と運用ログ
+6. 欠損通知と運用ログ
 
 ## 6. 仕様の未確定ポイント（次に決める項目）
 
@@ -128,7 +127,6 @@ MVP外（第2段階）:
 2. PER未定義時の振る舞い（PSRへ自動フォールバック or その日は通知なし）
 3. 四季報online取得失敗時のフォールバック優先順の固定値
 4. 決算「来週」の範囲（週の起点を月曜固定とするか）
-5. LINE通知の実装方式（Messaging API / Notify代替）
 
 ## 7. 暫定デフォルト（先行実装用）
 
@@ -138,10 +136,8 @@ MVP外（第2段階）:
 2. PER未定義日は、PER監視銘柄でも `データ不明` 通知を優先（自動PSR切替はしない）
 3. データ取得フォールバック順は `四季報online → 株探 → Yahoo!ファイナンス`
 4. 「来週」は月曜開始〜日曜終了の暦週で判定
-5. LINEはMessaging API前提で実装（Notifyは非推奨扱い）
-6. 通知チャネル実装順は `Discord → LINE`
-7. SNS取得（第2段階）は `X API` を標準採用
-8. AI要約（第2段階）は `Vertex AI Gemini` を標準採用
-9. Grokは第2段階初期では採用しない（品質不足時のみ比較PoC）
-10. Web管理画面は `React + TypeScript + Firebase Hosting` を採用
-11. 管理APIは `FastAPI（Python）+ Cloud Run` を採用
+5. SNS取得（第2段階）は `X API` を標準採用
+6. AI要約（第2段階）は `Vertex AI Gemini` を標準採用
+7. Grokは第2段階初期では採用しない（品質不足時のみ比較PoC）
+8. Web管理画面は `React + TypeScript + Firebase Hosting` を採用
+9. 管理APIは `FastAPI（Python）+ Cloud Run` を採用
