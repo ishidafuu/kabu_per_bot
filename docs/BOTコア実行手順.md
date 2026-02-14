@@ -66,3 +66,17 @@ PYTHONPATH=src python scripts/run_earnings_job.py --job tomorrow --discord-webho
 ```bash
 PYTHONPATH=src python scripts/migrate_firestore_v0001.py --project-id <GCP_PROJECT_ID>
 ```
+
+## 8. デプロイ前機械チェック（W12）
+
+Hosting / Cloud Run へ反映する前に、ローカルで事前チェックだけ実行する。
+
+```bash
+cd /Users/ishidafuu/Documents/repository/kabu_per_bot-docs-finalize
+bash scripts/preflight_deploy_check.sh
+```
+
+- `python/node/npm/git` の存在確認を行う。
+- `web` の `npm run build` 成功を確認する。
+- 主要環境変数（`.env`, `web/.env.local`）の未設定は `WARN` 表示で通知する。
+- 終了コード `0`: 事前チェック通過、`1`: 失敗あり（要修正）。
