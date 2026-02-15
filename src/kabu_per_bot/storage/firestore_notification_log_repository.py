@@ -1,15 +1,50 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
 from typing import Any
 
 from kabu_per_bot.signal import NotificationLogEntry
-from kabu_per_bot.storage.firestore_schema import COLLECTION_NOTIFICATION_LOG, normalize_ticker
+from kabu_per_bot.storage.firestore_schema import COLLECTION_JOB_RUN, COLLECTION_NOTIFICATION_LOG, normalize_ticker
 
 
 class FirestoreNotificationLogRepository:
     def __init__(self, client: Any) -> None:
         self._collection = client.collection(COLLECTION_NOTIFICATION_LOG)
+        self._job_run_collection = client.collection(COLLECTION_JOB_RUN)
+
+    def append_job_run(
+        self,
+        *,
+        job_name: str,
+        started_at: str,
+        finished_at: str,
+        status: str,
+        error_count: int = 0,
+        detail: str | None = None,
+    ) -> None:
+        normalized_status = _normalize_job_status(status)
+        job_name_value = job_name.strip()
+        if not job_name_value:
+            raise ValueError("job_name is required")
+        if error_count < 0:
+            raise ValueError("error_count must be >= 0")
+        row = {
+            "job_name": job_name_value,
+            "started_at": _parse_iso_datetime(started_at).astimezone(timezone.utc).isoformat(),
+            "finished_at": _parse_iso_datetime(finished_at).astimezone(timezone.utc).isoformat(),
+            "status": normalized_status,
+            "error_count": error_count,
+            "failed": normalized_status == "FAILED",
+        }
+        if detail:
+            row["detail"] = detail.strip()
+        doc_id = _build_job_run_doc_id(
+            job_name=row["job_name"],
+            started_at=row["started_at"],
+            finished_at=row["finished_at"],
+        )
+        self._job_run_collection.document(doc_id).set(row, merge=False)
 
     def append(self, entry: NotificationLogEntry) -> None:
         self._collection.document(entry.entry_id).set(entry.to_document(), merge=False)
@@ -102,9 +137,30 @@ class FirestoreNotificationLogRepository:
         *,
         sent_at_from: str,
         sent_at_to: str,
-    ) -> bool | None:
-        # 現時点では job 実行結果を保持する専用ストアがないため判定不能。
-        return None
+    ) -> bool:
+        from_dt = _parse_iso_datetime(sent_at_from)
+        to_dt = _parse_iso_datetime(sent_at_to)
+
+        if hasattr(self._job_run_collection, "where") and hasattr(self._job_run_collection, "order_by"):
+            query = self._job_run_collection
+            query = query.where("started_at", ">=", sent_at_from)
+            query = query.where("started_at", "<", sent_at_to)
+            query = query.order_by("started_at", direction="DESCENDING")
+            return any(_is_failed_job_document(snapshot.to_dict() or {}) for snapshot in query.stream())
+
+        for snapshot in self._job_run_collection.stream():
+            data = snapshot.to_dict() or {}
+            started_at_raw = data.get("started_at")
+            if started_at_raw is None:
+                continue
+            started_at = _parse_iso_datetime(str(started_at_raw))
+            if started_at < from_dt:
+                continue
+            if started_at >= to_dt:
+                continue
+            if _is_failed_job_document(data):
+                return True
+        return False
 
 
 def _parse_iso_datetime(value: str) -> datetime:
@@ -112,3 +168,37 @@ def _parse_iso_datetime(value: str) -> datetime:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=timezone.utc)
     return parsed
+
+
+def _normalize_job_status(status: str) -> str:
+    normalized = status.strip().upper()
+    if normalized not in {"SUCCESS", "FAILED"}:
+        raise ValueError("status must be SUCCESS or FAILED")
+    return normalized
+
+
+def _build_job_run_doc_id(*, job_name: str, started_at: str, finished_at: str) -> str:
+    raw = f"{job_name}|{started_at}|{finished_at}"
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+    safe_job_name = job_name.strip().replace("/", "_").replace(" ", "_") or "job"
+    return f"{safe_job_name}|{digest}"
+
+
+def _is_failed_job_document(data: dict[str, Any]) -> bool:
+    status = str(data.get("status", "")).strip().upper()
+    if status == "FAILED":
+        return True
+    if status == "SUCCESS":
+        return False
+
+    failed = data.get("failed")
+    if isinstance(failed, bool):
+        return failed
+
+    error_count = data.get("error_count")
+    if error_count is None:
+        return False
+    try:
+        return int(error_count) > 0
+    except (TypeError, ValueError):
+        return False

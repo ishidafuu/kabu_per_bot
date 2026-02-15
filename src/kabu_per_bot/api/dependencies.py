@@ -56,8 +56,8 @@ class NotificationLogReader(Protocol):
         *,
         sent_at_from: str,
         sent_at_to: str,
-    ) -> bool | None:
-        """Return failed-job flag if observable from current store."""
+    ) -> bool:
+        """Return failed-job flag."""
 
 
 DependencyT = TypeVar("DependencyT")

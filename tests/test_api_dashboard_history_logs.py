@@ -90,7 +90,7 @@ class FakeWatchlistHistoryRepository:
 @dataclass
 class FakeNotificationLogRepository:
     rows: list[NotificationLogEntry] = field(default_factory=list)
-    failed_job_value: bool | None = None
+    failed_job_rows: list[dict[str, str | int | bool]] = field(default_factory=list)
 
     def list_timeline(
         self,
@@ -138,8 +138,23 @@ class FakeNotificationLogRepository:
         *,
         sent_at_from: str,
         sent_at_to: str,
-    ) -> bool | None:
-        return self.failed_job_value
+    ) -> bool:
+        from_dt = _parse_iso_datetime(sent_at_from)
+        to_dt = _parse_iso_datetime(sent_at_to)
+        for row in self.failed_job_rows:
+            started_at_raw = row.get("started_at")
+            if not isinstance(started_at_raw, str):
+                continue
+            started_at = _parse_iso_datetime(started_at_raw)
+            if started_at < from_dt or started_at >= to_dt:
+                continue
+            status = str(row.get("status", "")).upper()
+            if status == "FAILED":
+                return True
+            error_count = row.get("error_count")
+            if isinstance(error_count, int) and error_count > 0:
+                return True
+        return False
 
 
 class FakeTokenVerifier:
@@ -187,7 +202,7 @@ def _build_client(
     watchlist_items: list[WatchlistItem] | None = None,
     history_rows: list[WatchlistHistoryRecord] | None = None,
     notification_rows: list[NotificationLogEntry] | None = None,
-    failed_job_value: bool | None = None,
+    failed_job_rows: list[dict[str, str | int | bool]] | None = None,
 ) -> TestClient:
     repository = InMemoryWatchlistRepository()
     for item in watchlist_items or []:
@@ -198,7 +213,7 @@ def _build_client(
         watchlist_history_repository=FakeWatchlistHistoryRepository(history_rows or []),
         notification_log_repository=FakeNotificationLogRepository(
             notification_rows or [],
-            failed_job_value=failed_job_value,
+            failed_job_rows=failed_job_rows or [],
         ),
         token_verifier=FakeTokenVerifier(),
     )
@@ -292,19 +307,43 @@ class DashboardHistoryLogsApiTest(unittest.TestCase):
         self.assertEqual(body["watchlist_count"], 2)
         self.assertEqual(body["today_notification_count"], 2)
         self.assertEqual(body["today_data_unknown_count"], 1)
-        self.assertIsNone(body["failed_job_exists"])
+        self.assertFalse(body["failed_job_exists"])
 
     def test_dashboard_summary_failed_job_flag(self) -> None:
         client = _build_client(
             watchlist_items=[_watchlist_item(ticker="3901:TSE", name="富士フイルム")],
             notification_rows=[],
-            failed_job_value=True,
+            failed_job_rows=[
+                {
+                    "started_at": _jst_iso(hour=3),
+                    "status": "FAILED",
+                    "error_count": 1,
+                }
+            ],
         )
 
         response = client.get("/api/v1/dashboard/summary", headers=_auth_header())
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["failed_job_exists"])
+
+    def test_dashboard_summary_failed_job_flag_is_jst_daily_window(self) -> None:
+        client = _build_client(
+            watchlist_items=[_watchlist_item(ticker="3901:TSE", name="富士フイルム")],
+            notification_rows=[],
+            failed_job_rows=[
+                {
+                    "started_at": _jst_iso(day_offset=-1, hour=23),
+                    "status": "FAILED",
+                    "error_count": 1,
+                }
+            ],
+        )
+
+        response = client.get("/api/v1/dashboard/summary", headers=_auth_header())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["failed_job_exists"])
 
     def test_watchlist_history_timeline_order(self) -> None:
         client = _build_client(

@@ -5,19 +5,11 @@ import { createDashboardClient } from '../lib/api';
 import { toUserMessage } from '../lib/api/errors';
 import type { DashboardSummary } from '../types/dashboard';
 
-const formatFailedJob = (value: boolean | null): string => {
-  if (value == null) {
-    return '取得不可';
-  }
-
+const formatFailedJob = (value: boolean): string => {
   return value ? 'あり' : 'なし';
 };
 
-const getFailedJobClassName = (value: boolean | null): string => {
-  if (value == null) {
-    return 'status-unknown';
-  }
-
+const getFailedJobClassName = (value: boolean): string => {
   return value ? 'status-error' : 'status-ok';
 };
 

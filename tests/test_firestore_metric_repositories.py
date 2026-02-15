@@ -162,6 +162,35 @@ class FirestoreMetricRepositoriesTest(unittest.TestCase):
         self.assertEqual(len(ranged), 1)
         self.assertEqual(ranged[0].entry_id, "log2")
 
+        log_repo.append_job_run(
+            job_name="earnings_weekly",
+            started_at="2026-02-12T21:00:00+09:00",
+            finished_at="2026-02-12T21:00:05+09:00",
+            status="SUCCESS",
+            error_count=0,
+        )
+        log_repo.append_job_run(
+            job_name="earnings_tomorrow",
+            started_at="2026-02-13T21:00:00+09:00",
+            finished_at="2026-02-13T21:00:05+09:00",
+            status="FAILED",
+            error_count=1,
+            detail="test failure",
+        )
+
+        self.assertFalse(
+            log_repo.failed_job_exists(
+                sent_at_from="2026-02-12T00:00:00+09:00",
+                sent_at_to="2026-02-13T00:00:00+09:00",
+            )
+        )
+        self.assertTrue(
+            log_repo.failed_job_exists(
+                sent_at_from="2026-02-13T00:00:00+09:00",
+                sent_at_to="2026-02-14T00:00:00+09:00",
+            )
+        )
+
     def test_earnings_repository(self) -> None:
         repo = FirestoreEarningsCalendarRepository(FakeFirestoreClient())
         row = EarningsCalendarEntry(

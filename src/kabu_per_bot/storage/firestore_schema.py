@@ -15,6 +15,7 @@ COLLECTION_METRIC_MEDIANS = "metric_medians"
 COLLECTION_SIGNAL_STATE = "signal_state"
 COLLECTION_EARNINGS_CALENDAR = "earnings_calendar"
 COLLECTION_NOTIFICATION_LOG = "notification_log"
+COLLECTION_JOB_RUN = "job_run"
 
 ALL_COLLECTIONS = (
     COLLECTION_WATCHLIST,
@@ -24,6 +25,7 @@ ALL_COLLECTIONS = (
     COLLECTION_SIGNAL_STATE,
     COLLECTION_EARNINGS_CALENDAR,
     COLLECTION_NOTIFICATION_LOG,
+    COLLECTION_JOB_RUN,
 )
 
 TICKER_PATTERN = re.compile(r"^\d{4}:[A-Z]+$")
@@ -84,4 +86,3 @@ def notification_condition_key(
 ) -> str:
     raw = f"{normalize_ticker(ticker)}|{category.strip()}|{condition.strip()}"
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
-

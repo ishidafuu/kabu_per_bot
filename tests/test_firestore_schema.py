@@ -6,6 +6,7 @@ from kabu_per_bot.storage.firestore_schema import (
     ALL_COLLECTIONS,
     COLLECTION_DAILY_METRICS,
     COLLECTION_EARNINGS_CALENDAR,
+    COLLECTION_JOB_RUN,
     COLLECTION_METRIC_MEDIANS,
     COLLECTION_NOTIFICATION_LOG,
     COLLECTION_SIGNAL_STATE,
@@ -32,6 +33,7 @@ class FirestoreSchemaTest(unittest.TestCase):
                 COLLECTION_SIGNAL_STATE,
                 COLLECTION_EARNINGS_CALENDAR,
                 COLLECTION_NOTIFICATION_LOG,
+                COLLECTION_JOB_RUN,
             },
         )
 
@@ -71,4 +73,3 @@ class FirestoreSchemaTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

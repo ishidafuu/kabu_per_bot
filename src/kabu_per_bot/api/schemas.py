@@ -77,10 +77,7 @@ class DashboardSummaryResponse(BaseModel):
     watchlist_count: int = Field(ge=0, description="監視銘柄数")
     today_notification_count: int = Field(ge=0, description="当日PER/PSR通知件数")
     today_data_unknown_count: int = Field(ge=0, description="当日データ不明件数")
-    failed_job_exists: bool | None = Field(
-        default=None,
-        description="失敗ジョブ有無（取得不可な場合はnull）",
-    )
+    failed_job_exists: bool = Field(description="失敗ジョブ有無")
 
 
 class WatchlistHistoryItemResponse(BaseModel):

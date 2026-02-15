@@ -9,6 +9,7 @@
 5. `signal_state`
 6. `earnings_calendar`
 7. `notification_log`
+8. `job_run`
 
 ## 2. 一意制約（ドキュメントIDで担保）
 
@@ -26,6 +27,10 @@ FirestoreはRDBの一意制約を持たないため、ドキュメントIDを合
    - doc id: `{ticker}|{earnings_date}|{quarter_or_NA}`
    - 必須フィールド: `ticker`, `earnings_date`
    - 欠損許容フィールド: `earnings_time`, `quarter`, `source`, `fetched_at`
+6. `job_run`
+   - doc id: `{job_name}|{hash}`
+   - 必須フィールド: `job_name`, `started_at`, `finished_at`, `status`, `error_count`, `failed`
+   - `status` は `SUCCESS` / `FAILED`
 
 ## 3. インデックス
 

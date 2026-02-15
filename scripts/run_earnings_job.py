@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import logging
 import os
@@ -58,6 +59,13 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args()
     settings = load_settings()
+    job_started_at = datetime.now(timezone.utc).isoformat()
+    job_name = f"earnings_{args.job}"
+
+    client = _create_firestore_client(project_id=settings.firestore_project_id)
+    watchlist_repo = FirestoreWatchlistRepository(client)
+    earnings_repo = FirestoreEarningsCalendarRepository(client)
+    notification_log_repo = FirestoreNotificationLogRepository(client)
 
     if args.stdout:
         sender = StdoutSender()
@@ -69,21 +77,38 @@ def main() -> int:
         sender = DiscordNotifier(webhook_url)
         LOGGER.info("送信先: Discord webhook")
 
-    client = _create_firestore_client(project_id=settings.firestore_project_id)
-    watchlist_repo = FirestoreWatchlistRepository(client)
-    earnings_repo = FirestoreEarningsCalendarRepository(client)
-    notification_log_repo = FirestoreNotificationLogRepository(client)
-
-    result = run_earnings_job(
-        job_type=args.job,
-        watchlist_reader=watchlist_repo,
-        earnings_reader=earnings_repo,
-        notification_log_repo=notification_log_repo,
-        sender=sender,
-        cooldown_hours=settings.cooldown_hours,
-        now_iso=args.now_iso,
-        timezone_name=JST_TIMEZONE,
-        channel="DISCORD",
+    try:
+        result = run_earnings_job(
+            job_type=args.job,
+            watchlist_reader=watchlist_repo,
+            earnings_reader=earnings_repo,
+            notification_log_repo=notification_log_repo,
+            sender=sender,
+            cooldown_hours=settings.cooldown_hours,
+            now_iso=args.now_iso,
+            timezone_name=JST_TIMEZONE,
+            channel="DISCORD",
+        )
+        status = "FAILED" if result.errors > 0 else "SUCCESS"
+        error_count = result.errors
+        detail = f"job={args.job}"
+    except Exception as exc:
+        notification_log_repo.append_job_run(
+            job_name=job_name,
+            started_at=job_started_at,
+            finished_at=datetime.now(timezone.utc).isoformat(),
+            status="FAILED",
+            error_count=1,
+            detail=str(exc),
+        )
+        raise
+    notification_log_repo.append_job_run(
+        job_name=job_name,
+        started_at=job_started_at,
+        finished_at=datetime.now(timezone.utc).isoformat(),
+        status=status,
+        error_count=error_count,
+        detail=detail,
     )
     print(json.dumps(result.__dict__, ensure_ascii=False))
     return 0

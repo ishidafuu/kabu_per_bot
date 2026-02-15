@@ -91,7 +91,7 @@ class InMemoryWatchlistHistoryRepository:
 @dataclass
 class InMemoryNotificationLogRepository:
     rows: list[NotificationLogEntry] = field(default_factory=list)
-    failed_job_value: bool | None = False
+    failed_job_value: bool = False
 
     def list_timeline(
         self,
@@ -139,7 +139,7 @@ class InMemoryNotificationLogRepository:
         *,
         sent_at_from: str,
         sent_at_to: str,
-    ) -> bool | None:
+    ) -> bool:
         return self.failed_job_value
 
 

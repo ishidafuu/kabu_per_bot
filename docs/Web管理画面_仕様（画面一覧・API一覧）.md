@@ -139,7 +139,9 @@
     - `watchlist_count`
     - `today_notification_count`
     - `today_data_unknown_count`
-    - `failed_job_exists`（取得不可時は `null`）
+    - `failed_job_exists`（`true/false`）
+      - 判定対象: `job_run.started_at` が当日JST 00:00〜翌日JST 00:00（UTC変換後は `>= sent_at_from` かつ `< sent_at_to`）
+      - 判定条件: `status == "FAILED"` または `error_count > 0` のレコードが1件以上で `true`
 
 ### 4.4 履歴/ログ
 

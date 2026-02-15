@@ -116,6 +116,8 @@ MVP外（第2段階）:
    `ticker, earnings_date, earnings_time, quarter, source, fetched_at`
 7. `notification_log`
    `id, ticker, category, condition_key, sent_at, channel, payload_hash`
+8. `job_run`
+   `id, job_name, started_at, finished_at, status(SUCCESS|FAILED), error_count, failed`
 
 ## 5. 実装順（推奨）
 
