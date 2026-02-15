@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 import unittest
 
 from fastapi.testclient import TestClient
 
 from kabu_per_bot.api.app import create_app
 from kabu_per_bot.api.errors import ForbiddenError, UnauthorizedError
+from kabu_per_bot.earnings import EarningsCalendarEntry
+from kabu_per_bot.metrics import DailyMetric, MetricMedians
+from kabu_per_bot.signal import SignalState
+from kabu_per_bot.watchlist import MetricType
 from kabu_per_bot.watchlist import CreateResult, WatchlistItem, WatchlistService
 
 
@@ -213,6 +218,96 @@ class WatchlistApiTest(unittest.TestCase):
         post_responses = paths["/api/v1/watchlist"]["post"]["responses"]
         for status_code in ("401", "403", "409", "422", "429", "500"):
             self.assertIn(status_code, post_responses)
+
+    def test_watchlist_list_include_status(self) -> None:
+        repository = InMemoryWatchlistRepository()
+        service = WatchlistService(repository, max_items=100)
+        service.add_item(
+            ticker="3901:TSE",
+            name="富士フイルム",
+            metric_type="PER",
+            notify_channel="DISCORD",
+            notify_timing="IMMEDIATE",
+        )
+
+        class DailyRepo:
+            def list_recent(self, ticker: str, *, limit: int) -> list[DailyMetric]:
+                return [
+                    DailyMetric(
+                        ticker=ticker,
+                        trade_date="2026-02-15",
+                        close_price=1000,
+                        eps_forecast=100,
+                        sales_forecast=200,
+                        per_value=10.0,
+                        psr_value=5.0,
+                        data_source="test",
+                        fetched_at=datetime.now(timezone.utc).isoformat(),
+                    )
+                ]
+
+        class MedianRepo:
+            def list_recent(self, ticker: str, *, limit: int) -> list[MetricMedians]:
+                return [
+                    MetricMedians(
+                        ticker=ticker,
+                        trade_date="2026-02-15",
+                        median_1w=11.0,
+                        median_3m=12.0,
+                        median_1y=13.0,
+                        source_metric_type=MetricType.PER,
+                        calculated_at=datetime.now(timezone.utc).isoformat(),
+                    )
+                ]
+
+        class SignalRepo:
+            def get_latest(self, ticker: str) -> SignalState | None:
+                return SignalState(
+                    ticker=ticker,
+                    trade_date="2026-02-15",
+                    metric_type=MetricType.PER,
+                    metric_value=10.0,
+                    under_1w=True,
+                    under_3m=True,
+                    under_1y=True,
+                    combo="1Y+3M+1W",
+                    is_strong=True,
+                    category="超PER割安",
+                    streak_days=3,
+                    updated_at=datetime.now(timezone.utc).isoformat(),
+                )
+
+        class EarningsRepo:
+            def list_by_ticker(self, ticker: str) -> list[EarningsCalendarEntry]:
+                return [
+                    EarningsCalendarEntry(
+                        ticker=ticker,
+                        earnings_date="2099-01-10",
+                        earnings_time="15:00",
+                        quarter="3Q",
+                        source="test",
+                        fetched_at=datetime.now(timezone.utc).isoformat(),
+                    )
+                ]
+
+        app = create_app(
+            watchlist_service=service,
+            daily_metrics_repository=DailyRepo(),
+            metric_medians_repository=MedianRepo(),
+            signal_state_repository=SignalRepo(),
+            earnings_calendar_repository=EarningsRepo(),
+            token_verifier=FakeTokenVerifier(),
+        )
+        client = TestClient(app)
+        response = client.get("/api/v1/watchlist?include_status=true", headers=_auth_header())
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["total"], 1)
+        item = body["items"][0]
+        self.assertEqual(item["current_metric_value"], 10.0)
+        self.assertEqual(item["median_1w"], 11.0)
+        self.assertEqual(item["signal_category"], "超PER割安")
+        self.assertEqual(item["next_earnings_date"], "2099-01-10")
 
 
 if __name__ == "__main__":

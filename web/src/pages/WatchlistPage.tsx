@@ -11,6 +11,20 @@ const getPageLabel = (offset: number, limit: number): number => {
   return Math.floor(offset / limit) + 1;
 };
 
+const formatMetric = (value: number | null | undefined): string => {
+  if (value == null) {
+    return '-';
+  }
+  return value.toFixed(2);
+};
+
+const formatEarnings = (date?: string | null, time?: string | null): string => {
+  if (!date) {
+    return '-';
+  }
+  return `${date} ${time ?? '未定'}`;
+};
+
 export const WatchlistPage = () => {
   const { user, logout, getIdToken } = useAuth();
   const client = useMemo(() => createWatchlistClient({ getToken: getIdToken }), [getIdToken]);
@@ -44,6 +58,7 @@ export const WatchlistPage = () => {
         q: keyword || undefined,
         limit,
         offset,
+        include_status: true,
       });
       setItems(response.items);
       setTotal(response.total);
@@ -217,13 +232,17 @@ export const WatchlistPage = () => {
                 <th>notify_channel</th>
                 <th>notify_timing</th>
                 <th>is_active</th>
+                <th>current_metric</th>
+                <th>median(1W/3M/1Y)</th>
+                <th>signal</th>
+                <th>次回決算</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody>
               {!isLoading && items.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="empty-cell">
+                  <td colSpan={11} className="empty-cell">
                     データがありません。
                   </td>
                 </tr>
@@ -237,6 +256,15 @@ export const WatchlistPage = () => {
                   <td>{item.notify_channel}</td>
                   <td>{item.notify_timing}</td>
                   <td>{item.is_active ? 'true' : 'false'}</td>
+                  <td>{formatMetric(item.current_metric_value)}</td>
+                  <td>
+                    {`${formatMetric(item.median_1w)} / ${formatMetric(item.median_3m)} / ${formatMetric(item.median_1y)}`}
+                  </td>
+                  <td>
+                    {item.signal_category ? `${item.signal_category} ${item.signal_combo ?? ''}` : '-'}
+                    {item.signal_streak_days ? ` (${item.signal_streak_days}日連続)` : ''}
+                  </td>
+                  <td>{formatEarnings(item.next_earnings_date, item.next_earnings_time)}</td>
                   <td>
                     <div className="inline-actions">
                       <button type="button" className="ghost" onClick={() => openEditForm(item)}>

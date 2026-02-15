@@ -30,11 +30,35 @@ class WatchlistItemResponse(BaseModel):
     ir_urls: list[str]
     x_official_account: str | None = None
     x_executive_accounts: list[XAccountLinkResponse]
+    current_metric_value: float | None = None
+    median_1w: float | None = None
+    median_3m: float | None = None
+    median_1y: float | None = None
+    signal_category: str | None = None
+    signal_combo: str | None = None
+    signal_is_strong: bool | None = None
+    signal_streak_days: int | None = None
+    next_earnings_date: str | None = None
+    next_earnings_time: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
     @classmethod
-    def from_domain(cls, item: WatchlistItem) -> "WatchlistItemResponse":
+    def from_domain(
+        cls,
+        item: WatchlistItem,
+        *,
+        current_metric_value: float | None = None,
+        median_1w: float | None = None,
+        median_3m: float | None = None,
+        median_1y: float | None = None,
+        signal_category: str | None = None,
+        signal_combo: str | None = None,
+        signal_is_strong: bool | None = None,
+        signal_streak_days: int | None = None,
+        next_earnings_date: str | None = None,
+        next_earnings_time: str | None = None,
+    ) -> "WatchlistItemResponse":
         return cls(
             ticker=item.ticker,
             name=item.name,
@@ -46,6 +70,16 @@ class WatchlistItemResponse(BaseModel):
             ir_urls=list(item.ir_urls),
             x_official_account=item.x_official_account,
             x_executive_accounts=[WatchlistItemResponse.XAccountLinkResponse.from_domain(row) for row in item.x_executive_accounts],
+            current_metric_value=current_metric_value,
+            median_1w=median_1w,
+            median_3m=median_3m,
+            median_1y=median_1y,
+            signal_category=signal_category,
+            signal_combo=signal_combo,
+            signal_is_strong=signal_is_strong,
+            signal_streak_days=signal_streak_days,
+            next_earnings_date=next_earnings_date,
+            next_earnings_time=next_earnings_time,
             created_at=item.created_at,
             updated_at=item.updated_at,
         )

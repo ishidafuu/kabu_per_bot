@@ -5,9 +5,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from kabu_per_bot.api.auth import FirebaseAdminTokenVerifier, TokenVerifier
 from kabu_per_bot.api.dependencies import (
+    DailyMetricsReader,
+    EarningsCalendarReader,
+    MetricMediansReader,
     NotificationLogReader,
+    SignalStateReader,
     WatchlistHistoryReader,
+    create_daily_metrics_repository,
+    create_earnings_calendar_repository,
+    create_metric_medians_repository,
     create_notification_log_repository,
+    create_signal_state_repository,
     create_watchlist_history_repository,
     create_watchlist_service,
 )
@@ -22,6 +30,10 @@ def create_app(
     watchlist_service: WatchlistService | None = None,
     watchlist_history_repository: WatchlistHistoryReader | None = None,
     notification_log_repository: NotificationLogReader | None = None,
+    daily_metrics_repository: DailyMetricsReader | None = None,
+    metric_medians_repository: MetricMediansReader | None = None,
+    signal_state_repository: SignalStateReader | None = None,
+    earnings_calendar_repository: EarningsCalendarReader | None = None,
     token_verifier: TokenVerifier | None = None,
 ) -> FastAPI:
     app = FastAPI(
@@ -51,6 +63,18 @@ def create_app(
 
     app.state.notification_log_repository = notification_log_repository
     app.state.notification_log_repository_factory = create_notification_log_repository
+
+    app.state.daily_metrics_repository = daily_metrics_repository
+    app.state.daily_metrics_repository_factory = create_daily_metrics_repository
+
+    app.state.metric_medians_repository = metric_medians_repository
+    app.state.metric_medians_repository_factory = create_metric_medians_repository
+
+    app.state.signal_state_repository = signal_state_repository
+    app.state.signal_state_repository_factory = create_signal_state_repository
+
+    app.state.earnings_calendar_repository = earnings_calendar_repository
+    app.state.earnings_calendar_repository_factory = create_earnings_calendar_repository
 
     app.state.token_verifier = token_verifier
     app.state.token_verifier_factory = _default_token_verifier_factory

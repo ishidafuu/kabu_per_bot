@@ -4,9 +4,15 @@ from typing import Any, Callable, Protocol, TypeVar
 
 from fastapi import Request
 
+from kabu_per_bot.earnings import EarningsCalendarEntry
+from kabu_per_bot.metrics import DailyMetric, MetricMedians
 from kabu_per_bot.signal import NotificationLogEntry
 from kabu_per_bot.settings import load_settings
+from kabu_per_bot.storage.firestore_daily_metrics_repository import FirestoreDailyMetricsRepository
+from kabu_per_bot.storage.firestore_earnings_calendar_repository import FirestoreEarningsCalendarRepository
+from kabu_per_bot.storage.firestore_metric_medians_repository import FirestoreMetricMediansRepository
 from kabu_per_bot.storage.firestore_notification_log_repository import FirestoreNotificationLogRepository
+from kabu_per_bot.storage.firestore_signal_state_repository import FirestoreSignalStateRepository
 from kabu_per_bot.storage.firestore_watchlist_history_repository import FirestoreWatchlistHistoryRepository
 from kabu_per_bot.storage.firestore_watchlist_repository import FirestoreWatchlistRepository
 from kabu_per_bot.watchlist import WatchlistHistoryRecord, WatchlistService
@@ -60,6 +66,26 @@ class NotificationLogReader(Protocol):
         """Return failed-job flag."""
 
 
+class DailyMetricsReader(Protocol):
+    def list_recent(self, ticker: str, *, limit: int) -> list[DailyMetric]:
+        """Get recent metric rows."""
+
+
+class MetricMediansReader(Protocol):
+    def list_recent(self, ticker: str, *, limit: int) -> list[MetricMedians]:
+        """Get recent medians rows."""
+
+
+class SignalStateReader(Protocol):
+    def get_latest(self, ticker: str):
+        """Get latest signal state."""
+
+
+class EarningsCalendarReader(Protocol):
+    def list_by_ticker(self, ticker: str) -> list[EarningsCalendarEntry]:
+        """List earnings calendar rows for ticker."""
+
+
 DependencyT = TypeVar("DependencyT")
 
 
@@ -91,6 +117,26 @@ def create_watchlist_history_repository() -> WatchlistHistoryReader:
 def create_notification_log_repository() -> NotificationLogReader:
     client = create_firestore_client()
     return FirestoreNotificationLogRepository(client)
+
+
+def create_daily_metrics_repository() -> DailyMetricsReader:
+    client = create_firestore_client()
+    return FirestoreDailyMetricsRepository(client)
+
+
+def create_metric_medians_repository() -> MetricMediansReader:
+    client = create_firestore_client()
+    return FirestoreMetricMediansRepository(client)
+
+
+def create_signal_state_repository() -> SignalStateReader:
+    client = create_firestore_client()
+    return FirestoreSignalStateRepository(client)
+
+
+def create_earnings_calendar_repository() -> EarningsCalendarReader:
+    client = create_firestore_client()
+    return FirestoreEarningsCalendarRepository(client)
 
 
 def _resolve_dependency(

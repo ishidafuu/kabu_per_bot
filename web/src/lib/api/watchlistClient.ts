@@ -10,6 +10,7 @@ export interface ListWatchlistParams {
   q?: string;
   limit?: number;
   offset?: number;
+  include_status?: boolean;
 }
 
 export interface WatchlistClient {
@@ -39,6 +40,9 @@ export class HttpWatchlistClient implements WatchlistClient {
 
     if (params.offset != null) {
       query.set('offset', String(params.offset));
+    }
+    if (params.include_status != null) {
+      query.set('include_status', String(params.include_status));
     }
 
     const suffix = query.toString();

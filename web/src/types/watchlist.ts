@@ -20,6 +20,16 @@ export interface WatchlistItem {
   ir_urls: string[];
   x_official_account?: string | null;
   x_executive_accounts: XAccountLink[];
+  current_metric_value?: number | null;
+  median_1w?: number | null;
+  median_3m?: number | null;
+  median_1y?: number | null;
+  signal_category?: string | null;
+  signal_combo?: string | null;
+  signal_is_strong?: boolean | null;
+  signal_streak_days?: number | null;
+  next_earnings_date?: string | null;
+  next_earnings_time?: string | null;
 }
 
 export interface WatchlistListResponse {
