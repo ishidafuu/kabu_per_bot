@@ -51,6 +51,8 @@ Firestore `watchlist` を読み込んで、`daily_metrics` / `metric_medians` / 
 PYTHONPATH=src python scripts/run_daily_job.py
 ```
 
+- `--stdout` 未指定時は `--discord-webhook-url` または `DISCORD_WEBHOOK_URL` が必須です。
+
 Discord送信を明示する場合:
 
 ```bash

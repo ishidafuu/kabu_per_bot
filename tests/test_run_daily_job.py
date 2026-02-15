@@ -158,6 +158,38 @@ class RunDailyJobTest(TestCase):
         with self.assertRaises(ValueError):
             run_daily_job.resolve_trade_date(now_iso="2026-02-12T09:00:00+00:00", timezone_name="UTC")
 
+    def test_resolve_trade_date_accepts_explicit_trade_date_even_if_timezone_not_jst(self) -> None:
+        trade_date = run_daily_job.resolve_trade_date(
+            trade_date="2026-02-12",
+            now_iso="2026-02-12T09:00:00+00:00",
+            timezone_name="UTC",
+        )
+        self.assertEqual(trade_date, "2026-02-12")
+
+    def test_main_raises_when_webhook_missing_without_stdout(self) -> None:
+        args = run_daily_job.argparse.Namespace(
+            trade_date="2026-02-12",
+            now_iso="2026-02-12T09:00:00+00:00",
+            discord_webhook_url="",
+            stdout=False,
+        )
+        settings = AppSettings(
+            app_env="test",
+            timezone="Asia/Tokyo",
+            window_1w_days=2,
+            window_3m_days=2,
+            window_1y_days=2,
+            cooldown_hours=2,
+            firestore_project_id="",
+        )
+
+        with (
+            patch.object(run_daily_job, "parse_args", return_value=args),
+            patch.object(run_daily_job, "load_settings", return_value=settings),
+        ):
+            with self.assertRaisesRegex(ValueError, "Discord webhook URL が必要です"):
+                run_daily_job.main()
+
 
 if __name__ == "__main__":
     import unittest

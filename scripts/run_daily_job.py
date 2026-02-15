@@ -41,7 +41,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--discord-webhook-url",
         default=os.environ.get("DISCORD_WEBHOOK_URL", "").strip(),
-        help="Discord webhook URL. If omitted and --stdout is not set, notifications are printed to stdout.",
+        help="Discord webhook URL. Required unless --stdout is set.",
     )
     parser.add_argument("--stdout", action="store_true", help="Send notifications to stdout.")
     return parser.parse_args()
@@ -72,10 +72,10 @@ def resolve_now_utc_iso(*, now_iso: str | None = None) -> str:
 
 
 def resolve_trade_date(*, trade_date: str | None = None, now_iso: str | None = None, timezone_name: str) -> str:
-    if timezone_name != JST_TIMEZONE:
-        raise ValueError(f"timezone_name must be fixed to {JST_TIMEZONE}.")
     if trade_date is not None:
         return normalize_trade_date(trade_date)
+    if timezone_name != JST_TIMEZONE:
+        raise ValueError(f"timezone_name must be fixed to {JST_TIMEZONE}.")
     tz = ZoneInfo(timezone_name)
     now = _parse_now_iso(now_iso)
     return now.astimezone(tz).date().isoformat()
@@ -86,11 +86,10 @@ def _resolve_sender(args: argparse.Namespace):
         LOGGER.info("送信先: stdout")
         return StdoutSender()
     webhook_url = args.discord_webhook_url.strip()
-    if webhook_url:
-        LOGGER.info("送信先: Discord webhook")
-        return DiscordNotifier(webhook_url)
-    LOGGER.info("送信先: stdout (Discord webhook未設定)")
-    return StdoutSender()
+    if not webhook_url:
+        raise ValueError("Discord webhook URL が必要です。--discord-webhook-url か DISCORD_WEBHOOK_URL を設定してください。")
+    LOGGER.info("送信先: Discord webhook")
+    return DiscordNotifier(webhook_url)
 
 
 def _result_payload(result: PipelineResult) -> dict[str, int]:
