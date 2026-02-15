@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.pipeline import (
     MessageSender,
+    NotificationExecutionMode,
     NotificationLogRepository,
     PipelineResult,
     run_tomorrow_earnings_pipeline,
@@ -69,6 +70,7 @@ def run_earnings_job(
             cooldown_hours=cooldown_hours,
             now_iso=dispatch_now_iso,
             channel=channel,
+            execution_mode=NotificationExecutionMode.AT_21,
         )
     if job_type == "tomorrow":
         return run_tomorrow_earnings_pipeline(
@@ -80,6 +82,7 @@ def run_earnings_job(
             cooldown_hours=cooldown_hours,
             now_iso=dispatch_now_iso,
             channel=channel,
+            execution_mode=NotificationExecutionMode.AT_21,
         )
     raise ValueError(f"unsupported job_type: {job_type}")
 

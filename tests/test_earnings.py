@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import unittest
+from unittest.mock import patch
 
 from kabu_per_bot.earnings import (
     EarningsCalendarEntry,
@@ -10,8 +11,10 @@ from kabu_per_bot.earnings import (
     select_tomorrow_entries,
     sync_earnings_calendar_for_ticker,
 )
-from kabu_per_bot.earnings_job import resolve_today_jst
+from kabu_per_bot.earnings_job import run_earnings_job, resolve_today_jst
+from kabu_per_bot.pipeline import NotificationExecutionMode, PipelineResult
 from kabu_per_bot.storage.firestore_earnings_calendar_repository import FirestoreEarningsCalendarRepository
+from kabu_per_bot.watchlist import WatchlistItem
 
 
 @dataclass
@@ -86,6 +89,27 @@ class InvalidPayloadEarningsSource:
     def fetch_earnings_calendar(self, ticker: str) -> list[dict]:
         _ = ticker
         return None  # type: ignore[return-value]
+
+
+@dataclass
+class StubWatchlistReader:
+    items: list[WatchlistItem] = field(default_factory=list)
+
+    def list_all(self) -> list[WatchlistItem]:
+        return list(self.items)
+
+
+@dataclass
+class StubEarningsReader:
+    entries: list[EarningsCalendarEntry] = field(default_factory=list)
+
+    def list_all(self) -> list[EarningsCalendarEntry]:
+        return list(self.entries)
+
+
+class StubSender:
+    def send(self, message: str) -> None:
+        _ = message
 
 
 class EarningsTest(unittest.TestCase):
@@ -382,6 +406,48 @@ class EarningsTest(unittest.TestCase):
     def test_resolve_today_jst_rejects_naive_now_iso(self) -> None:
         with self.assertRaises(ValueError):
             resolve_today_jst(now_iso="2026-02-14T21:00:00")
+
+    @patch("kabu_per_bot.earnings_job.run_weekly_earnings_pipeline")
+    def test_run_earnings_job_weekly_uses_at21_mode(self, run_weekly_pipeline) -> None:
+        expected = PipelineResult(processed_tickers=1)
+        run_weekly_pipeline.return_value = expected
+
+        result = run_earnings_job(
+            job_type="weekly",
+            watchlist_reader=StubWatchlistReader(),
+            earnings_reader=StubEarningsReader(),
+            notification_log_repo=object(),
+            sender=StubSender(),
+            cooldown_hours=2,
+            now_iso="2026-02-14T21:00:00+09:00",
+        )
+
+        self.assertIs(result, expected)
+        kwargs = run_weekly_pipeline.call_args.kwargs
+        self.assertEqual(kwargs["execution_mode"], NotificationExecutionMode.AT_21)
+        self.assertEqual(kwargs["today"], "2026-02-14")
+        self.assertEqual(kwargs["now_iso"], "2026-02-14T12:00:00+00:00")
+
+    @patch("kabu_per_bot.earnings_job.run_tomorrow_earnings_pipeline")
+    def test_run_earnings_job_tomorrow_uses_at21_mode(self, run_tomorrow_pipeline) -> None:
+        expected = PipelineResult(processed_tickers=1)
+        run_tomorrow_pipeline.return_value = expected
+
+        result = run_earnings_job(
+            job_type="tomorrow",
+            watchlist_reader=StubWatchlistReader(),
+            earnings_reader=StubEarningsReader(),
+            notification_log_repo=object(),
+            sender=StubSender(),
+            cooldown_hours=2,
+            now_iso="2026-02-14T21:00:00+09:00",
+        )
+
+        self.assertIs(result, expected)
+        kwargs = run_tomorrow_pipeline.call_args.kwargs
+        self.assertEqual(kwargs["execution_mode"], NotificationExecutionMode.AT_21)
+        self.assertEqual(kwargs["today"], "2026-02-14")
+        self.assertEqual(kwargs["now_iso"], "2026-02-14T12:00:00+00:00")
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 from kabu_per_bot.discord_notifier import DiscordNotifier
 from kabu_per_bot.market_data import MarketDataSnapshot, MarketDataSource
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
-from kabu_per_bot.pipeline import DailyPipelineConfig, run_daily_pipeline
+from kabu_per_bot.pipeline import DailyPipelineConfig, NotificationExecutionMode, run_daily_pipeline
 from kabu_per_bot.signal import NotificationLogEntry, SignalState
 from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchlistItem
 
@@ -155,6 +155,7 @@ def main() -> int:
             window_1y_days=2,
             cooldown_hours=2,
             now_iso=now_iso,
+            execution_mode=NotificationExecutionMode.DAILY,
         ),
     )
     print(json.dumps(result.__dict__, ensure_ascii=False))
