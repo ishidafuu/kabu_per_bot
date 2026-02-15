@@ -7,6 +7,8 @@ from typing import Any
 from kabu_per_bot.signal import NotificationLogEntry
 from kabu_per_bot.storage.firestore_schema import COLLECTION_JOB_RUN, COLLECTION_NOTIFICATION_LOG, normalize_ticker
 
+EARNINGS_JOB_NAME_PREFIX = "earnings_"
+
 
 class FirestoreNotificationLogRepository:
     def __init__(self, client: Any) -> None:
@@ -146,7 +148,7 @@ class FirestoreNotificationLogRepository:
             query = query.where("started_at", ">=", sent_at_from)
             query = query.where("started_at", "<", sent_at_to)
             query = query.order_by("started_at", direction="DESCENDING")
-            return any(_is_failed_job_document(snapshot.to_dict() or {}) for snapshot in query.stream())
+            return any(_is_dashboard_target_job(snapshot.to_dict() or {}) for snapshot in query.stream())
 
         for snapshot in self._job_run_collection.stream():
             data = snapshot.to_dict() or {}
@@ -158,7 +160,7 @@ class FirestoreNotificationLogRepository:
                 continue
             if started_at >= to_dt:
                 continue
-            if _is_failed_job_document(data):
+            if _is_dashboard_target_job(data):
                 return True
         return False
 
@@ -202,3 +204,10 @@ def _is_failed_job_document(data: dict[str, Any]) -> bool:
         return int(error_count) > 0
     except (TypeError, ValueError):
         return False
+
+
+def _is_dashboard_target_job(data: dict[str, Any]) -> bool:
+    job_name = str(data.get("job_name", "")).strip()
+    if not job_name.startswith(EARNINGS_JOB_NAME_PREFIX):
+        return False
+    return _is_failed_job_document(data)

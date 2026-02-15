@@ -8,7 +8,7 @@ import logging
 import os
 
 from kabu_per_bot.discord_notifier import DiscordNotifier
-from kabu_per_bot.earnings_job import JST_TIMEZONE, run_earnings_job
+from kabu_per_bot.earnings_job import JST_TIMEZONE, resolve_now_utc_iso, run_earnings_job
 from kabu_per_bot.settings import load_settings
 from kabu_per_bot.storage.firestore_earnings_calendar_repository import FirestoreEarningsCalendarRepository
 from kabu_per_bot.storage.firestore_notification_log_repository import FirestoreNotificationLogRepository
@@ -22,6 +22,12 @@ class StdoutSender:
     def send(self, message: str) -> None:
         print("----- notification -----")
         print(message)
+
+
+def _resolve_job_recorded_at(*, now_iso: str | None) -> str:
+    if now_iso is None:
+        return datetime.now(timezone.utc).isoformat()
+    return resolve_now_utc_iso(now_iso=now_iso)
 
 
 def parse_args() -> argparse.Namespace:
@@ -59,25 +65,27 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args()
     settings = load_settings()
-    job_started_at = datetime.now(timezone.utc).isoformat()
     job_name = f"earnings_{args.job}"
-
-    client = _create_firestore_client(project_id=settings.firestore_project_id)
-    watchlist_repo = FirestoreWatchlistRepository(client)
-    earnings_repo = FirestoreEarningsCalendarRepository(client)
-    notification_log_repo = FirestoreNotificationLogRepository(client)
-
-    if args.stdout:
-        sender = StdoutSender()
-        LOGGER.info("送信先: stdout")
-    else:
-        webhook_url = args.discord_webhook_url.strip()
-        if not webhook_url:
-            raise ValueError("Discord webhook URL が必要です。--discord-webhook-url か DISCORD_WEBHOOK_URL を設定してください。")
-        sender = DiscordNotifier(webhook_url)
-        LOGGER.info("送信先: Discord webhook")
+    notification_log_repo: FirestoreNotificationLogRepository | None = None
+    job_started_at: str | None = None
 
     try:
+        client = _create_firestore_client(project_id=settings.firestore_project_id)
+        watchlist_repo = FirestoreWatchlistRepository(client)
+        earnings_repo = FirestoreEarningsCalendarRepository(client)
+        notification_log_repo = FirestoreNotificationLogRepository(client)
+        job_started_at = _resolve_job_recorded_at(now_iso=args.now_iso)
+
+        if args.stdout:
+            sender = StdoutSender()
+            LOGGER.info("送信先: stdout")
+        else:
+            webhook_url = args.discord_webhook_url.strip()
+            if not webhook_url:
+                raise ValueError("Discord webhook URL が必要です。--discord-webhook-url か DISCORD_WEBHOOK_URL を設定してください。")
+            sender = DiscordNotifier(webhook_url)
+            LOGGER.info("送信先: Discord webhook")
+
         result = run_earnings_job(
             job_type=args.job,
             watchlist_reader=watchlist_repo,
@@ -93,19 +101,26 @@ def main() -> int:
         error_count = result.errors
         detail = f"job={args.job}"
     except Exception as exc:
-        notification_log_repo.append_job_run(
-            job_name=job_name,
-            started_at=job_started_at,
-            finished_at=datetime.now(timezone.utc).isoformat(),
-            status="FAILED",
-            error_count=1,
-            detail=str(exc),
-        )
+        if notification_log_repo is not None:
+            failed_started_at = job_started_at or _resolve_job_recorded_at(now_iso=None)
+            try:
+                notification_log_repo.append_job_run(
+                    job_name=job_name,
+                    started_at=failed_started_at,
+                    finished_at=_resolve_job_recorded_at(now_iso=args.now_iso),
+                    status="FAILED",
+                    error_count=1,
+                    detail=str(exc),
+                )
+            except Exception:
+                LOGGER.exception("job_run の失敗記録保存にも失敗しました: job=%s", job_name)
         raise
+    if notification_log_repo is None or job_started_at is None:
+        raise RuntimeError("job_run 記録前に通知ログリポジトリの初期化に失敗しました。")
     notification_log_repo.append_job_run(
         job_name=job_name,
         started_at=job_started_at,
-        finished_at=datetime.now(timezone.utc).isoformat(),
+        finished_at=_resolve_job_recorded_at(now_iso=args.now_iso),
         status=status,
         error_count=error_count,
         detail=detail,

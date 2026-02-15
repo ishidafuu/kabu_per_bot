@@ -141,6 +141,7 @@
     - `today_data_unknown_count`
     - `failed_job_exists`（`true/false`）
       - 判定対象: `job_run.started_at` が当日JST 00:00〜翌日JST 00:00（UTC変換後は `>= sent_at_from` かつ `< sent_at_to`）
+      - 対象ジョブ: `job_run.job_name` が `earnings_` で始まる決算ジョブ（`earnings_weekly`, `earnings_tomorrow`）
       - 判定条件: `status == "FAILED"` または `error_count > 0` のレコードが1件以上で `true`
 
 ### 4.4 履歴/ログ

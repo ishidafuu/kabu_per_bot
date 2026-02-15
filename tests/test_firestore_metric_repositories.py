@@ -190,6 +190,19 @@ class FirestoreMetricRepositoriesTest(unittest.TestCase):
                 sent_at_to="2026-02-14T00:00:00+09:00",
             )
         )
+        log_repo.append_job_run(
+            job_name="daily_pipeline",
+            started_at="2026-02-14T12:00:00+09:00",
+            finished_at="2026-02-14T12:00:05+09:00",
+            status="FAILED",
+            error_count=1,
+        )
+        self.assertFalse(
+            log_repo.failed_job_exists(
+                sent_at_from="2026-02-14T00:00:00+09:00",
+                sent_at_to="2026-02-15T00:00:00+09:00",
+            )
+        )
 
     def test_earnings_repository(self) -> None:
         repo = FirestoreEarningsCalendarRepository(FakeFirestoreClient())

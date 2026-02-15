@@ -148,6 +148,9 @@ class FakeNotificationLogRepository:
             started_at = _parse_iso_datetime(started_at_raw)
             if started_at < from_dt or started_at >= to_dt:
                 continue
+            job_name = str(row.get("job_name", "")).strip()
+            if not job_name.startswith("earnings_"):
+                continue
             status = str(row.get("status", "")).upper()
             if status == "FAILED":
                 return True
@@ -315,6 +318,7 @@ class DashboardHistoryLogsApiTest(unittest.TestCase):
             notification_rows=[],
             failed_job_rows=[
                 {
+                    "job_name": "earnings_weekly",
                     "started_at": _jst_iso(hour=3),
                     "status": "FAILED",
                     "error_count": 1,
@@ -333,7 +337,27 @@ class DashboardHistoryLogsApiTest(unittest.TestCase):
             notification_rows=[],
             failed_job_rows=[
                 {
+                    "job_name": "earnings_weekly",
                     "started_at": _jst_iso(day_offset=-1, hour=23),
+                    "status": "FAILED",
+                    "error_count": 1,
+                }
+            ],
+        )
+
+        response = client.get("/api/v1/dashboard/summary", headers=_auth_header())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["failed_job_exists"])
+
+    def test_dashboard_summary_ignores_non_earnings_failed_job(self) -> None:
+        client = _build_client(
+            watchlist_items=[_watchlist_item(ticker="3901:TSE", name="富士フイルム")],
+            notification_rows=[],
+            failed_job_rows=[
+                {
+                    "job_name": "daily_pipeline",
+                    "started_at": _jst_iso(hour=3),
                     "status": "FAILED",
                     "error_count": 1,
                 }
