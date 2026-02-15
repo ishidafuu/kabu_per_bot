@@ -3,9 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
+import logging
 from typing import Any, Protocol
 
 from kabu_per_bot.storage.firestore_schema import normalize_ticker
+
+LOGGER = logging.getLogger(__name__)
 
 
 class WatchlistError(ValueError):
@@ -73,7 +76,7 @@ class WatchlistItem:
             ticker=normalize_ticker(str(data["ticker"])),
             name=str(data["name"]).strip(),
             metric_type=MetricType(str(data["metric_type"]).strip().upper()),
-            notify_channel=NotifyChannel(str(data["notify_channel"]).strip().upper()),
+            notify_channel=_parse_notify_channel(data["notify_channel"]),
             notify_timing=NotifyTiming(str(data["notify_timing"]).strip().upper()),
             ai_enabled=_coerce_bool(data.get("ai_enabled"), field_name="ai_enabled", default=False),
             is_active=_coerce_bool(data.get("is_active"), field_name="is_active", default=True),
@@ -359,6 +362,14 @@ class WatchlistService:
                     "watchlist履歴保存に失敗し、watchlist削除のロールバックにも失敗しました。"
                 ) from rollback_exc
             raise WatchlistPersistenceError("watchlist履歴保存に失敗したため、watchlist削除をロールバックしました。") from exc
+
+
+def _parse_notify_channel(value: Any) -> NotifyChannel:
+    normalized = str(value).strip().upper()
+    if normalized in {"LINE", "BOTH"}:
+        LOGGER.warning("旧notify_channel値を互換変換: %s -> DISCORD", normalized)
+        return NotifyChannel.DISCORD
+    return NotifyChannel(normalized)
 
 
 def _coerce_bool(value: Any, *, field_name: str, default: bool) -> bool:

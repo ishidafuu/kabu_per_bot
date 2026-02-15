@@ -162,6 +162,22 @@ class WatchlistServiceTest(unittest.TestCase):
         self.assertFalse(item.ai_enabled)
         self.assertTrue(item.is_active)
 
+    def test_from_document_legacy_notify_channel_maps_to_discord(self) -> None:
+        for legacy_value in ("LINE", "line", "BOTH", "both"):
+            with self.subTest(legacy_value=legacy_value):
+                with self.assertLogs("kabu_per_bot.watchlist", level="WARNING") as captured:
+                    item = WatchlistItem.from_document(
+                        {
+                            "ticker": "3901:tse",
+                            "name": "A",
+                            "metric_type": "per",
+                            "notify_channel": legacy_value,
+                            "notify_timing": "immediate",
+                        }
+                    )
+                self.assertEqual(item.notify_channel, NotifyChannel.DISCORD)
+                self.assertIn("旧notify_channel値を互換変換", captured.output[0])
+
     def test_from_document_invalid_boolean_raises(self) -> None:
         with self.assertRaises(ValueError):
             WatchlistItem.from_document(

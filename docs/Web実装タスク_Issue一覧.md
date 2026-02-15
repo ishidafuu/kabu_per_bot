@@ -5,7 +5,7 @@
 - バックエンドは Python（FastAPI）で実装する
 - 画面は React + TypeScript（Vite）で実装する
 - 認証は Firebase Authentication を使用する
-- 進捗注記（2026-02-14）: W10 / W11 は完了済み。Webの残タスクは W12 を優先する
+- 進捗注記（2026-02-15）: W10 / W11 / W12 は完了済み。MVPスコープのWeb残タスクはなし
 - 仕様の正本:
   - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/Web管理画面_仕様（画面一覧・API一覧）.md`
 

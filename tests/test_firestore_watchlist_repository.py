@@ -132,6 +132,36 @@ class FirestoreWatchlistRepositoryTest(unittest.TestCase):
         self.assertEqual(repo.try_create(first, max_items=1), CreateResult.DUPLICATE)
         self.assertEqual(repo.try_create(second, max_items=1), CreateResult.LIMIT_EXCEEDED)
 
+    def test_get_and_list_all_accept_legacy_notify_channel_values(self) -> None:
+        client = FakeFirestoreClient(
+            db={
+                "watchlist/3901:TSE": {
+                    "ticker": "3901:TSE",
+                    "name": "A",
+                    "metric_type": "PER",
+                    "notify_channel": "LINE",
+                    "notify_timing": "IMMEDIATE",
+                },
+                "watchlist/3902:TSE": {
+                    "ticker": "3902:TSE",
+                    "name": "B",
+                    "metric_type": "PSR",
+                    "notify_channel": "BOTH",
+                    "notify_timing": "AT_21",
+                },
+            }
+        )
+        repo = FirestoreWatchlistRepository(client)
+
+        one = repo.get("3901:TSE")
+        self.assertIsNotNone(one)
+        assert one is not None
+        self.assertEqual(one.notify_channel, NotifyChannel.DISCORD)
+
+        listed = repo.list_all()
+        self.assertEqual(len(listed), 2)
+        self.assertEqual({item.notify_channel for item in listed}, {NotifyChannel.DISCORD})
+
 
 if __name__ == "__main__":
     unittest.main()
