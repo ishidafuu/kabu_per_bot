@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from kabu_per_bot.api.auth import FirebaseAdminTokenVerifier, TokenVerifier
 from kabu_per_bot.api.dependencies import (
@@ -29,6 +30,16 @@ def create_app(
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "https://kabu-per-bot-487501.web.app",
+            "http://localhost:5173",
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     install_exception_handlers(app)
 

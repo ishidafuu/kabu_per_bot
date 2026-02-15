@@ -11,6 +11,8 @@ dependencies = [
   "fastapi>=0.115.0,<1.0.0",
   "uvicorn>=0.30.0,<1.0.0",
   "httpx>=0.27.0,<1.0.0",
+  "google-cloud-firestore>=2.16.0",
+  "firebase-admin>=6.5.0",
 ]
 
 [project.optional-dependencies]
