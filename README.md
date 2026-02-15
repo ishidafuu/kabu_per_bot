@@ -43,18 +43,24 @@ PYTHONPATH=src python scripts/migrate_firestore_v0001.py --project-id <GCP_PROJE
 
 `--project-id` を省略する場合は、`.env` または環境変数で `FIRESTORE_PROJECT_ID` を設定してください。
 
-## 日次ジョブ実行（Issue 06〜12 / 18の骨格）
+## 日次ジョブ実行（Issue 06〜12 / 18）
 
-ローカル検証用のデモ実行:
+Firestore `watchlist` を読み込んで、`daily_metrics` / `metric_medians` / `signal_state` / `notification_log` へ保存する本番実行:
 
 ```bash
 PYTHONPATH=src python scripts/run_daily_job.py
 ```
 
-Discord送信まで疎通確認する場合:
+Discord送信を明示する場合:
 
 ```bash
 PYTHONPATH=src python scripts/run_daily_job.py --discord-webhook-url <DISCORD_WEBHOOK_URL>
+```
+
+stdout送信を明示する場合:
+
+```bash
+PYTHONPATH=src python scripts/run_daily_job.py --stdout
 ```
 
 ## 決算通知ジョブ実行（Issue 15）

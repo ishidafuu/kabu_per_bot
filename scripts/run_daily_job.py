@@ -1,89 +1,27 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 import argparse
 import json
 import logging
 import os
-import sys
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from kabu_per_bot.discord_notifier import DiscordNotifier
-from kabu_per_bot.market_data import MarketDataSnapshot, MarketDataSource
-from kabu_per_bot.metrics import DailyMetric, MetricMedians
-from kabu_per_bot.pipeline import DailyPipelineConfig, NotificationExecutionMode, run_daily_pipeline
-from kabu_per_bot.signal import NotificationLogEntry, SignalState
-from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchlistItem
+from kabu_per_bot.market_data import create_default_market_data_source
+from kabu_per_bot.pipeline import DailyPipelineConfig, NotificationExecutionMode, PipelineResult, run_daily_pipeline
+from kabu_per_bot.settings import load_settings
+from kabu_per_bot.storage.firestore_daily_metrics_repository import FirestoreDailyMetricsRepository
+from kabu_per_bot.storage.firestore_metric_medians_repository import FirestoreMetricMediansRepository
+from kabu_per_bot.storage.firestore_notification_log_repository import FirestoreNotificationLogRepository
+from kabu_per_bot.storage.firestore_schema import normalize_trade_date
+from kabu_per_bot.storage.firestore_signal_state_repository import FirestoreSignalStateRepository
+from kabu_per_bot.storage.firestore_watchlist_repository import FirestoreWatchlistRepository
 
 
 LOGGER = logging.getLogger(__name__)
-
-
-class DemoMarketDataSource(MarketDataSource):
-    @property
-    def source_name(self) -> str:
-        return "demo"
-
-    def fetch_snapshot(self, ticker: str) -> MarketDataSnapshot:
-        return MarketDataSnapshot.create(
-            ticker=ticker,
-            close_price=100.0,
-            eps_forecast=10.0,
-            sales_forecast=100.0,
-            source=self.source_name,
-            earnings_date="2026-05-10",
-        )
-
-
-@dataclass
-class InMemoryDailyMetricsRepo:
-    rows: list[DailyMetric] = field(default_factory=list)
-
-    def upsert(self, metric: DailyMetric) -> None:
-        self.rows = [row for row in self.rows if not (row.ticker == metric.ticker and row.trade_date == metric.trade_date)]
-        self.rows.append(metric)
-
-    def list_recent(self, ticker: str, *, limit: int) -> list[DailyMetric]:
-        rows = [row for row in self.rows if row.ticker == ticker]
-        rows.sort(key=lambda row: row.trade_date, reverse=True)
-        return rows[:limit]
-
-
-@dataclass
-class InMemoryMediansRepo:
-    rows: list[MetricMedians] = field(default_factory=list)
-
-    def upsert(self, medians: MetricMedians) -> None:
-        self.rows.append(medians)
-
-
-@dataclass
-class InMemorySignalStateRepo:
-    rows: list[SignalState] = field(default_factory=list)
-
-    def upsert(self, state: SignalState) -> None:
-        self.rows = [row for row in self.rows if not (row.ticker == state.ticker and row.trade_date == state.trade_date)]
-        self.rows.append(state)
-
-    def get_latest(self, ticker: str) -> SignalState | None:
-        rows = [row for row in self.rows if row.ticker == ticker]
-        rows.sort(key=lambda row: row.trade_date, reverse=True)
-        return rows[0] if rows else None
-
-
-@dataclass
-class InMemoryNotificationLogRepo:
-    rows: list[NotificationLogEntry] = field(default_factory=list)
-
-    def append(self, entry: NotificationLogEntry) -> None:
-        self.rows.append(entry)
-
-    def list_recent(self, ticker: str, *, limit: int = 100) -> list[NotificationLogEntry]:
-        rows = [row for row in self.rows if row.ticker == ticker]
-        rows.sort(key=lambda row: row.sent_at, reverse=True)
-        return rows[:limit]
+JST_TIMEZONE = "Asia/Tokyo"
 
 
 class StdoutSender:
@@ -93,72 +31,124 @@ class StdoutSender:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run MVP daily pipeline in local demo mode.")
-    jst_today = datetime.now(ZoneInfo("Asia/Tokyo")).date().isoformat()
-    parser.add_argument("--trade-date", default=jst_today, help="Trade date (YYYY-MM-DD)")
-    parser.add_argument("--now-iso", default=None, help="Current time in ISO8601. Default: now(UTC)")
+    parser = argparse.ArgumentParser(description="Run MVP daily pipeline with Firestore persistence.")
+    parser.add_argument("--trade-date", default=None, help="Trade date (YYYY-MM-DD). Default: today(JST)")
+    parser.add_argument(
+        "--now-iso",
+        default=None,
+        help="Current time in ISO8601 with timezone (e.g. 2026-02-14T21:00:00+09:00). Default: now(UTC)",
+    )
     parser.add_argument(
         "--discord-webhook-url",
         default=os.environ.get("DISCORD_WEBHOOK_URL", "").strip(),
-        help="Discord webhook URL. If empty, notifications are printed to stdout.",
+        help="Discord webhook URL. If omitted and --stdout is not set, notifications are printed to stdout.",
     )
+    parser.add_argument("--stdout", action="store_true", help="Send notifications to stdout.")
     return parser.parse_args()
+
+
+def _create_firestore_client(*, project_id: str):
+    try:
+        from google.cloud import firestore
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "google-cloud-firestore が未インストールです。`pip install -e '.[gcp]'` を実行してください。"
+        ) from exc
+    return firestore.Client(project=project_id or None)
+
+
+def _parse_now_iso(now_iso: str | None) -> datetime:
+    if now_iso is None:
+        return datetime.now(timezone.utc)
+    parsed = datetime.fromisoformat(now_iso)
+    if parsed.tzinfo is None:
+        raise ValueError("now_iso must include timezone offset, e.g. '+09:00'.")
+    return parsed
+
+
+def resolve_now_utc_iso(*, now_iso: str | None = None) -> str:
+    now = _parse_now_iso(now_iso)
+    return now.astimezone(timezone.utc).isoformat()
+
+
+def resolve_trade_date(*, trade_date: str | None = None, now_iso: str | None = None, timezone_name: str) -> str:
+    if timezone_name != JST_TIMEZONE:
+        raise ValueError(f"timezone_name must be fixed to {JST_TIMEZONE}.")
+    if trade_date is not None:
+        return normalize_trade_date(trade_date)
+    tz = ZoneInfo(timezone_name)
+    now = _parse_now_iso(now_iso)
+    return now.astimezone(tz).date().isoformat()
+
+
+def _resolve_sender(args: argparse.Namespace):
+    if args.stdout:
+        LOGGER.info("送信先: stdout")
+        return StdoutSender()
+    webhook_url = args.discord_webhook_url.strip()
+    if webhook_url:
+        LOGGER.info("送信先: Discord webhook")
+        return DiscordNotifier(webhook_url)
+    LOGGER.info("送信先: stdout (Discord webhook未設定)")
+    return StdoutSender()
+
+
+def _result_payload(result: PipelineResult) -> dict[str, int]:
+    return {
+        "processed": result.processed_tickers,
+        "sent": result.sent_notifications,
+        "skipped": result.skipped_notifications,
+        "errors": result.errors,
+    }
 
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args()
-    now_iso = args.now_iso or datetime.now(timezone.utc).isoformat()
+    settings = load_settings()
+    trade_date = resolve_trade_date(trade_date=args.trade_date, now_iso=args.now_iso, timezone_name=settings.timezone)
+    now_iso = resolve_now_utc_iso(now_iso=args.now_iso)
+    sender = _resolve_sender(args)
 
-    watchlist_items = [
-        WatchlistItem(
-            ticker="3901:TSE",
-            name="富士フイルム",
-            metric_type=MetricType.PER,
-            notify_channel=NotifyChannel.DISCORD,
-            notify_timing=NotifyTiming.IMMEDIATE,
-        )
-    ]
+    client = _create_firestore_client(project_id=settings.firestore_project_id)
+    watchlist_repo = FirestoreWatchlistRepository(client)
+    daily_repo = FirestoreDailyMetricsRepository(client)
+    medians_repo = FirestoreMetricMediansRepository(client)
+    signal_repo = FirestoreSignalStateRepository(client)
+    log_repo = FirestoreNotificationLogRepository(client)
+    watchlist_items = watchlist_repo.list_all()
 
-    daily_repo = InMemoryDailyMetricsRepo(
-        rows=[
-            DailyMetric(
-                ticker="3901:TSE",
-                trade_date="2026-02-11",
-                close_price=150.0,
-                eps_forecast=10.0,
-                sales_forecast=100.0,
-                per_value=15.0,
-                psr_value=1.5,
-                data_source="demo",
-                fetched_at=now_iso,
-            )
-        ]
-    )
-    medians_repo = InMemoryMediansRepo()
-    signal_repo = InMemorySignalStateRepo()
-    log_repo = InMemoryNotificationLogRepo()
-    sender = DiscordNotifier(args.discord_webhook_url) if args.discord_webhook_url else StdoutSender()
+    LOGGER.info("日次ジョブ開始: trade_date=%s watchlist_items=%s", trade_date, len(watchlist_items))
+    if not watchlist_items:
+        LOGGER.warning("watchlist が0件のため、処理対象はありません。")
 
     result = run_daily_pipeline(
         watchlist_items=watchlist_items,
-        market_data_source=DemoMarketDataSource(),
+        market_data_source=create_default_market_data_source(),
         daily_metrics_repo=daily_repo,
         medians_repo=medians_repo,
         signal_state_repo=signal_repo,
         notification_log_repo=log_repo,
         sender=sender,
         config=DailyPipelineConfig(
-            trade_date=args.trade_date,
-            window_1w_days=2,
-            window_3m_days=2,
-            window_1y_days=2,
-            cooldown_hours=2,
+            trade_date=trade_date,
+            window_1w_days=settings.window_1w_days,
+            window_3m_days=settings.window_3m_days,
+            window_1y_days=settings.window_1y_days,
+            cooldown_hours=settings.cooldown_hours,
             now_iso=now_iso,
             execution_mode=NotificationExecutionMode.DAILY,
         ),
     )
-    print(json.dumps(result.__dict__, ensure_ascii=False))
+    payload = _result_payload(result)
+    print(json.dumps(payload, ensure_ascii=False))
+    LOGGER.info(
+        "日次ジョブ完了: processed=%s sent=%s skipped=%s errors=%s",
+        payload["processed"],
+        payload["sent"],
+        payload["skipped"],
+        payload["errors"],
+    )
     return 0
 
 
@@ -166,5 +156,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except Exception as exc:
-        LOGGER.error("daily job failed: %s", exc)
+        LOGGER.exception("daily job failed: %s", exc)
         raise SystemExit(1) from exc

@@ -28,14 +28,20 @@ PYTHONPATH=src python -m unittest discover -s tests
 - 通知フォーマット
 - 欠損通知（`【データ不明】`）
 
-## 4. ジョブ実行（ローカルデモ）
+## 4. ジョブ実行（日次本番フロー）
 
 ```bash
 PYTHONPATH=src python scripts/run_daily_job.py
 ```
 
-- 日次パイプライン（Issue 18骨格）をローカルで実行する。
-- デモ市場データを用いて、計算〜通知判定〜送信処理を検証する。
+- Firestore `watchlist` を読み込み、日次パイプラインを実行する。
+- 実行結果は `daily_metrics` / `metric_medians` / `signal_state` / `notification_log` に保存される。
+
+stdout送信を明示する場合:
+
+```bash
+PYTHONPATH=src python scripts/run_daily_job.py --stdout
+```
 
 ## 5. Discord疎通
 
