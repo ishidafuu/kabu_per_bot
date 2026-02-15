@@ -1,31 +1,15 @@
-@import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700&display=swap');
 
 :root {
-  color-scheme: dark;
-  font-family: 'Zen Kaku Gothic New', 'Noto Sans JP', sans-serif;
-  --font-heading: 'M PLUS Rounded 1c', 'Zen Kaku Gothic New', sans-serif;
-  line-height: 1.45;
+  color-scheme: light;
+  font-family: 'M PLUS 1p', 'Noto Sans JP', sans-serif;
+  line-height: 1.4;
   font-weight: 400;
-  color: #f1f5f9;
+  color: #0f172a;
   background:
-    radial-gradient(48rem 48rem at 0% 0%, rgba(20, 184, 166, 0.1), transparent 60%),
-    radial-gradient(48rem 48rem at 100% 0%, rgba(14, 165, 233, 0.08), transparent 55%),
-    linear-gradient(170deg, #0a1222 0%, #0f172a 100%);
-  --bg-surface: #111b2f;
-  --bg-surface-strong: #17233a;
-  --bg-elevated: #1a2741;
-  --bg-input: #0f1a2d;
-  --border-soft: #334864;
-  --border-strong: #476287;
-  --text-main: #f1f5f9;
-  --text-muted: #b5c3d8;
-  --accent: #14b8a6;
-  --accent-strong: #0ea5e9;
-  --accent-contrast: #f8fafc;
-  --danger: #fca5a5;
-  --danger-bg: rgba(127, 29, 29, 0.35);
-  --ok: #4ade80;
-  --warning: #fbbf24;
+    radial-gradient(circle at 15% 20%, #dcfce7 0%, transparent 35%),
+    radial-gradient(circle at 85% 10%, #dbeafe 0%, transparent 28%),
+    linear-gradient(170deg, #f8fafc 0%, #eef2ff 100%);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -45,8 +29,7 @@ body,
 body {
   margin: 0;
   min-width: 320px;
-  background: transparent;
-  color: var(--text-main);
+  color: #0f172a;
 }
 
 button,
