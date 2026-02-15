@@ -90,6 +90,7 @@ E2E_API_PYTHON=../.venv/bin/python npm run test:e2e:api
 
 - 詳細: `web/README.md`
 - ステージング反映手順: `docs/Web_E2Eテストとステージング反映手順.md`
+- 依頼主向け手順書: `docs/トレーダー向け_使い方手順書.md`（管理画面 `/guide` からも参照可能）
 
 ## Discord疎通テスト（Issue 12）
 

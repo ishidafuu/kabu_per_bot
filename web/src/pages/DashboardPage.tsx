@@ -50,6 +50,9 @@ export const DashboardPage = () => {
           <Link to="/watchlist" className="nav-link">
             ウォッチリストへ
           </Link>
+          <Link to="/guide" className="nav-link">
+            使い方
+          </Link>
           <button type="button" className="ghost" onClick={() => void logout()}>
             ログアウト
           </button>

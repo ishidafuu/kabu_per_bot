@@ -144,6 +144,9 @@ export const WatchlistPage = () => {
           <Link to="/dashboard" className="nav-link">
             ダッシュボードへ
           </Link>
+          <Link to="/guide" className="nav-link">
+            使い方
+          </Link>
           <button type="button" className="ghost" onClick={() => void logout()}>
             ログアウト
           </button>
@@ -169,6 +172,9 @@ export const WatchlistPage = () => {
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
         >
           通知ログ
+        </NavLink>
+        <NavLink to="/guide" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+          使い方
         </NavLink>
       </nav>
 

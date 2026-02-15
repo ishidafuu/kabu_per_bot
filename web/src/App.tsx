@@ -3,6 +3,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotificationLogsPage } from './pages/NotificationLogsPage';
+import { UserGuidePage } from './pages/UserGuidePage';
 import { WatchlistPage } from './pages/WatchlistPage';
 import { WatchlistHistoryPage } from './pages/WatchlistHistoryPage';
 import './styles/app.css';
@@ -41,6 +42,14 @@ function App() {
           element={
             <ProtectedRoute>
               <NotificationLogsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/guide"
+          element={
+            <ProtectedRoute>
+              <UserGuidePage />
             </ProtectedRoute>
           }
         />

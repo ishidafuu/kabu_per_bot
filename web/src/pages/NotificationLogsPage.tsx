@@ -110,6 +110,9 @@ export const NotificationLogsPage = () => {
         >
           通知ログ
         </NavLink>
+        <NavLink to="/guide" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+          使い方
+        </NavLink>
       </nav>
 
       <section className="panel controls-panel">
