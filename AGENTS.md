@@ -9,11 +9,12 @@
 - 実装はMVP優先で進める。MVP外（IR/SNS/AI注目）は別マイルストーンで扱う。
 - 仕様の正本は以下とする。
   - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/MVP仕様分解_受け入れ基準.md`
-  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/実装タスク_Issue一覧.md`
   - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/技術スタック定義.md`
   - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/Firestoreスキーマ設計.md`
   - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/Web管理画面_仕様（画面一覧・API一覧）.md`
-  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/Web実装タスク_Issue一覧.md`
+  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/BOTコア実行手順.md`
+  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/Web_E2Eテストとステージング反映手順.md`
+  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/トレーダー向け_使い方手順書.md`
   - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/運用開始チェックリスト.md`
 
 ## 2. スコープ管理
