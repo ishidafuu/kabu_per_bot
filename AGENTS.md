@@ -87,3 +87,11 @@
 
 - 振る舞いを変える変更をした場合、関連する `docs/*.md` を同じPRで更新する。
 - 仕様未確定項目を決めた場合、`MVP仕様分解_受け入れ基準.md` の未確定セクションを更新する。
+
+## 9. デプロイ運用ルール（Cloud Run / Hosting）
+
+- Firebase Hosting から Cloud Run API を直接呼び出す運用のため、Cloud Run デプロイ時は `--allow-unauthenticated` を必ず指定する。
+- `--no-allow-unauthenticated` は使用しない（適用すると Web から API が `403` になりやすい）。
+- Cloud Run デプロイ後は必ず IAM を確認し、`allUsers` に `roles/run.invoker` があることを確認する。
+- もし `allUsers` の invoker が欠けている場合は、以下で即時復旧する。
+  - `gcloud run services add-iam-policy-binding <SERVICE_NAME> --region asia-northeast1 --member="allUsers" --role="roles/run.invoker"`
