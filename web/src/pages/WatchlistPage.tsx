@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
-import { WatchlistForm, type WatchlistFormValues } from '../components/WatchlistForm';
+import { WatchlistForm, buildWatchlistPayload, type WatchlistFormValues } from '../components/WatchlistForm';
 import { createWatchlistClient } from '../lib/api';
 import { toUserMessage } from '../lib/api/errors';
 import { appConfig } from '../lib/config';
@@ -71,11 +71,12 @@ export const WatchlistPage = () => {
     if (!accepted) {
       return;
     }
+    const reason = window.prompt('削除理由メモ（任意）', '') ?? '';
 
     setNoticeMessage('');
 
     try {
-      await client.remove(ticker);
+      await client.remove(ticker, reason);
       setNoticeMessage(`削除しました: ${ticker}`);
       await fetchWatchlist();
     } catch (error) {
@@ -100,14 +101,7 @@ export const WatchlistPage = () => {
     setIsSubmittingForm(true);
 
     try {
-      const payload = {
-        name: values.name,
-        metric_type: values.metric_type,
-        notify_channel: values.notify_channel,
-        notify_timing: values.notify_timing,
-        is_active: values.is_active,
-        ai_enabled: values.ai_enabled,
-      };
+      const payload = buildWatchlistPayload(values);
 
       if (!editingItem) {
         await client.create({

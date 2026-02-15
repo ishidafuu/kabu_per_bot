@@ -3,6 +3,7 @@ import type {
   MetricType,
   NotifyChannel,
   NotifyTiming,
+  XAccountLink,
   WatchlistItem,
 } from '../types/watchlist';
 
@@ -12,6 +13,10 @@ export interface WatchlistFormValues {
   metric_type: MetricType;
   notify_channel: NotifyChannel;
   notify_timing: NotifyTiming;
+  reason: string;
+  ir_urls_text: string;
+  x_official_account: string;
+  x_executive_accounts_text: string;
   is_active: boolean;
   ai_enabled: boolean;
 }
@@ -34,9 +39,39 @@ const buildInitialValues = (item?: WatchlistItem): WatchlistFormValues => {
     metric_type: item?.metric_type ?? 'PER',
     notify_channel: item?.notify_channel ?? 'DISCORD',
     notify_timing: item?.notify_timing ?? 'IMMEDIATE',
+    reason: '',
+    ir_urls_text: (item?.ir_urls ?? []).join('\n'),
+    x_official_account: item?.x_official_account ?? '',
+    x_executive_accounts_text: formatExecutiveAccounts(item?.x_executive_accounts ?? []),
     is_active: item?.is_active ?? true,
     ai_enabled: item?.ai_enabled ?? false,
   };
+};
+
+const formatExecutiveAccounts = (rows: XAccountLink[]): string => {
+  return rows
+    .map((row) => {
+      const role = row.role?.trim() ?? '';
+      return role.length > 0 ? `${row.handle},${role}` : row.handle;
+    })
+    .join('\n');
+};
+
+const parseMultilineValues = (value: string): string[] => {
+  return value
+    .split(/\r?\n/)
+    .map((row) => row.trim())
+    .filter((row) => row.length > 0);
+};
+
+const parseExecutiveAccounts = (value: string): XAccountLink[] => {
+  return parseMultilineValues(value).map((row) => {
+    const [handleRaw, ...roleParts] = row.split(',');
+    return {
+      handle: handleRaw.trim(),
+      role: roleParts.join(',').trim() || undefined,
+    };
+  });
 };
 
 export const WatchlistForm = ({
@@ -82,6 +117,9 @@ export const WatchlistForm = ({
       ...values,
       ticker: normalizedTicker,
       name: normalizedName,
+      x_official_account: values.x_official_account.trim(),
+      ir_urls_text: values.ir_urls_text.trim(),
+      x_executive_accounts_text: values.x_executive_accounts_text.trim(),
     });
   };
 
@@ -157,6 +195,52 @@ export const WatchlistForm = ({
           </select>
         </label>
 
+        <label>
+          追加理由メモ（任意）
+          <input
+            type="text"
+            value={values.reason}
+            onChange={(event) => {
+              updateField('reason', event.target.value);
+            }}
+            placeholder="例: 決算前の監視強化"
+          />
+        </label>
+
+        <label>
+          IR URL（改行区切り）
+          <textarea
+            value={values.ir_urls_text}
+            onChange={(event) => {
+              updateField('ir_urls_text', event.target.value);
+            }}
+            placeholder={'https://example.com/ir\nhttps://example.com/ir/news'}
+          />
+        </label>
+
+        <label>
+          X公式アカウント（任意）
+          <input
+            type="text"
+            value={values.x_official_account}
+            onChange={(event) => {
+              updateField('x_official_account', event.target.value);
+            }}
+            placeholder="@company_ir"
+          />
+        </label>
+
+        <label>
+          X役員アカウント（1行1件: handle,role）
+          <textarea
+            value={values.x_executive_accounts_text}
+            onChange={(event) => {
+              updateField('x_executive_accounts_text', event.target.value);
+            }}
+            placeholder={'ceo_account,CEO\ncfo_account,CFO'}
+          />
+        </label>
+
         <div className="check-field">
           <label>
             <input
@@ -196,4 +280,19 @@ export const WatchlistForm = ({
       </form>
     </section>
   );
+};
+
+export const buildWatchlistPayload = (values: WatchlistFormValues) => {
+  return {
+    name: values.name,
+    metric_type: values.metric_type,
+    notify_channel: values.notify_channel,
+    notify_timing: values.notify_timing,
+    is_active: values.is_active,
+    ai_enabled: values.ai_enabled,
+    reason: values.reason.trim() || undefined,
+    ir_urls: parseMultilineValues(values.ir_urls_text),
+    x_official_account: values.x_official_account.trim() || undefined,
+    x_executive_accounts: parseExecutiveAccounts(values.x_executive_accounts_text),
+  };
 };

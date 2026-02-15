@@ -103,6 +103,10 @@ def create_watchlist_item(
             notify_timing=payload.notify_timing,
             ai_enabled=payload.ai_enabled,
             is_active=payload.is_active,
+            ir_urls=payload.ir_urls,
+            x_official_account=payload.x_official_account,
+            x_executive_accounts=[row.model_dump() for row in payload.x_executive_accounts],
+            reason=payload.reason,
         )
     return WatchlistItemResponse.from_domain(created)
 
@@ -129,6 +133,13 @@ def update_watchlist_item(
             notify_timing=payload.notify_timing,
             ai_enabled=payload.ai_enabled,
             is_active=payload.is_active,
+            ir_urls=payload.ir_urls,
+            x_official_account=payload.x_official_account,
+            x_executive_accounts=(
+                [row.model_dump() for row in payload.x_executive_accounts]
+                if payload.x_executive_accounts is not None
+                else None
+            ),
         )
     return WatchlistItemResponse.from_domain(updated)
 
@@ -140,8 +151,9 @@ def update_watchlist_item(
 )
 def delete_watchlist_item(
     ticker: str,
+    reason: str | None = Query(default=None, max_length=200),
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> Response:
     with _translate_watchlist_error():
-        service.delete_item(ticker)
+        service.delete_item(ticker, reason=reason)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

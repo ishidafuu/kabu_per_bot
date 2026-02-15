@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 import logging
+import re
 from typing import Any, Protocol
 
 from kabu_per_bot.storage.firestore_schema import normalize_ticker
@@ -59,6 +60,25 @@ class WatchlistHistoryAction(str, Enum):
 
 
 @dataclass(frozen=True)
+class XAccountLink:
+    handle: str
+    role: str | None = None
+
+    @classmethod
+    def from_document(cls, data: Any) -> "XAccountLink":
+        if not isinstance(data, dict):
+            raise WatchlistError("x_executive_accounts entry must be object.")
+        handle = _normalize_x_handle(data.get("handle"), field_name="x_executive_accounts.handle")
+        return cls(handle=handle, role=_normalize_role(data.get("role")))
+
+    def to_document(self) -> dict[str, Any]:
+        return {
+            "handle": self.handle,
+            "role": self.role,
+        }
+
+
+@dataclass(frozen=True)
 class WatchlistItem:
     ticker: str
     name: str
@@ -67,6 +87,9 @@ class WatchlistItem:
     notify_timing: NotifyTiming
     ai_enabled: bool = False
     is_active: bool = True
+    ir_urls: tuple[str, ...] = ()
+    x_official_account: str | None = None
+    x_executive_accounts: tuple[XAccountLink, ...] = ()
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -80,6 +103,9 @@ class WatchlistItem:
             notify_timing=NotifyTiming(str(data["notify_timing"]).strip().upper()),
             ai_enabled=_coerce_bool(data.get("ai_enabled"), field_name="ai_enabled", default=False),
             is_active=_coerce_bool(data.get("is_active"), field_name="is_active", default=True),
+            ir_urls=_parse_ir_urls(data.get("ir_urls")),
+            x_official_account=_normalize_optional_x_handle(data.get("x_official_account")),
+            x_executive_accounts=_parse_x_executive_accounts(data.get("x_executive_accounts")),
             created_at=(str(data["created_at"]) if data.get("created_at") else None),
             updated_at=(str(data["updated_at"]) if data.get("updated_at") else None),
         )
@@ -93,6 +119,9 @@ class WatchlistItem:
             "notify_timing": self.notify_timing.value,
             "ai_enabled": self.ai_enabled,
             "is_active": self.is_active,
+            "ir_urls": list(self.ir_urls),
+            "x_official_account": self.x_official_account,
+            "x_executive_accounts": [entry.to_document() for entry in self.x_executive_accounts],
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -234,6 +263,9 @@ class WatchlistService:
         notify_timing: NotifyTiming | str,
         ai_enabled: bool = False,
         is_active: bool = True,
+        ir_urls: list[str] | tuple[str, ...] | None = None,
+        x_official_account: str | None = None,
+        x_executive_accounts: list[XAccountLink | dict[str, Any]] | tuple[XAccountLink | dict[str, Any], ...] | None = None,
         now_iso: str | None = None,
         reason: str | None = None,
     ) -> WatchlistItem:
@@ -248,6 +280,9 @@ class WatchlistService:
             notify_timing=NotifyTiming(self._enum_input(notify_timing)),
             ai_enabled=bool(ai_enabled),
             is_active=bool(is_active),
+            ir_urls=_normalize_ir_urls(ir_urls),
+            x_official_account=_normalize_optional_x_handle(x_official_account),
+            x_executive_accounts=_normalize_x_executive_accounts(x_executive_accounts),
             created_at=current_time,
             updated_at=current_time,
         )
@@ -300,6 +335,9 @@ class WatchlistService:
         notify_timing: NotifyTiming | str | None = None,
         ai_enabled: bool | None = None,
         is_active: bool | None = None,
+        ir_urls: list[str] | tuple[str, ...] | None = None,
+        x_official_account: str | None = None,
+        x_executive_accounts: list[XAccountLink | dict[str, Any]] | tuple[XAccountLink | dict[str, Any], ...] | None = None,
         now_iso: str | None = None,
     ) -> WatchlistItem:
         normalized_ticker = normalize_ticker(ticker)
@@ -325,6 +363,17 @@ class WatchlistService:
             ),
             ai_enabled=existing.ai_enabled if ai_enabled is None else bool(ai_enabled),
             is_active=existing.is_active if is_active is None else bool(is_active),
+            ir_urls=existing.ir_urls if ir_urls is None else _normalize_ir_urls(ir_urls),
+            x_official_account=(
+                existing.x_official_account
+                if x_official_account is None
+                else _normalize_optional_x_handle(x_official_account)
+            ),
+            x_executive_accounts=(
+                existing.x_executive_accounts
+                if x_executive_accounts is None
+                else _normalize_x_executive_accounts(x_executive_accounts)
+            ),
             created_at=existing.created_at,
             updated_at=now_iso or self._now_iso(),
         )
@@ -393,4 +442,86 @@ def _normalize_reason(reason: Any) -> str | None:
     if reason is None:
         return None
     normalized = str(reason).strip()
+    return normalized or None
+
+
+_URL_PATTERN = re.compile(r"^https?://[^\s]+$")
+_X_HANDLE_PATTERN = re.compile(r"^[A-Za-z0-9_]{1,15}$")
+
+
+def _parse_ir_urls(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise WatchlistError("ir_urls must be list.")
+    return _normalize_ir_urls(value)
+
+
+def _normalize_ir_urls(value: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    urls: list[str] = []
+    seen: set[str] = set()
+    for raw in value:
+        normalized = str(raw).strip()
+        if not normalized:
+            continue
+        if not _URL_PATTERN.match(normalized):
+            raise WatchlistError(f"ir_urls has invalid url: {normalized}")
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        urls.append(normalized)
+    return tuple(urls)
+
+
+def _parse_x_executive_accounts(value: Any) -> tuple[XAccountLink, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise WatchlistError("x_executive_accounts must be list.")
+    return _normalize_x_executive_accounts(value)
+
+
+def _normalize_x_executive_accounts(
+    value: list[XAccountLink | dict[str, Any]] | tuple[XAccountLink | dict[str, Any], ...] | None,
+) -> tuple[XAccountLink, ...]:
+    if value is None:
+        return ()
+    normalized: list[XAccountLink] = []
+    seen_handles: set[str] = set()
+    for raw_entry in value:
+        if isinstance(raw_entry, XAccountLink):
+            entry = raw_entry
+        else:
+            entry = XAccountLink.from_document(raw_entry)
+        if entry.handle in seen_handles:
+            continue
+        seen_handles.add(entry.handle)
+        normalized.append(entry)
+    return tuple(normalized)
+
+
+def _normalize_optional_x_handle(value: Any) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    return _normalize_x_handle(normalized, field_name="x_official_account")
+
+
+def _normalize_x_handle(value: Any, *, field_name: str) -> str:
+    text = str(value).strip()
+    if text.startswith("@"):
+        text = text[1:]
+    if not _X_HANDLE_PATTERN.match(text):
+        raise WatchlistError(f"{field_name} has invalid handle: {value}")
+    return text
+
+
+def _normalize_role(value: Any) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
     return normalized or None

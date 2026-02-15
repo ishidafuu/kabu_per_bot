@@ -3,7 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from kabu_per_bot.signal import NotificationLogEntry
-from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchlistItem
+from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchlistItem, XAccountLink
 from kabu_per_bot.watchlist import WatchlistHistoryRecord
 
 
@@ -12,6 +12,14 @@ class HealthzResponse(BaseModel):
 
 
 class WatchlistItemResponse(BaseModel):
+    class XAccountLinkResponse(BaseModel):
+        handle: str
+        role: str | None = None
+
+        @classmethod
+        def from_domain(cls, account: XAccountLink) -> "WatchlistItemResponse.XAccountLinkResponse":
+            return cls(handle=account.handle, role=account.role)
+
     ticker: str
     name: str
     metric_type: MetricType
@@ -19,6 +27,9 @@ class WatchlistItemResponse(BaseModel):
     notify_timing: NotifyTiming
     ai_enabled: bool
     is_active: bool
+    ir_urls: list[str]
+    x_official_account: str | None = None
+    x_executive_accounts: list[XAccountLinkResponse]
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -32,6 +43,9 @@ class WatchlistItemResponse(BaseModel):
             notify_timing=item.notify_timing,
             ai_enabled=item.ai_enabled,
             is_active=item.is_active,
+            ir_urls=list(item.ir_urls),
+            x_official_account=item.x_official_account,
+            x_executive_accounts=[WatchlistItemResponse.XAccountLinkResponse.from_domain(row) for row in item.x_executive_accounts],
             created_at=item.created_at,
             updated_at=item.updated_at,
         )
@@ -43,6 +57,10 @@ class WatchlistListResponse(BaseModel):
 
 
 class WatchlistCreateRequest(BaseModel):
+    class XAccountLinkRequest(BaseModel):
+        handle: str = Field(min_length=1, max_length=15)
+        role: str | None = Field(default=None, max_length=60)
+
     ticker: str = Field(pattern=r"^\d{4}:[A-Za-z]+$")
     name: str = Field(min_length=1, max_length=120)
     metric_type: MetricType
@@ -50,15 +68,26 @@ class WatchlistCreateRequest(BaseModel):
     notify_timing: NotifyTiming
     ai_enabled: bool = False
     is_active: bool = True
+    reason: str | None = Field(default=None, max_length=200)
+    ir_urls: list[str] = Field(default_factory=list, max_length=10)
+    x_official_account: str | None = Field(default=None, max_length=16)
+    x_executive_accounts: list[XAccountLinkRequest] = Field(default_factory=list, max_length=10)
 
 
 class WatchlistUpdateRequest(BaseModel):
+    class XAccountLinkRequest(BaseModel):
+        handle: str = Field(min_length=1, max_length=15)
+        role: str | None = Field(default=None, max_length=60)
+
     name: str | None = Field(default=None, min_length=1, max_length=120)
     metric_type: MetricType | None = None
     notify_channel: NotifyChannel | None = None
     notify_timing: NotifyTiming | None = None
     ai_enabled: bool | None = None
     is_active: bool | None = None
+    ir_urls: list[str] | None = Field(default=None, max_length=10)
+    x_official_account: str | None = Field(default=None, max_length=16)
+    x_executive_accounts: list[XAccountLinkRequest] | None = Field(default=None, max_length=10)
 
     def has_updates(self) -> bool:
         return any(
@@ -69,6 +98,9 @@ class WatchlistUpdateRequest(BaseModel):
                 self.notify_timing is not None,
                 self.ai_enabled is not None,
                 self.is_active is not None,
+                self.ir_urls is not None,
+                self.x_official_account is not None,
+                self.x_executive_accounts is not None,
             )
         )
 

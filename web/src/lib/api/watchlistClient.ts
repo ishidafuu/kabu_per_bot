@@ -16,7 +16,7 @@ export interface WatchlistClient {
   list(params?: ListWatchlistParams): Promise<WatchlistListResponse>;
   create(input: WatchlistCreateInput): Promise<WatchlistItem>;
   update(ticker: string, input: WatchlistUpdateInput): Promise<WatchlistItem>;
-  remove(ticker: string): Promise<void>;
+  remove(ticker: string, reason?: string): Promise<void>;
 }
 
 export class HttpWatchlistClient implements WatchlistClient {
@@ -63,8 +63,16 @@ export class HttpWatchlistClient implements WatchlistClient {
     });
   }
 
-  async remove(ticker: string): Promise<void> {
-    await this.httpClient.request<void>(`/watchlist/${encodeURIComponent(ticker)}`, {
+  async remove(ticker: string, reason?: string): Promise<void> {
+    const query = new URLSearchParams();
+    if (reason && reason.trim().length > 0) {
+      query.set('reason', reason.trim());
+    }
+    const suffix = query.toString();
+    const path = suffix.length > 0
+      ? `/watchlist/${encodeURIComponent(ticker)}?${suffix}`
+      : `/watchlist/${encodeURIComponent(ticker)}`;
+    await this.httpClient.request<void>(path, {
       method: 'DELETE',
     });
   }

@@ -16,6 +16,7 @@ from kabu_per_bot.watchlist import (
     WatchlistNotFoundError,
     WatchlistPersistenceError,
     WatchlistService,
+    XAccountLink,
 )
 
 
@@ -177,6 +178,38 @@ class WatchlistServiceTest(unittest.TestCase):
                     )
                 self.assertEqual(item.notify_channel, NotifyChannel.DISCORD)
                 self.assertIn("旧notify_channel値を互換変換", captured.output[0])
+
+    def test_item_supports_ir_and_x_links(self) -> None:
+        repo = InMemoryWatchlistRepository()
+        service = WatchlistService(repo)
+
+        created = service.add_item(
+            ticker="3901:TSE",
+            name="A",
+            metric_type="PER",
+            notify_channel="DISCORD",
+            notify_timing="IMMEDIATE",
+            ir_urls=["https://example.com/ir", "https://example.com/ir"],
+            x_official_account="@ExampleIR",
+            x_executive_accounts=[
+                {"handle": "@exec_a", "role": "CEO"},
+                {"handle": "exec_a", "role": "重複"},
+                XAccountLink(handle="exec_b", role=None),
+            ],
+        )
+        self.assertEqual(created.ir_urls, ("https://example.com/ir",))
+        self.assertEqual(created.x_official_account, "ExampleIR")
+        self.assertEqual([entry.handle for entry in created.x_executive_accounts], ["exec_a", "exec_b"])
+
+        updated = service.update_item(
+            "3901:TSE",
+            ir_urls=["https://example.com/ir2"],
+            x_official_account="official_2",
+            x_executive_accounts=[{"handle": "exec_c", "role": "CFO"}],
+        )
+        self.assertEqual(updated.ir_urls, ("https://example.com/ir2",))
+        self.assertEqual(updated.x_official_account, "official_2")
+        self.assertEqual([(entry.handle, entry.role) for entry in updated.x_executive_accounts], [("exec_c", "CFO")])
 
     def test_from_document_invalid_boolean_raises(self) -> None:
         with self.assertRaises(ValueError):
