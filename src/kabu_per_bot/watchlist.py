@@ -41,8 +41,6 @@ class MetricType(str, Enum):
 
 class NotifyChannel(str, Enum):
     DISCORD = "DISCORD"
-    LINE = "LINE"
-    BOTH = "BOTH"
     OFF = "OFF"
 
 

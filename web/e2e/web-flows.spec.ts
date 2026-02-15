@@ -52,7 +52,7 @@ test('ウォッチリスト一覧で作成・編集・削除できる', async ({
   await page.getByLabel('ticker').fill(ticker);
   await page.getByLabel('会社名').fill(createdName);
   await page.getByLabel('監視方式').selectOption('PSR');
-  await page.getByLabel('通知先').selectOption('LINE');
+  await page.getByLabel('通知先').selectOption('DISCORD');
   await page.getByLabel('通知時間').selectOption('AT_21');
   await page.getByRole('button', { name: '追加する' }).click();
 

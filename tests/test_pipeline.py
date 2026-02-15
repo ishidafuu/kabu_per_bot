@@ -410,7 +410,7 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(len(sender.messages), 2)
         self.assertTrue(all("【データ不明】" in message for message in sender.messages))
 
-    def test_daily_pipeline_skips_non_discord_channel(self) -> None:
+    def test_daily_pipeline_skips_off_channel(self) -> None:
         market_source = FakeMarketDataSource(
             snapshots={
                 "3901:TSE": MarketDataSnapshot.create(
@@ -433,7 +433,7 @@ class PipelineTest(unittest.TestCase):
             ticker="3901:TSE",
             name="富士フイルム",
             metric_type=MetricType.PER,
-            notify_channel=NotifyChannel.LINE,
+            notify_channel=NotifyChannel.OFF,
             notify_timing=NotifyTiming.IMMEDIATE,
         )
         result = run_daily_pipeline(
@@ -588,7 +588,7 @@ class PipelineTest(unittest.TestCase):
                 ticker="3902:TSE",
                 name="B",
                 metric_type=MetricType.PER,
-                notify_channel=NotifyChannel.LINE,
+                notify_channel=NotifyChannel.OFF,
                 notify_timing=NotifyTiming.AT_21,
             ),
             WatchlistItem(

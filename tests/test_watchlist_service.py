@@ -85,13 +85,13 @@ class WatchlistServiceTest(unittest.TestCase):
         updated = service.update_item(
             "3901:TSE",
             metric_type=MetricType.PSR,
-            notify_channel=NotifyChannel.BOTH,
+            notify_channel=NotifyChannel.OFF,
             notify_timing=NotifyTiming.AT_21,
             now_iso="2026-02-13T00:00:00+00:00",
         )
         fetched = service.get_item("3901:TSE")
         self.assertEqual(updated.metric_type, MetricType.PSR)
-        self.assertEqual(fetched.notify_channel, NotifyChannel.BOTH)
+        self.assertEqual(fetched.notify_channel, NotifyChannel.OFF)
         self.assertEqual(fetched.notify_timing, NotifyTiming.AT_21)
         self.assertEqual(fetched.updated_at, "2026-02-13T00:00:00+00:00")
 

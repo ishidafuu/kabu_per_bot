@@ -111,7 +111,7 @@ class WatchlistApiTest(unittest.TestCase):
                 "ticker": "6758:TSE",
                 "name": "ソニー",
                 "metric_type": "PSR",
-                "notify_channel": "BOTH",
+                "notify_channel": "OFF",
                 "notify_timing": "AT_21",
             },
         )
@@ -134,10 +134,10 @@ class WatchlistApiTest(unittest.TestCase):
         update = client.patch(
             "/api/v1/watchlist/3901:TSE",
             headers=_auth_header(),
-            json={"notify_channel": "LINE", "is_active": False},
+            json={"notify_channel": "OFF", "is_active": False},
         )
         self.assertEqual(update.status_code, 200)
-        self.assertEqual(update.json()["notify_channel"], "LINE")
+        self.assertEqual(update.json()["notify_channel"], "OFF")
         self.assertEqual(update.json()["is_active"], False)
 
         delete = client.delete("/api/v1/watchlist/3901:TSE", headers=_auth_header())

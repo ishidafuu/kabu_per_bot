@@ -1,6 +1,6 @@
 export type MetricType = 'PER' | 'PSR';
 
-export type NotifyChannel = 'DISCORD' | 'LINE' | 'BOTH' | 'OFF';
+export type NotifyChannel = 'DISCORD' | 'OFF';
 
 export type NotifyTiming = 'IMMEDIATE' | 'AT_21' | 'OFF';
 

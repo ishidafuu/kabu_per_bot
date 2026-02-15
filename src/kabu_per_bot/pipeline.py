@@ -408,10 +408,8 @@ def _is_channel_enabled(item: WatchlistItem, channel: str) -> bool:
     if item.notify_channel is NotifyChannel.OFF:
         return False
     if normalized == "DISCORD":
-        return item.notify_channel in {NotifyChannel.DISCORD, NotifyChannel.BOTH}
-    if normalized == "LINE":
-        return item.notify_channel in {NotifyChannel.LINE, NotifyChannel.BOTH}
-    return True
+        return item.notify_channel is NotifyChannel.DISCORD
+    return False
 
 
 def _should_dispatch_for_timing(

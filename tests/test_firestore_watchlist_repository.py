@@ -95,7 +95,7 @@ class FirestoreWatchlistRepositoryTest(unittest.TestCase):
             ticker="3901:TSE",
             name="富士フイルムHD",
             metric_type=MetricType.PSR,
-            notify_channel=NotifyChannel.BOTH,
+            notify_channel=NotifyChannel.OFF,
             notify_timing=NotifyTiming.AT_21,
             created_at=item.created_at,
             updated_at="2026-02-13T00:00:00+00:00",
@@ -105,7 +105,7 @@ class FirestoreWatchlistRepositoryTest(unittest.TestCase):
         self.assertIsNotNone(fetched)
         assert fetched is not None
         self.assertEqual(fetched.metric_type, MetricType.PSR)
-        self.assertEqual(fetched.notify_channel, NotifyChannel.BOTH)
+        self.assertEqual(fetched.notify_channel, NotifyChannel.OFF)
 
         self.assertTrue(repo.delete("3901:TSE"))
         self.assertFalse(repo.delete("3901:TSE"))

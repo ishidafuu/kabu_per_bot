@@ -139,8 +139,6 @@ export const WatchlistForm = ({
             }}
           >
             <option value="DISCORD">DISCORD</option>
-            <option value="LINE">LINE</option>
-            <option value="BOTH">BOTH</option>
             <option value="OFF">OFF</option>
           </select>
         </label>
