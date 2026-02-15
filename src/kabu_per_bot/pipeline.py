@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from hashlib import sha1
 import logging
 from typing import Protocol
@@ -27,6 +28,12 @@ from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, Watc
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+class NotificationExecutionMode(str, Enum):
+    ALL = "ALL"
+    DAILY = "DAILY"
+    AT_21 = "AT_21"
 
 
 class MessageSender(Protocol):
@@ -72,6 +79,7 @@ class DailyPipelineConfig:
     cooldown_hours: int
     now_iso: str
     channel: str = "DISCORD"
+    execution_mode: NotificationExecutionMode = NotificationExecutionMode.ALL
 
 
 @dataclass(frozen=True)
@@ -107,7 +115,7 @@ def run_daily_pipeline(
             continue
         if not _is_channel_enabled(item, config.channel):
             continue
-        if item.notify_timing is NotifyTiming.OFF:
+        if not _should_dispatch_for_timing(item.notify_timing, config.execution_mode):
             continue
         try:
             ticker_result = _process_single_ticker(
@@ -137,6 +145,7 @@ def run_weekly_earnings_pipeline(
     cooldown_hours: int,
     now_iso: str | None = None,
     channel: str = "DISCORD",
+    execution_mode: NotificationExecutionMode | str = NotificationExecutionMode.ALL,
 ) -> PipelineResult:
     target_entries = select_next_week_entries(earnings_entries, today=today)
     return _run_earnings_pipeline(
@@ -148,6 +157,7 @@ def run_weekly_earnings_pipeline(
         cooldown_hours=cooldown_hours,
         now_iso=now_iso,
         channel=channel,
+        execution_mode=execution_mode,
     )
 
 
@@ -161,6 +171,7 @@ def run_tomorrow_earnings_pipeline(
     cooldown_hours: int,
     now_iso: str | None = None,
     channel: str = "DISCORD",
+    execution_mode: NotificationExecutionMode | str = NotificationExecutionMode.ALL,
 ) -> PipelineResult:
     target_entries = select_tomorrow_entries(earnings_entries, today=today)
     return _run_earnings_pipeline(
@@ -172,6 +183,7 @@ def run_tomorrow_earnings_pipeline(
         cooldown_hours=cooldown_hours,
         now_iso=now_iso,
         channel=channel,
+        execution_mode=execution_mode,
     )
 
 
@@ -306,6 +318,7 @@ def _run_earnings_pipeline(
     cooldown_hours: int,
     now_iso: str | None,
     channel: str,
+    execution_mode: NotificationExecutionMode | str,
 ) -> PipelineResult:
     now_value = now_iso or datetime.now(timezone.utc).isoformat()
     watch_map = {item.ticker: item for item in watchlist_items if item.is_active}
@@ -316,7 +329,7 @@ def _run_earnings_pipeline(
             continue
         if not _is_channel_enabled(watch_item, channel):
             continue
-        if watch_item.notify_timing is NotifyTiming.OFF:
+        if not _should_dispatch_for_timing(watch_item.notify_timing, execution_mode):
             continue
         try:
             message = format_earnings_message(
@@ -399,3 +412,26 @@ def _is_channel_enabled(item: WatchlistItem, channel: str) -> bool:
     if normalized == "LINE":
         return item.notify_channel in {NotifyChannel.LINE, NotifyChannel.BOTH}
     return True
+
+
+def _should_dispatch_for_timing(
+    notify_timing: NotifyTiming,
+    execution_mode: NotificationExecutionMode | str,
+) -> bool:
+    mode = _normalize_execution_mode(execution_mode)
+    if notify_timing is NotifyTiming.OFF:
+        return False
+    if mode is NotificationExecutionMode.ALL:
+        return True
+    if mode is NotificationExecutionMode.DAILY:
+        return notify_timing is NotifyTiming.IMMEDIATE
+    return notify_timing is NotifyTiming.AT_21
+
+
+def _normalize_execution_mode(execution_mode: NotificationExecutionMode | str) -> NotificationExecutionMode:
+    if isinstance(execution_mode, NotificationExecutionMode):
+        return execution_mode
+    try:
+        return NotificationExecutionMode(str(execution_mode).strip().upper())
+    except ValueError as exc:
+        raise ValueError(f"unsupported execution_mode: {execution_mode}") from exc

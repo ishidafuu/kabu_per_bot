@@ -8,6 +8,7 @@ from kabu_per_bot.market_data import MarketDataFetchError, MarketDataSnapshot
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
 from kabu_per_bot.pipeline import (
     DailyPipelineConfig,
+    NotificationExecutionMode,
     run_daily_pipeline,
     run_tomorrow_earnings_pipeline,
     run_weekly_earnings_pipeline,
@@ -178,6 +179,190 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(len(sender.messages), 1)
         self.assertIn("【超PER割安】", sender.messages[0])
         self.assertEqual(len(log_repo.rows), 1)
+
+    def test_daily_pipeline_daily_mode_sends_immediate_only(self) -> None:
+        market_source = FakeMarketDataSource(
+            snapshots={
+                "3901:TSE": MarketDataSnapshot.create(
+                    ticker="3901:TSE",
+                    close_price=100.0,
+                    eps_forecast=None,
+                    sales_forecast=100.0,
+                    source="株探",
+                    earnings_date="2026-05-10",
+                ),
+                "3902:TSE": MarketDataSnapshot.create(
+                    ticker="3902:TSE",
+                    close_price=100.0,
+                    eps_forecast=None,
+                    sales_forecast=100.0,
+                    source="株探",
+                    earnings_date="2026-05-10",
+                ),
+            }
+        )
+        daily_repo = InMemoryDailyMetricsRepo()
+        medians_repo = InMemoryMediansRepo()
+        signal_repo = InMemorySignalStateRepo()
+        log_repo = InMemoryNotificationLogRepo()
+        sender = SpySender()
+
+        result = run_daily_pipeline(
+            watchlist_items=[
+                WatchlistItem(
+                    ticker="3901:TSE",
+                    name="A",
+                    metric_type=MetricType.PER,
+                    notify_channel=NotifyChannel.DISCORD,
+                    notify_timing=NotifyTiming.IMMEDIATE,
+                ),
+                WatchlistItem(
+                    ticker="3902:TSE",
+                    name="B",
+                    metric_type=MetricType.PER,
+                    notify_channel=NotifyChannel.DISCORD,
+                    notify_timing=NotifyTiming.AT_21,
+                ),
+            ],
+            market_data_source=market_source,
+            daily_metrics_repo=daily_repo,
+            medians_repo=medians_repo,
+            signal_state_repo=signal_repo,
+            notification_log_repo=log_repo,
+            sender=sender,
+            config=DailyPipelineConfig(
+                trade_date="2026-02-12",
+                window_1w_days=2,
+                window_3m_days=2,
+                window_1y_days=2,
+                cooldown_hours=2,
+                now_iso="2026-02-12T09:00:00+00:00",
+                execution_mode=NotificationExecutionMode.DAILY,
+            ),
+        )
+
+        self.assertEqual(result.processed_tickers, 1)
+        self.assertEqual(result.sent_notifications, 1)
+        self.assertEqual(len(sender.messages), 1)
+        self.assertIn("3901:TSE", sender.messages[0])
+        self.assertNotIn("3902:TSE", sender.messages[0])
+
+    def test_daily_pipeline_at21_mode_sends_at21_only(self) -> None:
+        market_source = FakeMarketDataSource(
+            snapshots={
+                "3901:TSE": MarketDataSnapshot.create(
+                    ticker="3901:TSE",
+                    close_price=100.0,
+                    eps_forecast=None,
+                    sales_forecast=100.0,
+                    source="株探",
+                    earnings_date="2026-05-10",
+                ),
+                "3902:TSE": MarketDataSnapshot.create(
+                    ticker="3902:TSE",
+                    close_price=100.0,
+                    eps_forecast=None,
+                    sales_forecast=100.0,
+                    source="株探",
+                    earnings_date="2026-05-10",
+                ),
+            }
+        )
+        daily_repo = InMemoryDailyMetricsRepo()
+        medians_repo = InMemoryMediansRepo()
+        signal_repo = InMemorySignalStateRepo()
+        log_repo = InMemoryNotificationLogRepo()
+        sender = SpySender()
+
+        result = run_daily_pipeline(
+            watchlist_items=[
+                WatchlistItem(
+                    ticker="3901:TSE",
+                    name="A",
+                    metric_type=MetricType.PER,
+                    notify_channel=NotifyChannel.DISCORD,
+                    notify_timing=NotifyTiming.IMMEDIATE,
+                ),
+                WatchlistItem(
+                    ticker="3902:TSE",
+                    name="B",
+                    metric_type=MetricType.PER,
+                    notify_channel=NotifyChannel.DISCORD,
+                    notify_timing=NotifyTiming.AT_21,
+                ),
+            ],
+            market_data_source=market_source,
+            daily_metrics_repo=daily_repo,
+            medians_repo=medians_repo,
+            signal_state_repo=signal_repo,
+            notification_log_repo=log_repo,
+            sender=sender,
+            config=DailyPipelineConfig(
+                trade_date="2026-02-12",
+                window_1w_days=2,
+                window_3m_days=2,
+                window_1y_days=2,
+                cooldown_hours=2,
+                now_iso="2026-02-12T09:00:00+00:00",
+                execution_mode=NotificationExecutionMode.AT_21,
+            ),
+        )
+
+        self.assertEqual(result.processed_tickers, 1)
+        self.assertEqual(result.sent_notifications, 1)
+        self.assertEqual(len(sender.messages), 1)
+        self.assertIn("3902:TSE", sender.messages[0])
+        self.assertNotIn("3901:TSE", sender.messages[0])
+
+    def test_daily_pipeline_default_mode_keeps_backward_compatibility(self) -> None:
+        market_source = FakeMarketDataSource(
+            snapshots={
+                "3901:TSE": MarketDataSnapshot.create(
+                    ticker="3901:TSE",
+                    close_price=100.0,
+                    eps_forecast=None,
+                    sales_forecast=100.0,
+                    source="株探",
+                    earnings_date="2026-05-10",
+                )
+            }
+        )
+        daily_repo = InMemoryDailyMetricsRepo()
+        medians_repo = InMemoryMediansRepo()
+        signal_repo = InMemorySignalStateRepo()
+        log_repo = InMemoryNotificationLogRepo()
+        sender = SpySender()
+
+        result = run_daily_pipeline(
+            watchlist_items=[
+                WatchlistItem(
+                    ticker="3901:TSE",
+                    name="A",
+                    metric_type=MetricType.PER,
+                    notify_channel=NotifyChannel.DISCORD,
+                    notify_timing=NotifyTiming.AT_21,
+                )
+            ],
+            market_data_source=market_source,
+            daily_metrics_repo=daily_repo,
+            medians_repo=medians_repo,
+            signal_state_repo=signal_repo,
+            notification_log_repo=log_repo,
+            sender=sender,
+            config=DailyPipelineConfig(
+                trade_date="2026-02-12",
+                window_1w_days=2,
+                window_3m_days=2,
+                window_1y_days=2,
+                cooldown_hours=2,
+                now_iso="2026-02-12T09:00:00+00:00",
+            ),
+        )
+
+        self.assertEqual(result.processed_tickers, 1)
+        self.assertEqual(result.sent_notifications, 1)
+        self.assertEqual(len(sender.messages), 1)
+        self.assertIn("3901:TSE", sender.messages[0])
 
     def test_daily_pipeline_continues_on_failure(self) -> None:
         market_source = FakeMarketDataSource(
@@ -449,6 +634,106 @@ class PipelineTest(unittest.TestCase):
         self.assertIn("3901:TSE", sender.messages[0])
         self.assertEqual(len(log_repo.rows), 1)
         self.assertEqual(log_repo.rows[0].category, "今週決算")
+
+    def test_weekly_earnings_pipeline_daily_mode_sends_immediate_only(self) -> None:
+        watchlist_items = [
+            WatchlistItem(
+                ticker="3901:TSE",
+                name="A",
+                metric_type=MetricType.PER,
+                notify_channel=NotifyChannel.DISCORD,
+                notify_timing=NotifyTiming.IMMEDIATE,
+            ),
+            WatchlistItem(
+                ticker="3902:TSE",
+                name="B",
+                metric_type=MetricType.PER,
+                notify_channel=NotifyChannel.DISCORD,
+                notify_timing=NotifyTiming.AT_21,
+            ),
+            WatchlistItem(
+                ticker="3903:TSE",
+                name="C",
+                metric_type=MetricType.PER,
+                notify_channel=NotifyChannel.DISCORD,
+                notify_timing=NotifyTiming.OFF,
+            ),
+        ]
+        entries = [
+            _earnings_entry("3901:TSE", "2026-02-16"),
+            _earnings_entry("3902:TSE", "2026-02-16"),
+            _earnings_entry("3903:TSE", "2026-02-16"),
+        ]
+        log_repo = InMemoryNotificationLogRepo()
+        sender = SpySender()
+
+        result = run_weekly_earnings_pipeline(
+            today="2026-02-14",
+            watchlist_items=watchlist_items,
+            earnings_entries=entries,
+            notification_log_repo=log_repo,
+            sender=sender,
+            cooldown_hours=2,
+            now_iso="2026-02-14T12:00:00+00:00",
+            execution_mode=NotificationExecutionMode.DAILY,
+        )
+
+        self.assertEqual(result.processed_tickers, 1)
+        self.assertEqual(result.sent_notifications, 1)
+        self.assertEqual(len(sender.messages), 1)
+        self.assertIn("3901:TSE", sender.messages[0])
+        self.assertNotIn("3902:TSE", sender.messages[0])
+        self.assertNotIn("3903:TSE", sender.messages[0])
+
+    def test_weekly_earnings_pipeline_at21_mode_sends_at21_only(self) -> None:
+        watchlist_items = [
+            WatchlistItem(
+                ticker="3901:TSE",
+                name="A",
+                metric_type=MetricType.PER,
+                notify_channel=NotifyChannel.DISCORD,
+                notify_timing=NotifyTiming.IMMEDIATE,
+            ),
+            WatchlistItem(
+                ticker="3902:TSE",
+                name="B",
+                metric_type=MetricType.PER,
+                notify_channel=NotifyChannel.DISCORD,
+                notify_timing=NotifyTiming.AT_21,
+            ),
+            WatchlistItem(
+                ticker="3903:TSE",
+                name="C",
+                metric_type=MetricType.PER,
+                notify_channel=NotifyChannel.DISCORD,
+                notify_timing=NotifyTiming.OFF,
+            ),
+        ]
+        entries = [
+            _earnings_entry("3901:TSE", "2026-02-16"),
+            _earnings_entry("3902:TSE", "2026-02-16"),
+            _earnings_entry("3903:TSE", "2026-02-16"),
+        ]
+        log_repo = InMemoryNotificationLogRepo()
+        sender = SpySender()
+
+        result = run_weekly_earnings_pipeline(
+            today="2026-02-14",
+            watchlist_items=watchlist_items,
+            earnings_entries=entries,
+            notification_log_repo=log_repo,
+            sender=sender,
+            cooldown_hours=2,
+            now_iso="2026-02-14T12:00:00+00:00",
+            execution_mode=NotificationExecutionMode.AT_21,
+        )
+
+        self.assertEqual(result.processed_tickers, 1)
+        self.assertEqual(result.sent_notifications, 1)
+        self.assertEqual(len(sender.messages), 1)
+        self.assertIn("3902:TSE", sender.messages[0])
+        self.assertNotIn("3901:TSE", sender.messages[0])
+        self.assertNotIn("3903:TSE", sender.messages[0])
 
     def test_tomorrow_earnings_pipeline_sets_category_and_applies_cooldown(self) -> None:
         watchlist_items = [_watch_item("3901:TSE", "富士フイルム")]
