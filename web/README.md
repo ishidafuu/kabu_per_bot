@@ -33,12 +33,14 @@ npm run dev
 
 ## モックでの確認（バックエンド未接続時）
 
-`.env` 未設定でも、以下の既定値でそのまま動作します。
+`npm run dev` では `.env` 未設定でも、以下の既定値でそのまま動作します。
 
-- `VITE_USE_MOCK_API=true`
-- `VITE_USE_MOCK_AUTH=true`
+- `VITE_USE_MOCK_API=true`（開発モード既定）
+- `VITE_USE_MOCK_AUTH=true`（開発モード既定）
 
 この場合はログイン画面で「モックログイン」を使って操作確認できます。
+
+本番ビルドでは既定値は `false` です。設定漏れ時にモックへフォールバックしないようにしています。
 
 ## 実API/Firebase接続
 

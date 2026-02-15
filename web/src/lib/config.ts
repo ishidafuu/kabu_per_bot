@@ -18,7 +18,7 @@ const parseNumber = (value: string | undefined, defaultValue: number): number =>
 
 export const appConfig = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? '/api/v1',
-  useMockApi: parseBoolean(import.meta.env.VITE_USE_MOCK_API, true),
-  useMockAuth: parseBoolean(import.meta.env.VITE_USE_MOCK_AUTH, true),
+  useMockApi: parseBoolean(import.meta.env.VITE_USE_MOCK_API, import.meta.env.DEV),
+  useMockAuth: parseBoolean(import.meta.env.VITE_USE_MOCK_AUTH, import.meta.env.DEV),
   pageSize: parseNumber(import.meta.env.VITE_PAGE_SIZE, 10),
 };

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from kabu_per_bot.metrics import MetricMedians
@@ -193,7 +193,11 @@ def build_signal_state(
     streak_days = 0
     if evaluation.has_signal:
         streak_days = 1
-        if previous_state is not None and _is_same_signal(previous_state, evaluation):
+        if (
+            previous_state is not None
+            and _is_same_signal(previous_state, evaluation)
+            and _is_previous_business_day(previous_trade_date=previous_state.trade_date, current_trade_date=evaluation.trade_date)
+        ):
             streak_days = previous_state.streak_days + 1
 
     return SignalState(
@@ -262,6 +266,15 @@ def _is_same_signal(previous: SignalState, current: SignalEvaluation) -> bool:
     if previous.is_strong != current.is_strong:
         return False
     return True
+
+
+def _is_previous_business_day(*, previous_trade_date: str, current_trade_date: str) -> bool:
+    previous = date.fromisoformat(previous_trade_date)
+    current = date.fromisoformat(current_trade_date)
+    expected = current - timedelta(days=1)
+    while expected.weekday() >= 5:
+        expected -= timedelta(days=1)
+    return previous == expected
 
 
 def _is_recent(sent_at: str, threshold: datetime) -> bool:
