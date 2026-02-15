@@ -6,24 +6,24 @@
   --font-heading: 'M PLUS Rounded 1c', 'Zen Kaku Gothic New', sans-serif;
   line-height: 1.45;
   font-weight: 400;
-  color: #e2e8f0;
+  color: #f1f5f9;
   background:
-    radial-gradient(66rem 66rem at -6% -8%, rgba(16, 185, 129, 0.17), transparent 58%),
-    radial-gradient(72rem 72rem at 106% -12%, rgba(14, 165, 233, 0.15), transparent 56%),
-    linear-gradient(145deg, #050914 0%, #0b1220 38%, #111827 100%);
-  --bg-surface: rgba(12, 19, 33, 0.78);
-  --bg-surface-strong: rgba(17, 26, 44, 0.92);
-  --bg-elevated: rgba(19, 31, 52, 0.94);
-  --bg-input: rgba(10, 18, 33, 0.92);
-  --border-soft: #293a53;
-  --border-strong: #35527a;
-  --text-main: #e2e8f0;
-  --text-muted: #93a4bc;
+    radial-gradient(48rem 48rem at 0% 0%, rgba(20, 184, 166, 0.1), transparent 60%),
+    radial-gradient(48rem 48rem at 100% 0%, rgba(14, 165, 233, 0.08), transparent 55%),
+    linear-gradient(170deg, #0a1222 0%, #0f172a 100%);
+  --bg-surface: #111b2f;
+  --bg-surface-strong: #17233a;
+  --bg-elevated: #1a2741;
+  --bg-input: #0f1a2d;
+  --border-soft: #334864;
+  --border-strong: #476287;
+  --text-main: #f1f5f9;
+  --text-muted: #b5c3d8;
   --accent: #14b8a6;
   --accent-strong: #0ea5e9;
-  --accent-contrast: #041316;
-  --danger: #f87171;
-  --danger-bg: rgba(127, 29, 29, 0.22);
+  --accent-contrast: #f8fafc;
+  --danger: #fca5a5;
+  --danger-bg: rgba(127, 29, 29, 0.35);
   --ok: #4ade80;
   --warning: #fbbf24;
   font-synthesis: none;
