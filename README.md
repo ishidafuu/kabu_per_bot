@@ -78,6 +78,18 @@ PYTHONPATH=src python scripts/run_earnings_job.py --job tomorrow --discord-webho
 - `tomorrow`: 毎日21時（JST）想定。翌日分を `明日決算` カテゴリで通知。
 - `--discord-webhook-url` 未指定時は `DISCORD_WEBHOOK_URL` を利用。
 
+## IR/SNS/AI通知ジョブ実行
+
+ウォッチリストの `ir_urls` / `x_official_account` / `x_executive_accounts` を監視し、`IR更新` / `SNS注目` / `AI注目` を通知する実行コマンド:
+
+```bash
+PYTHONPATH=src python scripts/run_intelligence_job.py --discord-webhook-url <DISCORD_WEBHOOK_URL>
+```
+
+- `AI_NOTIFICATIONS_ENABLED=true` かつ銘柄設定 `ai_enabled=true` の場合に `AI注目` を送信。
+- X監視には `X_API_BEARER_TOKEN` が必要。
+- `--execution-mode daily|at_21` で通知時間フィルタを選択可能。
+
 ## Web E2E（W12）
 
 ```bash

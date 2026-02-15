@@ -18,6 +18,8 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.window_1y_days, 252)
         self.assertEqual(settings.cooldown_hours, 2)
         self.assertEqual(settings.firestore_project_id, "")
+        self.assertFalse(settings.ai_notifications_enabled)
+        self.assertEqual(settings.x_api_bearer_token, "")
 
     def test_env_override(self) -> None:
         settings = load_settings(
@@ -29,6 +31,8 @@ class LoadSettingsTest(unittest.TestCase):
                 "WINDOW_1Y_DAYS": "260",
                 "COOLDOWN_HOURS": "3",
                 "FIRESTORE_PROJECT_ID": "demo-project",
+                "AI_NOTIFICATIONS_ENABLED": "true",
+                "X_API_BEARER_TOKEN": "token-123",
             },
             dotenv_path="does-not-exist.env",
         )
@@ -40,6 +44,8 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.window_1y_days, 260)
         self.assertEqual(settings.cooldown_hours, 3)
         self.assertEqual(settings.firestore_project_id, "demo-project")
+        self.assertTrue(settings.ai_notifications_enabled)
+        self.assertEqual(settings.x_api_bearer_token, "token-123")
 
     def test_dotenv_loaded_when_env_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -56,6 +62,13 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.cooldown_hours, 4)
         self.assertEqual(settings.window_3m_days, 63)
         self.assertEqual(settings.window_1y_days, 252)
+
+    def test_invalid_boolean_raises(self) -> None:
+        with self.assertRaises(SettingsError):
+            load_settings(
+                env={"AI_NOTIFICATIONS_ENABLED": "maybe"},
+                dotenv_path="does-not-exist.env",
+            )
 
     def test_env_has_priority_over_dotenv(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

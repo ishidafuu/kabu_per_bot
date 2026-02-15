@@ -129,6 +129,8 @@ class RunDailyJobTest(TestCase):
             window_1y_days=2,
             cooldown_hours=2,
             firestore_project_id="",
+            ai_notifications_enabled=False,
+            x_api_bearer_token="",
         )
 
         with (
@@ -181,6 +183,8 @@ class RunDailyJobTest(TestCase):
             window_1y_days=2,
             cooldown_hours=2,
             firestore_project_id="",
+            ai_notifications_enabled=False,
+            x_api_bearer_token="",
         )
 
         with (

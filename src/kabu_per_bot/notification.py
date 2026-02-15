@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 
+from kabu_per_bot.intelligence import AiInsight, IntelEvent, IntelKind
 from kabu_per_bot.signal import SignalState
 from kabu_per_bot.storage.firestore_schema import normalize_ticker
 
@@ -105,6 +106,57 @@ def format_data_unknown_message(
         ticker=normalized_ticker,
         category="データ不明",
         condition_key=f"UNKNOWN:{','.join(sorted_fields)}",
+        body=body,
+        is_strong=False,
+    )
+
+
+def format_intel_update_message(
+    *,
+    ticker: str,
+    company_name: str,
+    event: IntelEvent,
+) -> NotificationMessage:
+    normalized_ticker = normalize_ticker(ticker)
+    category = "IR更新" if event.kind is IntelKind.IR else "SNS注目"
+    body = "\n".join(
+        [
+            f"【{category}】{normalized_ticker} {company_name}",
+            event.title,
+            f"URL: {event.url}",
+            f"種別: {event.source_label}",
+        ]
+    )
+    return NotificationMessage(
+        ticker=normalized_ticker,
+        category=category,
+        condition_key=f"{event.kind.value}:{event.fingerprint}",
+        body=body,
+        is_strong=False,
+    )
+
+
+def format_ai_attention_message(
+    *,
+    ticker: str,
+    company_name: str,
+    event: IntelEvent,
+    insight: AiInsight,
+) -> NotificationMessage:
+    normalized_ticker = normalize_ticker(ticker)
+    evidence = " / ".join(insight.evidence_urls) if insight.evidence_urls else event.url
+    body = "\n".join(
+        [
+            f"【AI注目】{normalized_ticker} {company_name} {insight.summary}",
+            f"根拠：{evidence}",
+            f"分類：IR={insight.ir_label} SNS={insight.sns_label} トーン={insight.tone}",
+            f"確信度：{insight.confidence}",
+        ]
+    )
+    return NotificationMessage(
+        ticker=normalized_ticker,
+        category="AI注目",
+        condition_key=f"AI:{event.fingerprint}",
         body=body,
         is_strong=False,
     )

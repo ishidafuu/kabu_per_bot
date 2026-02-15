@@ -94,7 +94,8 @@ export const USER_GUIDE_SECTIONS: GuideSection[] = [
   {
     title: '9. 既知事項',
     body: [
-      'AI通知は現時点で未実装です（画面上にも未実装表示あり）。',
+      'AI通知は全体設定（AI_NOTIFICATIONS_ENABLED）と銘柄設定（AI通知ON）の両方が有効な場合に送信されます。',
+      'SNS監視は X API トークン（X_API_BEARER_TOKEN）未設定時に「データ不明」通知になります。',
       '通知チャネルは Discord のみ対応です。',
     ],
   },

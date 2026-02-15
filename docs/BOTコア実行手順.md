@@ -68,13 +68,23 @@ PYTHONPATH=src python scripts/run_earnings_job.py --job tomorrow --discord-webho
 - `tomorrow`: 毎日21時（JST）想定。翌日決算を `明日決算` として通知。
 - `FIRESTORE_PROJECT_ID` と `DISCORD_WEBHOOK_URL` を利用する。
 
-## 7. マイグレーション
+## 7. IR/SNS/AI通知ジョブ
+
+```bash
+PYTHONPATH=src python scripts/run_intelligence_job.py --discord-webhook-url <DISCORD_WEBHOOK_URL>
+```
+
+- `AI_NOTIFICATIONS_ENABLED=true` かつ銘柄設定 `ai_enabled=true` で `【AI注目】` を送信。
+- SNS監視には `X_API_BEARER_TOKEN` が必要（未設定時は `【データ不明】` 通知）。
+- `--execution-mode daily|at_21` で通知時間フィルタを指定可能。
+
+## 8. マイグレーション
 
 ```bash
 PYTHONPATH=src python scripts/migrate_firestore_v0001.py --project-id <GCP_PROJECT_ID>
 ```
 
-## 8. デプロイ前機械チェック（W12）
+## 9. デプロイ前機械チェック（W12）
 
 Hosting / Cloud Run へ反映する前に、ローカルで事前チェックだけ実行する。
 

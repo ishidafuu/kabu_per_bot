@@ -27,6 +27,8 @@ class AppSettings:
     window_1y_days: int
     cooldown_hours: int
     firestore_project_id: str
+    ai_notifications_enabled: bool
+    x_api_bearer_token: str
 
 
 def _read_dotenv(dotenv_path: Path) -> dict[str, str]:
@@ -68,6 +70,18 @@ def _get_int(values: Mapping[str, str], key: str, default: int) -> int:
     return value
 
 
+def _get_bool(values: Mapping[str, str], key: str, default: bool) -> bool:
+    raw_value = values.get(key)
+    if raw_value is None or raw_value.strip() == "":
+        return default
+    normalized = raw_value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise SettingsError(f"{key} must be boolean: {raw_value}")
+
+
 def load_settings(
     *,
     env: Mapping[str, str] | None = None,
@@ -102,4 +116,6 @@ def load_settings(
         window_1y_days=window_1y_days,
         cooldown_hours=_get_int(merged, "COOLDOWN_HOURS", DEFAULT_COOLDOWN_HOURS),
         firestore_project_id=merged.get("FIRESTORE_PROJECT_ID", "").strip(),
+        ai_notifications_enabled=_get_bool(merged, "AI_NOTIFICATIONS_ENABLED", False),
+        x_api_bearer_token=merged.get("X_API_BEARER_TOKEN", "").strip(),
     )

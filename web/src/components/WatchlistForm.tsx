@@ -260,10 +260,10 @@ export const WatchlistForm = ({
                 updateField('ai_enabled', event.target.checked);
               }}
             />
-            AI通知（未実装）
+            AI通知
           </label>
         </div>
-        <p className="muted">AI通知は第2段階で実装予定です（現状は設定値の保存のみ）。</p>
+        <p className="muted">AI注目通知を有効化します（全体設定ON時に配信）。</p>
 
         {(localError || apiErrorMessage) && (
           <p className="error-text">{localError || apiErrorMessage}</p>

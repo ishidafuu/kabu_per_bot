@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import unittest
 
+from kabu_per_bot.intelligence import AiInsight, IntelEvent, IntelKind
 from kabu_per_bot.notification import (
+    format_ai_attention_message,
     format_data_unknown_message,
     format_earnings_message,
+    format_intel_update_message,
     format_signal_message,
 )
 from kabu_per_bot.signal import SignalState
@@ -61,6 +64,50 @@ class NotificationFormatterTest(unittest.TestCase):
         self.assertIn("【データ不明】", message.body)
         self.assertIn("close_price, eps_forecast", message.body)
         self.assertEqual(message.category, "データ不明")
+
+    def test_intel_update_message_format(self) -> None:
+        message = format_intel_update_message(
+            ticker="3901:TSE",
+            company_name="富士フイルム",
+            event=IntelEvent(
+                ticker="3901:TSE",
+                kind=IntelKind.IR,
+                title="決算説明資料を公開",
+                url="https://example.com/ir.pdf",
+                published_at="2026-02-15T12:00:00+09:00",
+                source_label="IRサイト",
+                content="決算説明資料を公開しました",
+            ),
+        )
+        self.assertIn("【IR更新】", message.body)
+        self.assertIn("URL: https://example.com/ir.pdf", message.body)
+        self.assertEqual(message.category, "IR更新")
+
+    def test_ai_attention_message_format(self) -> None:
+        message = format_ai_attention_message(
+            ticker="3901:TSE",
+            company_name="富士フイルム",
+            event=IntelEvent(
+                ticker="3901:TSE",
+                kind=IntelKind.SNS,
+                title="@fujifilm_ir",
+                url="https://x.com/fujifilm_ir/status/1",
+                published_at="2026-02-15T12:00:00+09:00",
+                source_label="公式",
+                content="新製品の受注が好調",
+            ),
+            insight=AiInsight(
+                summary="新製品受注が好調",
+                evidence_urls=["https://x.com/fujifilm_ir/status/1"],
+                ir_label="該当なし",
+                sns_label="公式",
+                tone="ポジ",
+                confidence="Med",
+            ),
+        )
+        self.assertIn("【AI注目】", message.body)
+        self.assertIn("根拠：https://x.com/fujifilm_ir/status/1", message.body)
+        self.assertEqual(message.category, "AI注目")
 
 
 if __name__ == "__main__":
