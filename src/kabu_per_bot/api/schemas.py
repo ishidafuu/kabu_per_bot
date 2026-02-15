@@ -169,6 +169,10 @@ class WatchlistHistoryListResponse(BaseModel):
     total: int = Field(ge=0)
 
 
+class WatchlistHistoryReasonUpdateRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=200)
+
+
 class NotificationLogItemResponse(BaseModel):
     entry_id: str
     ticker: str

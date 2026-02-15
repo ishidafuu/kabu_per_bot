@@ -86,6 +86,21 @@ class FakeWatchlistHistoryRepository:
         normalized = normalize_ticker(ticker)
         return sum(1 for row in self.rows if row.ticker == normalized)
 
+    def update_reason(self, *, record_id: str, reason: str | None) -> WatchlistHistoryRecord | None:
+        for index, row in enumerate(self.rows):
+            if row.record_id != record_id:
+                continue
+            updated = WatchlistHistoryRecord(
+                record_id=row.record_id,
+                ticker=row.ticker,
+                action=row.action,
+                reason=reason,
+                acted_at=row.acted_at,
+            )
+            self.rows[index] = updated
+            return updated
+        return None
+
 
 @dataclass
 class FakeNotificationLogRepository:
@@ -404,6 +419,23 @@ class DashboardHistoryLogsApiTest(unittest.TestCase):
         self.assertEqual(len(body["items"]), 2)
         self.assertEqual(body["items"][0]["action"], "REMOVE")
         self.assertEqual(body["items"][1]["action"], "ADD")
+
+    def test_watchlist_history_reason_update(self) -> None:
+        record = WatchlistHistoryRecord.create(
+            ticker="3901:TSE",
+            action=WatchlistHistoryAction.ADD,
+            reason="旧理由",
+            acted_at="2026-02-12T01:00:00+09:00",
+        )
+        client = _build_client(history_rows=[record])
+
+        response = client.patch(
+            f"/api/v1/watchlist/history/{record.record_id}",
+            headers=_auth_header(),
+            json={"reason": "更新理由"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["reason"], "更新理由")
 
     def test_notification_logs_timeline_order_and_paging(self) -> None:
         client = _build_client(

@@ -9,6 +9,7 @@ export interface ListWatchlistHistoryParams {
 
 export interface WatchlistHistoryClient {
   list(params?: ListWatchlistHistoryParams): Promise<WatchlistHistoryListResponse>;
+  updateReason(recordId: string, reason: string): Promise<void>;
 }
 
 export class HttpWatchlistHistoryClient implements WatchlistHistoryClient {
@@ -38,6 +39,15 @@ export class HttpWatchlistHistoryClient implements WatchlistHistoryClient {
 
     return this.httpClient.request<WatchlistHistoryListResponse>(path, {
       method: 'GET',
+    });
+  }
+
+  async updateReason(recordId: string, reason: string): Promise<void> {
+    await this.httpClient.request(`/watchlist/history/${encodeURIComponent(recordId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        reason: reason.trim().length > 0 ? reason.trim() : null,
+      }),
     });
   }
 }

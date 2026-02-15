@@ -35,6 +35,9 @@ class WatchlistHistoryReader(Protocol):
     ) -> int:
         """Count watchlist history rows."""
 
+    def update_reason(self, *, record_id: str, reason: str | None) -> WatchlistHistoryRecord | None:
+        """Update reason memo and return updated row."""
+
 
 class NotificationLogReader(Protocol):
     def list_timeline(

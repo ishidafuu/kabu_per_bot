@@ -13,6 +13,26 @@ class FirestoreWatchlistHistoryRepository:
     def append(self, record: WatchlistHistoryRecord) -> None:
         self._collection.document(record.record_id).set(record.to_document(), merge=False)
 
+    def update_reason(self, *, record_id: str, reason: str | None) -> WatchlistHistoryRecord | None:
+        normalized_id = str(record_id).strip()
+        if not normalized_id:
+            raise ValueError("record_id is required")
+        ref = self._collection.document(normalized_id)
+        snapshot = ref.get()
+        if not snapshot.exists:
+            return None
+        data = snapshot.to_dict() or {}
+        row = WatchlistHistoryRecord.from_document(data)
+        updated = WatchlistHistoryRecord(
+            record_id=row.record_id,
+            ticker=row.ticker,
+            action=row.action,
+            reason=(str(reason).strip() if reason is not None and str(reason).strip() else None),
+            acted_at=row.acted_at,
+        )
+        ref.set(updated.to_document(), merge=False)
+        return updated
+
     def list_by_ticker(self, ticker: str, *, limit: int = 100) -> list[WatchlistHistoryRecord]:
         return self.list_timeline(ticker=ticker, limit=limit)
 

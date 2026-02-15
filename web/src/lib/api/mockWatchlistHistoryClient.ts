@@ -38,6 +38,7 @@ const seedWatchlistHistory: WatchlistHistoryItem[] = [
     acted_at: '2026-02-07T08:45:00+09:00',
   },
 ];
+let mockStore = [...seedWatchlistHistory];
 
 const wait = (ms: number): Promise<void> =>
   new Promise((resolve) => {
@@ -53,12 +54,26 @@ export class MockWatchlistHistoryClient implements WatchlistHistoryClient {
     const ticker = params.ticker?.trim().toUpperCase() ?? '';
 
     const filtered = ticker.length === 0
-      ? seedWatchlistHistory
-      : seedWatchlistHistory.filter((item) => item.ticker.toUpperCase() === ticker);
+      ? mockStore
+      : mockStore.filter((item) => item.ticker.toUpperCase() === ticker);
 
     return {
       items: filtered.slice(offset, offset + limit),
       total: filtered.length,
     };
+  }
+
+  async updateReason(recordId: string, reason: string): Promise<void> {
+    await wait(120);
+    const index = mockStore.findIndex((item) => item.record_id === recordId);
+    if (index < 0) {
+      throw new Error('履歴が見つかりません');
+    }
+    const current = mockStore[index];
+    mockStore = [
+      ...mockStore.slice(0, index),
+      { ...current, reason: reason.trim() || null },
+      ...mockStore.slice(index + 1),
+    ];
   }
 }

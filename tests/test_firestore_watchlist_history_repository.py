@@ -24,6 +24,11 @@ class FakeDocumentRef:
     def set(self, data: dict, merge: bool = False) -> None:
         self.db[self.path] = dict(data)
 
+    def get(self) -> FakeSnapshot:
+        if self.path not in self.db:
+            return FakeSnapshot(exists=False, data=None)
+        return FakeSnapshot(exists=True, data=dict(self.db[self.path]))
+
 
 @dataclass
 class FakeCollectionRef:
@@ -78,6 +83,23 @@ class FirestoreWatchlistHistoryRepositoryTest(unittest.TestCase):
         self.assertEqual(paged[0].action, WatchlistHistoryAction.ADD)
 
         self.assertEqual(repo.count_timeline(ticker="3901:TSE"), 2)
+
+    def test_update_reason(self) -> None:
+        repo = FirestoreWatchlistHistoryRepository(FakeFirestoreClient())
+        record = WatchlistHistoryRecord.create(
+            ticker="3901:TSE",
+            action=WatchlistHistoryAction.ADD,
+            acted_at="2026-02-12T00:00:00+00:00",
+            reason="初回",
+        )
+        repo.append(record)
+
+        updated = repo.update_reason(record_id=record.record_id, reason="理由更新")
+        self.assertIsNotNone(updated)
+        assert updated is not None
+        self.assertEqual(updated.reason, "理由更新")
+        missing = repo.update_reason(record_id="not-found", reason="x")
+        self.assertIsNone(missing)
 
 
 if __name__ == "__main__":

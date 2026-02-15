@@ -78,6 +78,16 @@ export const WatchlistHistoryPage = () => {
   const canGoPrev = offset > 0;
   const canGoNext = offset + limit < total;
 
+  const handleEditReason = async (item: WatchlistHistoryItem): Promise<void> => {
+    const nextReason = window.prompt('理由メモを編集', item.reason ?? '') ?? '';
+    try {
+      await client.updateReason(item.record_id, nextReason);
+      await fetchHistory();
+    } catch (error) {
+      setLoadError(toUserMessage(error));
+    }
+  };
+
   return (
     <main className="page-shell">
       <header className="top-bar panel">
@@ -156,12 +166,13 @@ export const WatchlistHistoryPage = () => {
                 <th>action</th>
                 <th>reason</th>
                 <th>record_id</th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
               {isLoading && items.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="empty-cell">
+                  <td colSpan={6} className="empty-cell">
                     読み込み中...
                   </td>
                 </tr>
@@ -169,7 +180,7 @@ export const WatchlistHistoryPage = () => {
 
               {!isLoading && items.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="empty-cell">
+                  <td colSpan={6} className="empty-cell">
                     履歴データがありません。
                   </td>
                 </tr>
@@ -182,6 +193,11 @@ export const WatchlistHistoryPage = () => {
                   <td>{item.action}</td>
                   <td>{item.reason ?? '-'}</td>
                   <td>{item.record_id}</td>
+                  <td>
+                    <button type="button" className="ghost" onClick={() => void handleEditReason(item)}>
+                      理由編集
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
