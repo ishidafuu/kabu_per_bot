@@ -85,6 +85,7 @@ class WatchlistItem:
     metric_type: MetricType
     notify_channel: NotifyChannel
     notify_timing: NotifyTiming
+    always_notify_enabled: bool = False
     ai_enabled: bool = False
     is_active: bool = True
     ir_urls: tuple[str, ...] = ()
@@ -101,6 +102,11 @@ class WatchlistItem:
             metric_type=MetricType(str(data["metric_type"]).strip().upper()),
             notify_channel=_parse_notify_channel(data["notify_channel"]),
             notify_timing=NotifyTiming(str(data["notify_timing"]).strip().upper()),
+            always_notify_enabled=_coerce_bool(
+                data.get("always_notify_enabled"),
+                field_name="always_notify_enabled",
+                default=False,
+            ),
             ai_enabled=_coerce_bool(data.get("ai_enabled"), field_name="ai_enabled", default=False),
             is_active=_coerce_bool(data.get("is_active"), field_name="is_active", default=True),
             ir_urls=_parse_ir_urls(data.get("ir_urls")),
@@ -117,6 +123,7 @@ class WatchlistItem:
             "metric_type": self.metric_type.value,
             "notify_channel": self.notify_channel.value,
             "notify_timing": self.notify_timing.value,
+            "always_notify_enabled": self.always_notify_enabled,
             "ai_enabled": self.ai_enabled,
             "is_active": self.is_active,
             "ir_urls": list(self.ir_urls),
@@ -261,6 +268,7 @@ class WatchlistService:
         metric_type: MetricType | str,
         notify_channel: NotifyChannel | str,
         notify_timing: NotifyTiming | str,
+        always_notify_enabled: bool = False,
         ai_enabled: bool = False,
         is_active: bool = True,
         ir_urls: list[str] | tuple[str, ...] | None = None,
@@ -278,6 +286,7 @@ class WatchlistService:
             metric_type=MetricType(self._enum_input(metric_type)),
             notify_channel=NotifyChannel(self._enum_input(notify_channel)),
             notify_timing=NotifyTiming(self._enum_input(notify_timing)),
+            always_notify_enabled=bool(always_notify_enabled),
             ai_enabled=bool(ai_enabled),
             is_active=bool(is_active),
             ir_urls=_normalize_ir_urls(ir_urls),
@@ -333,6 +342,7 @@ class WatchlistService:
         metric_type: MetricType | str | None = None,
         notify_channel: NotifyChannel | str | None = None,
         notify_timing: NotifyTiming | str | None = None,
+        always_notify_enabled: bool | None = None,
         ai_enabled: bool | None = None,
         is_active: bool | None = None,
         ir_urls: list[str] | tuple[str, ...] | None = None,
@@ -360,6 +370,9 @@ class WatchlistService:
                 NotifyTiming(self._enum_input(notify_timing))
                 if notify_timing is not None
                 else existing.notify_timing
+            ),
+            always_notify_enabled=(
+                existing.always_notify_enabled if always_notify_enabled is None else bool(always_notify_enabled)
             ),
             ai_enabled=existing.ai_enabled if ai_enabled is None else bool(ai_enabled),
             is_active=existing.is_active if is_active is None else bool(is_active),

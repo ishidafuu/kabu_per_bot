@@ -17,6 +17,7 @@ FirestoreはRDBの一意制約を持たないため、ドキュメントIDを合
 
 1. `watchlist`
    - doc id: `{ticker}`（例: `3901:TSE`）
+   - 主要フィールド: `ticker`, `name`, `metric_type`, `notify_channel`, `notify_timing`, `always_notify_enabled`, `ai_enabled`, `is_active`
 2. `daily_metrics`
    - doc id: `{ticker}|{trade_date}`
 3. `metric_medians`

@@ -409,7 +409,7 @@ class DashboardHistoryLogsApiTest(unittest.TestCase):
         )
 
         response = client.get(
-            "/api/v1/watchlist/history?ticker=3901:TSE&limit=2&offset=0",
+            "/api/v1/watchlist/history?ticker=3901:tse&limit=2&offset=0",
             headers=_auth_header(),
         )
 
@@ -474,7 +474,7 @@ class DashboardHistoryLogsApiTest(unittest.TestCase):
         )
 
         response = client.get(
-            "/api/v1/notifications/logs?ticker=3901:TSE&limit=1&offset=1",
+            "/api/v1/notifications/logs?ticker=3901:tse&limit=1&offset=1",
             headers=_auth_header(),
         )
 

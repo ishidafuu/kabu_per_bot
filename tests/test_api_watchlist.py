@@ -100,14 +100,17 @@ class WatchlistApiTest(unittest.TestCase):
             "/api/v1/watchlist",
             headers=_auth_header(),
             json={
-                "ticker": "3901:TSE",
+                "ticker": "3901:tse",
                 "name": "富士フイルム",
                 "metric_type": "PER",
                 "notify_channel": "DISCORD",
                 "notify_timing": "IMMEDIATE",
+                "always_notify_enabled": True,
             },
         )
         self.assertEqual(create_1.status_code, 201)
+        self.assertTrue(create_1.json()["always_notify_enabled"])
+        self.assertEqual(create_1.json()["ticker"], "3901:TSE")
 
         create_2 = client.post(
             "/api/v1/watchlist",
@@ -116,8 +119,9 @@ class WatchlistApiTest(unittest.TestCase):
                 "ticker": "6758:TSE",
                 "name": "ソニー",
                 "metric_type": "PSR",
-                "notify_channel": "OFF",
+                "notify_channel": "DISCORD",
                 "notify_timing": "AT_21",
+                "always_notify_enabled": False,
             },
         )
         self.assertEqual(create_2.status_code, 201)
@@ -139,10 +143,11 @@ class WatchlistApiTest(unittest.TestCase):
         update = client.patch(
             "/api/v1/watchlist/3901:TSE",
             headers=_auth_header(),
-            json={"notify_channel": "OFF", "is_active": False},
+            json={"always_notify_enabled": False, "is_active": False},
         )
         self.assertEqual(update.status_code, 200)
-        self.assertEqual(update.json()["notify_channel"], "OFF")
+        self.assertEqual(update.json()["notify_channel"], "DISCORD")
+        self.assertFalse(update.json()["always_notify_enabled"])
         self.assertEqual(update.json()["is_active"], False)
 
         delete = client.delete("/api/v1/watchlist/3901:TSE", headers=_auth_header())
@@ -199,13 +204,62 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(invalid_create.status_code, 422)
         self.assertEqual(invalid_create.json()["error"]["code"], "validation_error")
 
+        invalid_channel_create = client.post(
+            "/api/v1/watchlist",
+            headers=_auth_header(),
+            json={
+                "ticker": "3901:TSE",
+                "name": "A",
+                "metric_type": "PER",
+                "notify_channel": "OFF",
+                "notify_timing": "IMMEDIATE",
+            },
+        )
+        self.assertEqual(invalid_channel_create.status_code, 422)
+        self.assertEqual(invalid_channel_create.json()["error"]["code"], "validation_error")
+
         empty_patch = client.patch("/api/v1/watchlist/3901:TSE", headers=_auth_header(), json={})
         self.assertEqual(empty_patch.status_code, 400)
         self.assertEqual(empty_patch.json()["error"]["code"], "bad_request")
 
+        client.post(
+            "/api/v1/watchlist",
+            headers=_auth_header(),
+            json={
+                "ticker": "3901:TSE",
+                "name": "A",
+                "metric_type": "PER",
+                "notify_channel": "DISCORD",
+                "notify_timing": "IMMEDIATE",
+            },
+        )
+        invalid_channel_patch = client.patch(
+            "/api/v1/watchlist/3901:TSE",
+            headers=_auth_header(),
+            json={"notify_channel": "OFF"},
+        )
+        self.assertEqual(invalid_channel_patch.status_code, 422)
+        self.assertEqual(invalid_channel_patch.json()["error"]["code"], "validation_error")
+
         invalid_ticker = client.get("/api/v1/watchlist/not-a-ticker", headers=_auth_header())
         self.assertEqual(invalid_ticker.status_code, 422)
         self.assertEqual(invalid_ticker.json()["error"]["code"], "validation_error")
+
+    def test_create_accepts_lowercase_market_and_normalizes_ticker(self) -> None:
+        client = _build_client()
+        response = client.post(
+            "/api/v1/watchlist",
+            headers=_auth_header(),
+            json={
+                "ticker": "3901:tse",
+                "name": "富士フイルム",
+                "metric_type": "PER",
+                "notify_channel": "DISCORD",
+                "notify_timing": "IMMEDIATE",
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["ticker"], "3901:TSE")
 
     def test_openapi_and_docs(self) -> None:
         client = _build_client()

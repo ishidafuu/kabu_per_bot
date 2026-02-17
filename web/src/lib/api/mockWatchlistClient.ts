@@ -233,6 +233,7 @@ export class MockWatchlistClient implements WatchlistClient {
       metric_type: normalizedInput.metric_type,
       notify_channel: normalizedInput.notify_channel,
       notify_timing: normalizedInput.notify_timing,
+      always_notify_enabled: normalizedInput.always_notify_enabled ?? false,
       ir_urls: normalizedInput.ir_urls ?? [],
       x_official_account: normalizedInput.x_official_account ?? null,
       x_executive_accounts: normalizedInput.x_executive_accounts ?? [],

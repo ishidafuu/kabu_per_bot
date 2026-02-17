@@ -36,8 +36,9 @@
   - ticker
   - 会社名
   - 監視方式（PER/PSR）
-  - 通知先（DISCORD/OFF）
+  - 通知先（DISCORD固定）
   - 通知時間（IMMEDIATE/AT_21/OFF）
+  - 常時通知（always_notify_enabled）
   - 有効状態（is_active）
 - 操作:
   - 追加
@@ -51,9 +52,11 @@
   - ticker
   - 会社名
   - 監視方式
-  - 通知先
   - 通知時間
+  - 常時通知ON/OFF（割安でない場合の状況通知）
   - AI通知ON/OFF
+- 補足:
+  - 通知チャネルは Discord 固定（画面での切替は提供しない）
 - バリデーション:
   - ticker形式 `1234:TSE`
   - 会社名必須
@@ -114,8 +117,9 @@
     - `ticker`
     - `name`
     - `metric_type`
-    - `notify_channel`
+    - `notify_channel`（固定値 `DISCORD`）
     - `notify_timing`
+    - `always_notify_enabled`（任意）
     - `ai_enabled`（任意）
     - `is_active`（任意）
   - 201: 作成成功
@@ -128,8 +132,8 @@
   - リクエスト:
     - `name`（任意）
     - `metric_type`（任意）
-    - `notify_channel`（任意）
     - `notify_timing`（任意）
+    - `always_notify_enabled`（任意）
     - `ai_enabled`（任意）
     - `is_active`（任意）
   - 200: 更新成功

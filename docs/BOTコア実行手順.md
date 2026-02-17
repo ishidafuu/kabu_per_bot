@@ -42,7 +42,7 @@ PYTHONPATH=src python scripts/run_daily_job.py
   - `at_21`: `notify_timing=AT_21` の銘柄のみ
   - `all`: 両方
 - 標準出力のJSONは `processed` / `sent` / `skipped` / `errors` を返す。
-- 通知条件に一致しなければ `sent=0` でも正常（ジョブ成功）である。
+- 通知条件（割安/データ不明/常時通知ON時の状況通知）に一致しなければ `sent=0` でも正常（ジョブ成功）である。
 
 stdout送信を明示する場合:
 

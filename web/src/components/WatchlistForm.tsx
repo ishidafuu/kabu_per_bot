@@ -11,6 +11,7 @@ export interface WatchlistFormValues {
   name: string;
   metric_type: MetricType;
   notify_timing: NotifyTiming;
+  always_notify_enabled: boolean;
   reason: string;
   ir_urls_text: string;
   x_official_account: string;
@@ -36,6 +37,7 @@ const buildInitialValues = (item?: WatchlistItem): WatchlistFormValues => {
     name: item?.name ?? '',
     metric_type: item?.metric_type ?? 'PER',
     notify_timing: item?.notify_timing ?? 'IMMEDIATE',
+    always_notify_enabled: item?.always_notify_enabled ?? false,
     reason: '',
     ir_urls_text: (item?.ir_urls ?? []).join('\n'),
     x_official_account: item?.x_official_account ?? '',
@@ -229,6 +231,16 @@ export const WatchlistForm = ({
           <label>
             <input
               type="checkbox"
+              checked={values.always_notify_enabled}
+              onChange={(event) => {
+                updateField('always_notify_enabled', event.target.checked);
+              }}
+            />
+            常時通知（割安でない場合も通知）
+          </label>
+          <label>
+            <input
+              type="checkbox"
               checked={values.is_active}
               onChange={(event) => {
                 updateField('is_active', event.target.checked);
@@ -272,6 +284,7 @@ export const buildWatchlistPayload = (values: WatchlistFormValues) => {
     metric_type: values.metric_type,
     notify_channel: 'DISCORD' as const,
     notify_timing: values.notify_timing,
+    always_notify_enabled: values.always_notify_enabled,
     is_active: values.is_active,
     ai_enabled: values.ai_enabled,
     reason: values.reason.trim() || undefined,

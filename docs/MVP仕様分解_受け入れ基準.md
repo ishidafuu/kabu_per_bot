@@ -4,7 +4,7 @@
 
 MVPで実装する対象は以下とする。
 
-1. ウォッチリスト管理（最大100銘柄、PER/PSR切替、通知先設定、追加/削除履歴）
+1. ウォッチリスト管理（最大100銘柄、PER/PSR切替、通知先はDiscord固定、追加/削除履歴）
 2. PER/PSR日次計算（終値ベース、1Y/3M/1W中央値、under判定、連続日数）
 3. 通知（PER/PSR、今週決算、明日決算、データ不明）
 4. Discordへの配信
@@ -23,7 +23,7 @@ MVP外（第2段階）:
 4. 期間中央値は営業日ベースで `1W=5 / 3M=63 / 1Y=252`（設定変更可能）
 5. 強通知は `under_1y && under_3m && under_1w`
 6. 通知カテゴリ:
-   `PER割安 / 超PER割安 / PSR割安 / 超PSR割安 / 今週決算 / 明日決算 / データ不明`
+   `PER割安 / 超PER割安 / PSR割安 / 超PSR割安 / PER状況 / PSR状況 / 今週決算 / 明日決算 / データ不明`
 7. 通知時刻は `notify_timing` で切り替える（JST固定）
    - `IMMEDIATE`: 日次ジョブ（平日18:00運用）
    - `AT_21`: 21時系ジョブ（平日21:05運用）
@@ -39,7 +39,7 @@ MVP外（第2段階）:
 
 - Given: 未登録銘柄がある
   When: ティッカーを追加する
-  Then: 銘柄情報が保存され、監視方式（PER/PSR）と通知先設定が保持される
+  Then: 銘柄情報が保存され、監視方式（PER/PSR）と通知時間設定が保持される
 
 - Given: 監視銘柄が登録済み
   When: 銘柄を削除する
@@ -103,6 +103,10 @@ MVP外（第2段階）:
   When: 平日21:05の日次ジョブを実行する
   Then: `AT_21` 銘柄のみを通知評価する
 
+- Given: `always_notify_enabled=true` かつ当日が割安条件未成立
+  When: 日次ジョブを実行する
+  Then: `PER状況` / `PSR状況` 通知を送信し、判定レベル（下回りなし・1期間のみ下回り）を本文に含める
+
 ### 3.5 欠損通知
 
 - Given: EPS/売上/決算日時のいずれかが欠損
@@ -114,7 +118,7 @@ MVP外（第2段階）:
 最低限のテーブル（または同等の永続化構造）を定義する。
 
 1. `watchlist`
-   `ticker, name, metric_type(PER|PSR), notify_channel, notify_timing, ai_enabled, is_active`
+   `ticker, name, metric_type(PER|PSR), notify_channel(固定値DISCORD), notify_timing, always_notify_enabled, ai_enabled, is_active`
 2. `watchlist_history`
    `id, ticker, action(ADD|REMOVE), reason, acted_at`
 3. `daily_metrics`

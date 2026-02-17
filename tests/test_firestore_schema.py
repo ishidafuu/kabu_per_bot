@@ -43,6 +43,8 @@ class FirestoreSchemaTest(unittest.TestCase):
         self.assertEqual(normalize_ticker("3901:tse"), "3901:TSE")
         with self.assertRaises(ValueError):
             normalize_ticker("abc")
+        with self.assertRaises(ValueError):
+            normalize_ticker("3901:TYO")
 
     def test_unique_doc_ids(self) -> None:
         self.assertEqual(watchlist_doc_id("3901:tse"), "3901:TSE")

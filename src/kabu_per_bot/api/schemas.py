@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from kabu_per_bot.signal import NotificationLogEntry
 from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchlistItem, XAccountLink
@@ -25,6 +25,7 @@ class WatchlistItemResponse(BaseModel):
     metric_type: MetricType
     notify_channel: NotifyChannel
     notify_timing: NotifyTiming
+    always_notify_enabled: bool
     ai_enabled: bool
     is_active: bool
     ir_urls: list[str]
@@ -65,6 +66,7 @@ class WatchlistItemResponse(BaseModel):
             metric_type=item.metric_type,
             notify_channel=item.notify_channel,
             notify_timing=item.notify_timing,
+            always_notify_enabled=item.always_notify_enabled,
             ai_enabled=item.ai_enabled,
             is_active=item.is_active,
             ir_urls=list(item.ir_urls),
@@ -100,12 +102,20 @@ class WatchlistCreateRequest(BaseModel):
     metric_type: MetricType
     notify_channel: NotifyChannel
     notify_timing: NotifyTiming
+    always_notify_enabled: bool = False
     ai_enabled: bool = False
     is_active: bool = True
     reason: str | None = Field(default=None, max_length=200)
     ir_urls: list[str] = Field(default_factory=list, max_length=10)
     x_official_account: str | None = Field(default=None, max_length=16)
     x_executive_accounts: list[XAccountLinkRequest] = Field(default_factory=list, max_length=10)
+
+    @field_validator("notify_channel")
+    @classmethod
+    def validate_notify_channel_fixed(cls, value: NotifyChannel) -> NotifyChannel:
+        if value != NotifyChannel.DISCORD:
+            raise ValueError("notify_channel は DISCORD 固定です。")
+        return value
 
 
 class WatchlistUpdateRequest(BaseModel):
@@ -117,11 +127,21 @@ class WatchlistUpdateRequest(BaseModel):
     metric_type: MetricType | None = None
     notify_channel: NotifyChannel | None = None
     notify_timing: NotifyTiming | None = None
+    always_notify_enabled: bool | None = None
     ai_enabled: bool | None = None
     is_active: bool | None = None
     ir_urls: list[str] | None = Field(default=None, max_length=10)
     x_official_account: str | None = Field(default=None, max_length=16)
     x_executive_accounts: list[XAccountLinkRequest] | None = Field(default=None, max_length=10)
+
+    @field_validator("notify_channel")
+    @classmethod
+    def validate_notify_channel_fixed(cls, value: NotifyChannel | None) -> NotifyChannel | None:
+        if value is None:
+            return None
+        if value != NotifyChannel.DISCORD:
+            raise ValueError("notify_channel は DISCORD 固定です。")
+        return value
 
     def has_updates(self) -> bool:
         return any(
@@ -130,6 +150,7 @@ class WatchlistUpdateRequest(BaseModel):
                 self.metric_type is not None,
                 self.notify_channel is not None,
                 self.notify_timing is not None,
+                self.always_notify_enabled is not None,
                 self.ai_enabled is not None,
                 self.is_active is not None,
                 self.ir_urls is not None,

@@ -15,6 +15,7 @@ export interface WatchlistItem {
   metric_type: MetricType;
   notify_channel: NotifyChannel;
   notify_timing: NotifyTiming;
+  always_notify_enabled?: boolean;
   is_active: boolean;
   ai_enabled: boolean;
   ir_urls: string[];
@@ -43,6 +44,7 @@ export interface WatchlistCreateInput {
   metric_type: MetricType;
   notify_channel: NotifyChannel;
   notify_timing: NotifyTiming;
+  always_notify_enabled?: boolean;
   reason?: string;
   ir_urls?: string[];
   x_official_account?: string;
@@ -56,6 +58,7 @@ export interface WatchlistUpdateInput {
   metric_type?: MetricType;
   notify_channel?: NotifyChannel;
   notify_timing?: NotifyTiming;
+  always_notify_enabled?: boolean;
   ir_urls?: string[];
   x_official_account?: string;
   x_executive_accounts?: XAccountLink[];

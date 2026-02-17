@@ -23,7 +23,7 @@ router = APIRouter(
     responses=error_responses(401, 403, 422, 500),
 )
 def list_watchlist_history(
-    ticker: str | None = Query(default=None, pattern=r"^\d{4}:[A-Za-z]+$"),
+    ticker: str | None = Query(default=None, pattern=r"^\d{4}:[Tt][Ss][Ee]$"),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     repository: WatchlistHistoryReader = Depends(get_watchlist_history_repository),

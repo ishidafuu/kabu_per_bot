@@ -9,6 +9,7 @@ from kabu_per_bot.notification import (
     format_earnings_message,
     format_intel_update_message,
     format_signal_message,
+    format_signal_status_message,
 )
 from kabu_per_bot.signal import SignalState
 from kabu_per_bot.watchlist import MetricType
@@ -40,7 +41,7 @@ class NotificationFormatterTest(unittest.TestCase):
             median_1y=14.0,
         )
         self.assertIn("【超PER割安】", message.body)
-        self.assertIn("連続: 3日", message.body)
+        self.assertIn("under（3日連続）", message.body)
         self.assertEqual(message.category, "超PER割安")
 
     def test_earnings_message_format(self) -> None:
@@ -54,6 +55,63 @@ class NotificationFormatterTest(unittest.TestCase):
         self.assertIn("【明日決算】", message.body)
         self.assertIn("2026-02-13 15:00", message.body)
 
+    def test_signal_status_message_format(self) -> None:
+        state = SignalState(
+            ticker="3901:TSE",
+            trade_date="2026-02-12",
+            metric_type=MetricType.PER,
+            metric_value=16.0,
+            under_1w=False,
+            under_3m=False,
+            under_1y=False,
+            combo=None,
+            is_strong=False,
+            category=None,
+            streak_days=0,
+            updated_at="2026-02-12T00:00:00+00:00",
+        )
+        message = format_signal_status_message(
+            ticker="3901:TSE",
+            company_name="富士フイルム",
+            state=state,
+            metric_value=16.0,
+            median_1w=12.0,
+            median_3m=13.0,
+            median_1y=14.0,
+        )
+        self.assertIn("【PER状況】", message.body)
+        self.assertIn("判定レベル: 下回りなし", message.body)
+        self.assertEqual(message.category, "PER状況")
+
+    def test_signal_status_message_format_with_insufficient_windows(self) -> None:
+        state = SignalState(
+            ticker="3901:TSE",
+            trade_date="2026-02-12",
+            metric_type=MetricType.PER,
+            metric_value=16.0,
+            under_1w=False,
+            under_3m=False,
+            under_1y=False,
+            combo=None,
+            is_strong=False,
+            category=None,
+            streak_days=0,
+            updated_at="2026-02-12T00:00:00+00:00",
+        )
+        message = format_signal_status_message(
+            ticker="3901:TSE",
+            company_name="富士フイルム",
+            state=state,
+            metric_value=16.0,
+            median_1w=None,
+            median_3m=13.0,
+            median_1y=None,
+            insufficient_windows=["1W", "1Y"],
+        )
+        self.assertIn("判定レベル: 判定不能（中央値不足: 1W/1Y）", message.body)
+        self.assertIn("割安通知: 判定保留", message.body)
+        self.assertEqual(message.condition_key, "PER:STATUS:INSUFFICIENT_1W+1Y")
+
     def test_data_unknown_message_format(self) -> None:
         message = format_data_unknown_message(
             ticker="3901:TSE",
@@ -62,7 +120,7 @@ class NotificationFormatterTest(unittest.TestCase):
             context="日次指標計算",
         )
         self.assertIn("【データ不明】", message.body)
-        self.assertIn("close_price, eps_forecast", message.body)
+        self.assertIn("終値/予想EPS", message.body)
         self.assertEqual(message.category, "データ不明")
 
     def test_intel_update_message_format(self) -> None:

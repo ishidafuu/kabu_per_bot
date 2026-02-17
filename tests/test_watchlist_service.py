@@ -88,12 +88,14 @@ class WatchlistServiceTest(unittest.TestCase):
             metric_type=MetricType.PSR,
             notify_channel=NotifyChannel.OFF,
             notify_timing=NotifyTiming.AT_21,
+            always_notify_enabled=True,
             now_iso="2026-02-13T00:00:00+00:00",
         )
         fetched = service.get_item("3901:TSE")
         self.assertEqual(updated.metric_type, MetricType.PSR)
         self.assertEqual(fetched.notify_channel, NotifyChannel.OFF)
         self.assertEqual(fetched.notify_timing, NotifyTiming.AT_21)
+        self.assertTrue(fetched.always_notify_enabled)
         self.assertEqual(fetched.updated_at, "2026-02-13T00:00:00+00:00")
 
         service.delete_item("3901:TSE")
@@ -156,10 +158,12 @@ class WatchlistServiceTest(unittest.TestCase):
                 "metric_type": "per",
                 "notify_channel": "discord",
                 "notify_timing": "immediate",
+                "always_notify_enabled": "true",
                 "ai_enabled": "false",
                 "is_active": "1",
             }
         )
+        self.assertTrue(item.always_notify_enabled)
         self.assertFalse(item.ai_enabled)
         self.assertTrue(item.is_active)
 
@@ -220,6 +224,7 @@ class WatchlistServiceTest(unittest.TestCase):
                     "metric_type": "per",
                     "notify_channel": "discord",
                     "notify_timing": "immediate",
+                    "always_notify_enabled": "not-bool",
                     "ai_enabled": "not-bool",
                     "is_active": True,
                 }

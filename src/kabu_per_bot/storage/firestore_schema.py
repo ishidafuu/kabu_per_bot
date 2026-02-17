@@ -30,7 +30,7 @@ ALL_COLLECTIONS = (
     COLLECTION_INTEL_SEEN,
 )
 
-TICKER_PATTERN = re.compile(r"^\d{4}:[A-Z]+$")
+TICKER_PATTERN = re.compile(r"^\d{4}:TSE$")
 
 
 def normalize_ticker(ticker: str) -> str:

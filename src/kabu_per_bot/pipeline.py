@@ -15,6 +15,7 @@ from kabu_per_bot.notification import (
     format_data_unknown_message,
     format_earnings_message,
     format_signal_message,
+    format_signal_status_message,
 )
 from kabu_per_bot.signal import (
     NotificationLogEntry,
@@ -299,6 +300,27 @@ def _process_single_ticker(
             now_iso=config.now_iso,
             channel=config.channel,
         )
+    elif watch_item.always_notify_enabled:
+        status_message = format_signal_status_message(
+            ticker=watch_item.ticker,
+            company_name=watch_item.name,
+            state=state,
+            metric_value=state.metric_value,
+            median_1w=medians.median_1w,
+            median_3m=medians.median_3m,
+            median_1y=medians.median_1y,
+            insufficient_windows=medians.insufficient_windows(),
+        )
+        sent_count, skipped_count = _dispatch_with_cooldown(
+            message=status_message,
+            ticker=watch_item.ticker,
+            is_strong=False,
+            notification_log_repo=notification_log_repo,
+            sender=sender,
+            cooldown_hours=config.cooldown_hours,
+            now_iso=config.now_iso,
+            channel=config.channel,
+        )
 
     return PipelineResult(
         processed_tickers=1,
@@ -338,6 +360,7 @@ def _run_earnings_pipeline(
                 earnings_date=entry.earnings_date,
                 earnings_time=entry.earnings_time,
                 category=category,
+                quarter=entry.quarter,
             )
             sent, skipped = _dispatch_with_cooldown(
                 message=message,
