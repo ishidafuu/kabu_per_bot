@@ -75,6 +75,22 @@ stdout送信を明示する場合:
 PYTHONPATH=src python scripts/run_daily_job.py --stdout
 ```
 
+### 本番定期実行構成（2026-02-18 時点）
+
+- タイムゾーン: `Asia/Tokyo`
+- `sc-kabu-daily`（平日18:00）: `kabu-daily` を実行し、`notify_timing=IMMEDIATE` 銘柄を評価
+- `sc-kabu-daily-at21`（平日21:05）: `kabu-daily-at21` を実行し、`notify_timing=AT_21` 銘柄を評価
+- `sc-kabu-earnings-weekly`（土曜21:00）: `kabu-earnings-weekly` を実行
+- `sc-kabu-earnings-tomorrow`（毎日21:00）: `kabu-earnings-tomorrow` を実行
+
+日次ジョブで通知が送信されるのは、以下のいずれかに該当した場合のみです。
+
+- 割安シグナル成立（`1Y+3M` / `3M+1W` / `1Y+1W` / `1Y+3M+1W`）
+- 欠損発生（`【データ不明】`）
+- 2時間クールダウンを超過、または通常→強への遷移
+
+そのため、ジョブが成功していても `sent=0` は正常です（当日条件に一致する銘柄がないケース）。
+
 ## 決算通知ジョブ実行（Issue 15）
 
 Firestoreの `watchlist` / `earnings_calendar` を使って通知する実行コマンド:

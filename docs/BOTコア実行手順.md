@@ -38,6 +38,11 @@ PYTHONPATH=src python scripts/run_daily_job.py
 - 実行結果は `daily_metrics` / `metric_medians` / `signal_state` / `notification_log` に保存される。
 - `--stdout` 未指定時は `--discord-webhook-url` または `DISCORD_WEBHOOK_URL` が必要。
 - `--execution-mode daily|at_21|all` で通知タイミング対象を選択できる（既定: `daily`）。
+  - `daily`: `notify_timing=IMMEDIATE` の銘柄のみ
+  - `at_21`: `notify_timing=AT_21` の銘柄のみ
+  - `all`: 両方
+- 標準出力のJSONは `processed` / `sent` / `skipped` / `errors` を返す。
+- 通知条件に一致しなければ `sent=0` でも正常（ジョブ成功）である。
 
 stdout送信を明示する場合:
 
@@ -49,6 +54,21 @@ PYTHONPATH=src python scripts/run_daily_job.py --stdout
 
 ```bash
 PYTHONPATH=src python scripts/run_daily_job.py --execution-mode at_21 --discord-webhook-url <DISCORD_WEBHOOK_URL>
+```
+
+定期実行（Cloud Run Jobs + Scheduler）での既定構成:
+
+- `kabu-daily` <- `sc-kabu-daily`（平日18:00 JST）
+- `kabu-daily-at21` <- `sc-kabu-daily-at21`（平日21:05 JST）
+- `kabu-earnings-weekly` <- `sc-kabu-earnings-weekly`（土曜21:00 JST）
+- `kabu-earnings-tomorrow` <- `sc-kabu-earnings-tomorrow`（毎日21:00 JST）
+
+確認コマンド:
+
+```bash
+gcloud run jobs executions list --job=kabu-daily --region=asia-northeast1 --project=<GCP_PROJECT_ID>
+gcloud run jobs executions list --job=kabu-daily-at21 --region=asia-northeast1 --project=<GCP_PROJECT_ID>
+gcloud scheduler jobs list --location=asia-northeast1 --project=<GCP_PROJECT_ID>
 ```
 
 ## 5. Discord疎通
@@ -96,7 +116,7 @@ PYTHONPATH=src python scripts/migrate_firestore_v0001.py --project-id <GCP_PROJE
 Hosting / Cloud Run へ反映する前に、ローカルで事前チェックだけ実行する。
 
 ```bash
-cd /Users/ishidafuu/Documents/repository/kabu_per_bot-docs-finalize
+cd /Users/ishidafuu/Documents/repository/kabu_per_bot
 bash scripts/preflight_deploy_check.sh
 ```
 
