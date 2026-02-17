@@ -43,6 +43,12 @@ def parse_args() -> argparse.Namespace:
         default=os.environ.get("DISCORD_WEBHOOK_URL", "").strip(),
         help="Discord webhook URL. Required unless --stdout is set.",
     )
+    parser.add_argument(
+        "--execution-mode",
+        choices=("all", "daily", "at_21"),
+        default="daily",
+        help="Dispatch filter mode. all=daily+21, daily=IMMEDIATE only, at_21=AT_21 only.",
+    )
     parser.add_argument("--stdout", action="store_true", help="Send notifications to stdout.")
     return parser.parse_args()
 
@@ -101,6 +107,15 @@ def _result_payload(result: PipelineResult) -> dict[str, int]:
     }
 
 
+def _resolve_execution_mode(raw: str) -> NotificationExecutionMode:
+    mapping = {
+        "all": NotificationExecutionMode.ALL,
+        "daily": NotificationExecutionMode.DAILY,
+        "at_21": NotificationExecutionMode.AT_21,
+    }
+    return mapping[raw]
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args()
@@ -136,7 +151,7 @@ def main() -> int:
             window_1y_days=settings.window_1y_days,
             cooldown_hours=settings.cooldown_hours,
             now_iso=now_iso,
-            execution_mode=NotificationExecutionMode.DAILY,
+            execution_mode=_resolve_execution_mode(args.execution_mode),
         ),
     )
     payload = _result_payload(result)

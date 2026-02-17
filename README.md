@@ -52,11 +52,21 @@ PYTHONPATH=src python scripts/run_daily_job.py
 ```
 
 - `--stdout` 未指定時は `--discord-webhook-url` または `DISCORD_WEBHOOK_URL` が必須です。
+- `--execution-mode daily|at_21|all` を指定可能です（既定は `daily`）。
+  - `daily`: `notify_timing=IMMEDIATE` の銘柄だけ通知対象
+  - `at_21`: `notify_timing=AT_21` の銘柄だけ通知対象
+  - `all`: `IMMEDIATE` と `AT_21` の両方を通知対象
 
 Discord送信を明示する場合:
 
 ```bash
 PYTHONPATH=src python scripts/run_daily_job.py --discord-webhook-url <DISCORD_WEBHOOK_URL>
+```
+
+21時向け銘柄だけ実行する場合:
+
+```bash
+PYTHONPATH=src python scripts/run_daily_job.py --execution-mode at_21 --discord-webhook-url <DISCORD_WEBHOOK_URL>
 ```
 
 stdout送信を明示する場合:

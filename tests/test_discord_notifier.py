@@ -23,6 +23,17 @@ class DiscordNotifierTest(unittest.TestCase):
                 notifier.send("hello")
         self.assertEqual(mocked.call_count, 2)
 
+    def test_send_sets_user_agent_header(self) -> None:
+        notifier = DiscordNotifier(webhook_url="https://example.com/webhook", retry_count=0)
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.__exit__.return_value = False
+        with patch("kabu_per_bot.discord_notifier.request.urlopen", return_value=response) as mocked:
+            notifier.send("hello")
+
+        req = mocked.call_args.args[0]
+        self.assertEqual(req.headers.get("User-agent"), "kabu-per-bot/1.0")
+
 
 if __name__ == "__main__":
     unittest.main()

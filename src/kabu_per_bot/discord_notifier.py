@@ -19,10 +19,14 @@ class DiscordNotifier:
     webhook_url: str
     timeout_seconds: int = 10
     retry_count: int = 1
+    user_agent: str = "kabu-per-bot/1.0"
 
     def send(self, message: str) -> None:
         payload = json.dumps({"content": message}).encode("utf-8")
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": self.user_agent,
+        }
         last_error: Exception | None = None
 
         for attempt in range(self.retry_count + 1):

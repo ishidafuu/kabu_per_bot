@@ -119,6 +119,7 @@ class RunDailyJobTest(TestCase):
             trade_date="2026-02-12",
             now_iso="2026-02-12T09:00:00+00:00",
             discord_webhook_url="",
+            execution_mode="daily",
             stdout=True,
         )
         settings = AppSettings(
@@ -173,6 +174,7 @@ class RunDailyJobTest(TestCase):
             trade_date="2026-02-12",
             now_iso="2026-02-12T09:00:00+00:00",
             discord_webhook_url="",
+            execution_mode="daily",
             stdout=False,
         )
         settings = AppSettings(
@@ -193,6 +195,45 @@ class RunDailyJobTest(TestCase):
         ):
             with self.assertRaisesRegex(ValueError, "Discord webhook URL が必要です"):
                 run_daily_job.main()
+
+    def test_resolve_execution_mode(self) -> None:
+        self.assertEqual(run_daily_job._resolve_execution_mode("daily").value, "DAILY")
+        self.assertEqual(run_daily_job._resolve_execution_mode("at_21").value, "AT_21")
+        self.assertEqual(run_daily_job._resolve_execution_mode("all").value, "ALL")
+
+    def test_main_passes_execution_mode_to_pipeline_config(self) -> None:
+        args = run_daily_job.argparse.Namespace(
+            trade_date="2026-02-12",
+            now_iso="2026-02-12T09:00:00+00:00",
+            discord_webhook_url="",
+            execution_mode="at_21",
+            stdout=True,
+        )
+        settings = AppSettings(
+            app_env="test",
+            timezone="Asia/Tokyo",
+            window_1w_days=2,
+            window_3m_days=2,
+            window_1y_days=2,
+            cooldown_hours=2,
+            firestore_project_id="",
+            ai_notifications_enabled=False,
+            x_api_bearer_token="",
+        )
+
+        with (
+            patch.object(run_daily_job, "parse_args", return_value=args),
+            patch.object(run_daily_job, "load_settings", return_value=settings),
+            patch.object(run_daily_job, "_create_firestore_client", return_value=FakeFirestoreClient()),
+            patch.object(run_daily_job, "create_default_market_data_source", return_value=StaticMarketDataSource()),
+            patch.object(run_daily_job, "run_daily_pipeline", return_value=run_daily_job.PipelineResult()) as mocked_pipeline,
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            code = run_daily_job.main()
+
+        self.assertEqual(code, 0)
+        config = mocked_pipeline.call_args.kwargs["config"]
+        self.assertEqual(config.execution_mode.value, "AT_21")
 
 
 if __name__ == "__main__":

@@ -37,11 +37,18 @@ PYTHONPATH=src python scripts/run_daily_job.py
 - Firestore `watchlist` を読み込み、日次パイプラインを実行する。
 - 実行結果は `daily_metrics` / `metric_medians` / `signal_state` / `notification_log` に保存される。
 - `--stdout` 未指定時は `--discord-webhook-url` または `DISCORD_WEBHOOK_URL` が必要。
+- `--execution-mode daily|at_21|all` で通知タイミング対象を選択できる（既定: `daily`）。
 
 stdout送信を明示する場合:
 
 ```bash
 PYTHONPATH=src python scripts/run_daily_job.py --stdout
+```
+
+21時向け銘柄（`notify_timing=AT_21`）だけ実行する場合:
+
+```bash
+PYTHONPATH=src python scripts/run_daily_job.py --execution-mode at_21 --discord-webhook-url <DISCORD_WEBHOOK_URL>
 ```
 
 ## 5. Discord疎通
