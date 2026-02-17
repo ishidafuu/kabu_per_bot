@@ -8,14 +8,14 @@
 - コミットメッセージは日本語で記述する。
 - 実装はMVP優先で進める。MVP外（IR/SNS/AI注目）は別マイルストーンで扱う。
 - 仕様の正本は以下とする。
-  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/MVP仕様分解_受け入れ基準.md`
-  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/技術スタック定義.md`
-  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/Firestoreスキーマ設計.md`
-  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/Web管理画面_仕様（画面一覧・API一覧）.md`
-  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/BOTコア実行手順.md`
-  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/Web_E2Eテストとステージング反映手順.md`
-  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/トレーダー向け_使い方手順書.md`
-  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/運用開始チェックリスト.md`
+  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/01_要件定義/MVP仕様分解_受け入れ基準.md`
+  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/02_設計/技術スタック定義.md`
+  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/02_設計/Firestoreスキーマ設計.md`
+  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/02_設計/Web管理画面_仕様（画面一覧・API一覧）.md`
+  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/03_運用/BOTコア実行手順.md`
+  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/03_運用/Web_E2Eテストとステージング反映手順.md`
+  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/04_利用ガイド/トレーダー向け_使い方手順書.md`
+  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/03_運用/運用開始チェックリスト.md`
 
 ## 2. スコープ管理
 
@@ -58,6 +58,7 @@
 
 - コミットメッセージは日本語で、1コミット1意図を原則とする。
 - 基本運用として、対応が完了した変更はできるだけその場で即コミットする（不要なまとめコミットを避ける）。
+- エージェントは、依頼単位の対応が完了したら即コミットする。レビュー待ち等の明確な理由がない限り、未コミットのまま次タスクへ進まない。
 - マージは線形履歴を維持する（マージコミット禁止）。`git merge --ff-only` を基本とし、必要時は `git rebase` で取り込む。
 - 推奨プレフィックス:
   - `feat:`
@@ -87,7 +88,7 @@
 ## 8. ドキュメント更新ルール
 
 - 振る舞いを変える変更をした場合、関連する `docs/*.md` を同じPRで更新する。
-- 仕様未確定項目を決めた場合、`MVP仕様分解_受け入れ基準.md` の未確定セクションを更新する。
+- 仕様未確定項目を決めた場合、`docs/01_要件定義/MVP仕様分解_受け入れ基準.md` の未確定セクションを更新する。
 
 ## 9. デプロイ運用ルール（Cloud Run / Hosting）
 
