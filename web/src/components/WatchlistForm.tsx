@@ -25,6 +25,7 @@ interface WatchlistFormProps {
   initialValue?: WatchlistItem;
   submitting: boolean;
   apiErrorMessage?: string;
+  titleId?: string;
   onSubmit: (values: WatchlistFormValues) => Promise<void>;
   onCancel: () => void;
 }
@@ -56,28 +57,12 @@ const formatExecutiveAccounts = (rows: XAccountLink[]): string => {
     .join('\n');
 };
 
-const parseMultilineValues = (value: string): string[] => {
-  return value
-    .split(/\r?\n/)
-    .map((row) => row.trim())
-    .filter((row) => row.length > 0);
-};
-
-const parseExecutiveAccounts = (value: string): XAccountLink[] => {
-  return parseMultilineValues(value).map((row) => {
-    const [handleRaw, ...roleParts] = row.split(',');
-    return {
-      handle: handleRaw.trim(),
-      role: roleParts.join(',').trim() || undefined,
-    };
-  });
-};
-
 export const WatchlistForm = ({
   mode,
   initialValue,
   submitting,
   apiErrorMessage,
+  titleId,
   onSubmit,
   onCancel,
 }: WatchlistFormProps) => {
@@ -125,7 +110,7 @@ export const WatchlistForm = ({
   return (
     <section className="panel">
       <div className="panel-header">
-        <h2>{title}</h2>
+        <h2 id={titleId}>{title}</h2>
       </div>
       <form className="watchlist-form" onSubmit={handleSubmit}>
         <label>
@@ -138,6 +123,7 @@ export const WatchlistForm = ({
             }}
             placeholder="例: 7203:TSE"
             disabled={!canEditTicker}
+            autoFocus={canEditTicker}
             required
           />
         </label>
@@ -150,6 +136,7 @@ export const WatchlistForm = ({
             onChange={(event) => {
               updateField('name', event.target.value);
             }}
+            autoFocus={!canEditTicker}
             required
           />
         </label>
@@ -276,20 +263,4 @@ export const WatchlistForm = ({
       </form>
     </section>
   );
-};
-
-export const buildWatchlistPayload = (values: WatchlistFormValues) => {
-  return {
-    name: values.name,
-    metric_type: values.metric_type,
-    notify_channel: 'DISCORD' as const,
-    notify_timing: values.notify_timing,
-    always_notify_enabled: values.always_notify_enabled,
-    is_active: values.is_active,
-    ai_enabled: values.ai_enabled,
-    reason: values.reason.trim() || undefined,
-    ir_urls: parseMultilineValues(values.ir_urls_text),
-    x_official_account: values.x_official_account.trim() || undefined,
-    x_executive_accounts: parseExecutiveAccounts(values.x_executive_accounts_text),
-  };
 };

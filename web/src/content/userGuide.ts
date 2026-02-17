@@ -1,5 +1,5 @@
 export const USER_GUIDE_TITLE = 'kabu_per_bot 管理画面 使い方手順書';
-export const USER_GUIDE_UPDATED_AT = '2026-02-17';
+export const USER_GUIDE_UPDATED_AT = '2026-02-18';
 
 export interface GuideSection {
   title: string;
@@ -59,16 +59,18 @@ export const USER_GUIDE_SECTIONS: GuideSection[] = [
     body: [
       '通知先は Discord 固定です（画面での選択はありません）。',
       'notify_timing=IMMEDIATE: 日次ジョブ側で通知対象。',
-      'notify_timing=AT_21: 21時系ジョブ側で通知対象。',
+      'notify_timing=AT_21: 21時系ジョブ（平日21:05）で通知対象。',
       'notify_timing=OFF: 通知対象外。',
       '同じ条件の通知は2時間クールダウンで自動的に重複抑制されます。',
+      '常時通知（割安でない場合も通知）=ON にすると、割安未成立日でも PER状況 / PSR状況 通知が届きます。',
+      '常時通知がOFFの場合、当日条件に一致しなければ通知は送られません（通知0件は正常）。',
     ],
   },
   {
     title: '6. 追加・編集・削除のやり方',
     body: [
       '追加: ウォッチリスト画面で「新規追加」→入力→保存。',
-      '編集: 一覧行の「編集」→変更→保存。',
+      '編集: 一覧行の「編集」→画面中央の編集モーダルで変更→保存。',
       '削除: 一覧行の「削除」→確認ダイアログで確定。',
       '削除や追加の記録は履歴画面で確認できます。',
     ],
@@ -79,7 +81,7 @@ export const USER_GUIDE_SECTIONS: GuideSection[] = [
       'ログインできない: メールアドレス/パスワードの再確認、Firebase Auth の登録状態を確認。',
       'APIに接続できません: いったんログアウトし、ページ再読み込み後に再ログイン。',
       '一覧にデータが出ない: ticker形式、検索条件（絞り込み）、該当銘柄の登録有無を確認。',
-      '通知が来ない: notify_timing が OFF になっていないか、設定を確認。',
+      '通知が来ない: notify_timing 設定を確認（OFF は通知対象外）。AT_21 は平日21:05ジョブで評価されます。割安未成立日の状況通知を受けたい場合は 常時通知=ON を設定します。',
     ],
   },
   {
@@ -93,8 +95,8 @@ export const USER_GUIDE_SECTIONS: GuideSection[] = [
   {
     title: '9. 既知事項',
     body: [
-      'AI通知は全体設定（AI_NOTIFICATIONS_ENABLED）と銘柄設定（AI通知ON）の両方が有効な場合に送信されます。',
-      'SNS監視は X API トークン（X_API_BEARER_TOKEN）未設定時に「データ不明」通知になります。',
+      'AI通知は AI_NOTIFICATIONS_ENABLED=true かつ銘柄設定の AI通知=ON の場合に配信されます。',
+      'SNS監視は X API トークン（X_API_BEARER_TOKEN）が未設定だと 【データ不明】 が発生します。',
       '通知チャネルは Discord のみ対応です。',
     ],
   },

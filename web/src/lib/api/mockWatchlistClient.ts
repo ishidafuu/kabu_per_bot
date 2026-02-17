@@ -275,8 +275,9 @@ export class MockWatchlistClient implements WatchlistClient {
     return updated;
   }
 
-  async remove(ticker: string, _reason?: string): Promise<void> {
+  async remove(ticker: string, reason?: string): Promise<void> {
     await wait(120);
+    void reason;
 
     const existed = mockStore.some((item) => item.ticker === ticker);
 

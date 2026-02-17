@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
-import { WatchlistForm, buildWatchlistPayload, type WatchlistFormValues } from '../components/WatchlistForm';
+import { WatchlistForm, type WatchlistFormValues } from '../components/WatchlistForm';
 import { createWatchlistClient } from '../lib/api';
 import { toUserMessage } from '../lib/api/errors';
+import { buildWatchlistPayload } from '../lib/watchlistFormPayload';
 import { appConfig } from '../lib/config';
 import type { WatchlistItem } from '../types/watchlist';
 
@@ -43,11 +44,35 @@ export const WatchlistPage = () => {
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [formError, setFormError] = useState('');
 
-  const closeForm = (): void => {
+  const closeForm = useCallback((options?: { force?: boolean }): void => {
+    if (isSubmittingForm && !options?.force) {
+      return;
+    }
     setIsFormOpen(false);
     setEditingItem(null);
     setFormError('');
-  };
+  }, [isSubmittingForm]);
+
+  useEffect(() => {
+    if (!isFormOpen) {
+      return;
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleEscKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        closeForm();
+      }
+    };
+
+    window.addEventListener('keydown', handleEscKey);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleEscKey);
+    };
+  }, [isFormOpen, closeForm]);
 
   const fetchWatchlist = useCallback(async (): Promise<void> => {
     setIsLoading(true);
@@ -129,7 +154,7 @@ export const WatchlistPage = () => {
         setNoticeMessage(`更新しました: ${editingItem.ticker}`);
       }
 
-      closeForm();
+      closeForm({ force: true });
       await fetchWatchlist();
     } catch (error) {
       setFormError(toUserMessage(error));
@@ -141,6 +166,12 @@ export const WatchlistPage = () => {
   const maxOffset = Math.max(total - limit, 0);
   const canGoPrev = offset > 0;
   const canGoNext = offset + limit < total;
+
+  const handleModalBackdropClick = (event: MouseEvent<HTMLDivElement>): void => {
+    if (event.target === event.currentTarget) {
+      closeForm();
+    }
+  };
 
   return (
     <main className="page-shell">
@@ -310,15 +341,34 @@ export const WatchlistPage = () => {
       </section>
 
       {isFormOpen && (
-        <WatchlistForm
-          key={editingItem?.ticker ?? 'create'}
-          mode={editingItem ? 'edit' : 'create'}
-          initialValue={editingItem ?? undefined}
-          submitting={isSubmittingForm}
-          apiErrorMessage={formError}
-          onSubmit={handleFormSubmit}
-          onCancel={closeForm}
-        />
+        <div className="modal-overlay" onClick={handleModalBackdropClick}>
+          <div
+            className="modal-dialog watchlist-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="watchlist-form-title"
+          >
+            <button
+              type="button"
+              className="modal-close ghost"
+              onClick={() => closeForm()}
+              aria-label="編集フォームを閉じる"
+              disabled={isSubmittingForm}
+            >
+              ×
+            </button>
+            <WatchlistForm
+              key={editingItem?.ticker ?? 'create'}
+              mode={editingItem ? 'edit' : 'create'}
+              initialValue={editingItem ?? undefined}
+              submitting={isSubmittingForm}
+              apiErrorMessage={formError}
+              onSubmit={handleFormSubmit}
+              onCancel={closeForm}
+              titleId="watchlist-form-title"
+            />
+          </div>
+        </div>
       )}
     </main>
   );
