@@ -31,3 +31,19 @@ class FirestoreDailyMetricsRepository:
             rows.append(DailyMetric.from_document(data))
         rows.sort(key=lambda row: row.trade_date, reverse=True)
         return rows[:limit]
+
+    def list_latest_by_tickers(self, tickers: list[str]) -> dict[str, DailyMetric]:
+        normalized_tickers = {normalize_ticker(ticker) for ticker in tickers}
+        if not normalized_tickers:
+            return {}
+        latest_by_ticker: dict[str, DailyMetric] = {}
+        for snapshot in self._collection.stream():
+            data = snapshot.to_dict() or {}
+            ticker = str(data.get("ticker", "")).upper()
+            if ticker not in normalized_tickers:
+                continue
+            row = DailyMetric.from_document(data)
+            existing = latest_by_ticker.get(row.ticker)
+            if existing is None or row.trade_date > existing.trade_date:
+                latest_by_ticker[row.ticker] = row
+        return latest_by_ticker

@@ -3,10 +3,12 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 
+from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.api.dependencies import get_watchlist_service
 from kabu_per_bot.api.errors import (
     BadRequestError,
@@ -23,6 +25,8 @@ from kabu_per_bot.api.schemas import (
     WatchlistListResponse,
     WatchlistUpdateRequest,
 )
+from kabu_per_bot.metrics import DailyMetric, MetricMedians
+from kabu_per_bot.signal import SignalState
 from kabu_per_bot.watchlist import (
     MetricType,
     WatchlistAlreadyExistsError,
@@ -100,14 +104,18 @@ def list_watchlist(
         factory_key="earnings_calendar_repository_factory",
     )
     today_jst = datetime.now(JST).date().isoformat()
+    target_tickers = [item.ticker for item in paged_items]
+    latest_metrics_by_ticker = _load_latest_metrics_by_ticker(daily_metrics_repo, target_tickers)
+    latest_medians_by_ticker = _load_latest_medians_by_ticker(metric_medians_repo, target_tickers)
+    latest_states_by_ticker = _load_latest_signal_states_by_ticker(signal_state_repo, target_tickers)
+    next_earnings_by_ticker = _load_next_earnings_by_ticker(earnings_calendar_repo, target_tickers, from_date=today_jst)
     response_items = [
         _build_watchlist_item_response(
             item=item,
-            daily_metrics_repo=daily_metrics_repo,
-            metric_medians_repo=metric_medians_repo,
-            signal_state_repo=signal_state_repo,
-            earnings_calendar_repo=earnings_calendar_repo,
-            today_jst=today_jst,
+            latest_metric=latest_metrics_by_ticker.get(item.ticker),
+            latest_medians=latest_medians_by_ticker.get(item.ticker),
+            latest_signal_state=latest_states_by_ticker.get(item.ticker),
+            next_earnings=next_earnings_by_ticker.get(item.ticker),
         )
         for item in paged_items
     ]
@@ -227,11 +235,10 @@ def _resolve_status_dependency(
 def _build_watchlist_item_response(
     *,
     item: WatchlistItem,
-    daily_metrics_repo,
-    metric_medians_repo,
-    signal_state_repo,
-    earnings_calendar_repo,
-    today_jst: str,
+    latest_metric: DailyMetric | None,
+    latest_medians: MetricMedians | None,
+    latest_signal_state: SignalState | None,
+    next_earnings: EarningsCalendarEntry | None,
 ) -> WatchlistItemResponse:
     current_metric_value: float | None = None
     median_1w: float | None = None
@@ -244,35 +251,23 @@ def _build_watchlist_item_response(
     next_earnings_date: str | None = None
     next_earnings_time: str | None = None
 
-    if daily_metrics_repo is not None:
-        metrics = daily_metrics_repo.list_recent(item.ticker, limit=1)
-        if metrics:
-            latest = metrics[0]
-            current_metric_value = latest.per_value if item.metric_type is MetricType.PER else latest.psr_value
+    if latest_metric is not None:
+        current_metric_value = latest_metric.per_value if item.metric_type is MetricType.PER else latest_metric.psr_value
 
-    if metric_medians_repo is not None:
-        medians_rows = metric_medians_repo.list_recent(item.ticker, limit=1)
-        if medians_rows:
-            medians = medians_rows[0]
-            median_1w = medians.median_1w
-            median_3m = medians.median_3m
-            median_1y = medians.median_1y
+    if latest_medians is not None:
+        median_1w = latest_medians.median_1w
+        median_3m = latest_medians.median_3m
+        median_1y = latest_medians.median_1y
 
-    if signal_state_repo is not None:
-        state = signal_state_repo.get_latest(item.ticker)
-        if state is not None:
-            signal_category = state.category
-            signal_combo = state.combo
-            signal_is_strong = state.is_strong
-            signal_streak_days = state.streak_days
+    if latest_signal_state is not None:
+        signal_category = latest_signal_state.category
+        signal_combo = latest_signal_state.combo
+        signal_is_strong = latest_signal_state.is_strong
+        signal_streak_days = latest_signal_state.streak_days
 
-    if earnings_calendar_repo is not None:
-        future_rows = [row for row in earnings_calendar_repo.list_by_ticker(item.ticker) if row.earnings_date >= today_jst]
-        if future_rows:
-            future_rows.sort(key=lambda row: (row.earnings_date, row.earnings_time or "99:99"))
-            target = future_rows[0]
-            next_earnings_date = target.earnings_date
-            next_earnings_time = target.earnings_time
+    if next_earnings is not None:
+        next_earnings_date = next_earnings.earnings_date
+        next_earnings_time = next_earnings.earnings_time
 
     return WatchlistItemResponse.from_domain(
         item,
@@ -287,3 +282,79 @@ def _build_watchlist_item_response(
         next_earnings_date=next_earnings_date,
         next_earnings_time=next_earnings_time,
     )
+
+
+def _load_latest_metrics_by_ticker(repository: Any, tickers: list[str]) -> dict[str, DailyMetric]:
+    bulk_loader = getattr(repository, "list_latest_by_tickers", None)
+    if callable(bulk_loader):
+        return _normalize_map_keys(_call_repository(bulk_loader, tickers=tickers))
+
+    latest_by_ticker: dict[str, DailyMetric] = {}
+    for ticker in tickers:
+        rows = _call_repository(repository.list_recent, ticker=ticker, limit=1)
+        if rows:
+            latest_by_ticker[ticker] = rows[0]
+    return latest_by_ticker
+
+
+def _load_latest_medians_by_ticker(repository: Any, tickers: list[str]) -> dict[str, MetricMedians]:
+    bulk_loader = getattr(repository, "list_latest_by_tickers", None)
+    if callable(bulk_loader):
+        return _normalize_map_keys(_call_repository(bulk_loader, tickers=tickers))
+
+    latest_by_ticker: dict[str, MetricMedians] = {}
+    for ticker in tickers:
+        rows = _call_repository(repository.list_recent, ticker=ticker, limit=1)
+        if rows:
+            latest_by_ticker[ticker] = rows[0]
+    return latest_by_ticker
+
+
+def _load_latest_signal_states_by_ticker(repository: Any, tickers: list[str]) -> dict[str, SignalState]:
+    bulk_loader = getattr(repository, "get_latest_by_tickers", None)
+    if callable(bulk_loader):
+        return _normalize_map_keys(_call_repository(bulk_loader, tickers=tickers))
+
+    latest_by_ticker: dict[str, SignalState] = {}
+    for ticker in tickers:
+        state = _call_repository(repository.get_latest, ticker=ticker)
+        if state is not None:
+            latest_by_ticker[ticker] = state
+    return latest_by_ticker
+
+
+def _load_next_earnings_by_ticker(
+    repository: Any,
+    tickers: list[str],
+    *,
+    from_date: str,
+) -> dict[str, EarningsCalendarEntry]:
+    bulk_loader = getattr(repository, "list_next_by_tickers", None)
+    if callable(bulk_loader):
+        return _normalize_map_keys(_call_repository(bulk_loader, tickers=tickers, from_date=from_date))
+
+    next_by_ticker: dict[str, EarningsCalendarEntry] = {}
+    for ticker in tickers:
+        rows = _call_repository(repository.list_by_ticker, ticker=ticker)
+        future_rows = [row for row in rows if row.earnings_date >= from_date]
+        if not future_rows:
+            continue
+        future_rows.sort(key=lambda row: (row.earnings_date, row.earnings_time or "99:99"))
+        next_by_ticker[ticker] = future_rows[0]
+    return next_by_ticker
+
+
+def _call_repository(callable_obj, **kwargs):
+    try:
+        return callable_obj(**kwargs)
+    except Exception as exc:
+        raise InternalServerError("watchlist詳細情報の取得に失敗しました。") from exc
+
+
+def _normalize_map_keys(values: Any) -> dict[str, Any]:
+    if not isinstance(values, dict):
+        raise InternalServerError("watchlist詳細情報の取得結果が不正です。")
+    normalized: dict[str, Any] = {}
+    for key, value in values.items():
+        normalized[str(key).strip().upper()] = value
+    return normalized

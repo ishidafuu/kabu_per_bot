@@ -309,6 +309,147 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(item["signal_category"], "超PER割安")
         self.assertEqual(item["next_earnings_date"], "2099-01-10")
 
+    def test_watchlist_list_include_status_prefers_bulk_loaders(self) -> None:
+        repository = InMemoryWatchlistRepository()
+        service = WatchlistService(repository, max_items=100)
+        service.add_item(
+            ticker="3901:TSE",
+            name="富士フイルム",
+            metric_type="PER",
+            notify_channel="DISCORD",
+            notify_timing="IMMEDIATE",
+        )
+        service.add_item(
+            ticker="6758:TSE",
+            name="ソニー",
+            metric_type="PSR",
+            notify_channel="DISCORD",
+            notify_timing="IMMEDIATE",
+        )
+
+        class BulkDailyRepo:
+            single_calls = 0
+
+            def list_recent(self, ticker: str, *, limit: int) -> list[DailyMetric]:
+                self.single_calls += 1
+                return []
+
+            def list_latest_by_tickers(self, tickers: list[str]) -> dict[str, DailyMetric]:
+                return {
+                    "3901:TSE": DailyMetric(
+                        ticker="3901:TSE",
+                        trade_date="2026-02-15",
+                        close_price=1000,
+                        eps_forecast=100,
+                        sales_forecast=200,
+                        per_value=10.0,
+                        psr_value=5.0,
+                        data_source="test",
+                        fetched_at=datetime.now(timezone.utc).isoformat(),
+                    ),
+                    "6758:TSE": DailyMetric(
+                        ticker="6758:TSE",
+                        trade_date="2026-02-15",
+                        close_price=1500,
+                        eps_forecast=100,
+                        sales_forecast=100,
+                        per_value=15.0,
+                        psr_value=15.0,
+                        data_source="test",
+                        fetched_at=datetime.now(timezone.utc).isoformat(),
+                    ),
+                }
+
+        class BulkMedianRepo:
+            single_calls = 0
+
+            def list_recent(self, ticker: str, *, limit: int) -> list[MetricMedians]:
+                self.single_calls += 1
+                return []
+
+            def list_latest_by_tickers(self, tickers: list[str]) -> dict[str, MetricMedians]:
+                return {
+                    ticker: MetricMedians(
+                        ticker=ticker,
+                        trade_date="2026-02-15",
+                        median_1w=11.0,
+                        median_3m=12.0,
+                        median_1y=13.0,
+                        source_metric_type=MetricType.PER,
+                        calculated_at=datetime.now(timezone.utc).isoformat(),
+                    )
+                    for ticker in tickers
+                }
+
+        class BulkSignalRepo:
+            single_calls = 0
+
+            def get_latest(self, ticker: str) -> SignalState | None:
+                self.single_calls += 1
+                return None
+
+            def get_latest_by_tickers(self, tickers: list[str]) -> dict[str, SignalState]:
+                return {
+                    "3901:TSE": SignalState(
+                        ticker="3901:TSE",
+                        trade_date="2026-02-15",
+                        metric_type=MetricType.PER,
+                        metric_value=10.0,
+                        under_1w=True,
+                        under_3m=True,
+                        under_1y=True,
+                        combo="1Y+3M+1W",
+                        is_strong=True,
+                        category="超PER割安",
+                        streak_days=3,
+                        updated_at=datetime.now(timezone.utc).isoformat(),
+                    )
+                }
+
+        class BulkEarningsRepo:
+            single_calls = 0
+
+            def list_by_ticker(self, ticker: str) -> list[EarningsCalendarEntry]:
+                self.single_calls += 1
+                return []
+
+            def list_next_by_tickers(self, tickers: list[str], *, from_date: str) -> dict[str, EarningsCalendarEntry]:
+                return {
+                    "3901:TSE": EarningsCalendarEntry(
+                        ticker="3901:TSE",
+                        earnings_date="2099-01-10",
+                        earnings_time="15:00",
+                        quarter="3Q",
+                        source="test",
+                        fetched_at=datetime.now(timezone.utc).isoformat(),
+                    )
+                }
+
+        daily_repo = BulkDailyRepo()
+        median_repo = BulkMedianRepo()
+        signal_repo = BulkSignalRepo()
+        earnings_repo = BulkEarningsRepo()
+
+        app = create_app(
+            watchlist_service=service,
+            daily_metrics_repository=daily_repo,
+            metric_medians_repository=median_repo,
+            signal_state_repository=signal_repo,
+            earnings_calendar_repository=earnings_repo,
+            token_verifier=FakeTokenVerifier(),
+        )
+        client = TestClient(app)
+
+        response = client.get("/api/v1/watchlist?include_status=true", headers=_auth_header())
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["total"], 2)
+        self.assertEqual(daily_repo.single_calls, 0)
+        self.assertEqual(median_repo.single_calls, 0)
+        self.assertEqual(signal_repo.single_calls, 0)
+        self.assertEqual(earnings_repo.single_calls, 0)
+
     def test_watchlist_list_include_status_returns_error_when_dependency_is_missing(self) -> None:
         repository = InMemoryWatchlistRepository()
         service = WatchlistService(repository, max_items=100)

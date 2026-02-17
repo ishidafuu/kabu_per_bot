@@ -73,20 +73,32 @@ class DailyMetricsReader(Protocol):
     def list_recent(self, ticker: str, *, limit: int) -> list[DailyMetric]:
         """Get recent metric rows."""
 
+    def list_latest_by_tickers(self, tickers: list[str]) -> dict[str, DailyMetric]:
+        """Get latest metric rows by ticker."""
+
 
 class MetricMediansReader(Protocol):
     def list_recent(self, ticker: str, *, limit: int) -> list[MetricMedians]:
         """Get recent medians rows."""
+
+    def list_latest_by_tickers(self, tickers: list[str]) -> dict[str, MetricMedians]:
+        """Get latest medians rows by ticker."""
 
 
 class SignalStateReader(Protocol):
     def get_latest(self, ticker: str):
         """Get latest signal state."""
 
+    def get_latest_by_tickers(self, tickers: list[str]) -> dict[str, Any]:
+        """Get latest signal states by ticker."""
+
 
 class EarningsCalendarReader(Protocol):
     def list_by_ticker(self, ticker: str) -> list[EarningsCalendarEntry]:
         """List earnings calendar rows for ticker."""
+
+    def list_next_by_tickers(self, tickers: list[str], *, from_date: str) -> dict[str, EarningsCalendarEntry]:
+        """Get next earnings rows by ticker."""
 
 
 DependencyT = TypeVar("DependencyT")

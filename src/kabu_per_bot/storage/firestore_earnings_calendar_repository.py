@@ -98,6 +98,38 @@ class FirestoreEarningsCalendarRepository:
         rows.sort(key=_row_sort_key)
         return rows
 
+    def list_next_by_tickers(self, tickers: list[str], *, from_date: str) -> dict[str, EarningsCalendarEntry]:
+        normalized_tickers = {normalize_ticker(ticker) for ticker in tickers}
+        if not normalized_tickers:
+            return {}
+
+        next_rows: dict[str, EarningsCalendarEntry] = {}
+        for snapshot in self._collection.stream():
+            data = snapshot.to_dict() or {}
+            ticker = str(data.get("ticker", "")).upper()
+            if ticker not in normalized_tickers:
+                continue
+            try:
+                row = EarningsCalendarEntry.from_document(data)
+            except Exception as exc:
+                LOGGER.error(
+                    "earnings_calendar銘柄読込失敗: ticker=%s data=%s error=%s",
+                    ticker,
+                    data,
+                    exc,
+                )
+                continue
+            if row.earnings_date < from_date:
+                continue
+            existing = next_rows.get(row.ticker)
+            if existing is None or _next_sort_key(row) < _next_sort_key(existing):
+                next_rows[row.ticker] = row
+        return next_rows
+
 
 def _row_sort_key(row: EarningsCalendarEntry) -> tuple[str, str, str]:
     return (row.earnings_date, row.ticker, row.quarter or "NA")
+
+
+def _next_sort_key(row: EarningsCalendarEntry) -> tuple[str, str]:
+    return (row.earnings_date, row.earnings_time or "99:99")
