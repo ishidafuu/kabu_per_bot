@@ -11,6 +11,7 @@ from kabu_per_bot.api.dependencies import get_watchlist_service
 from kabu_per_bot.api.errors import (
     BadRequestError,
     ConflictError,
+    InternalServerError,
     NotFoundError,
     TooManyRequestsError,
     UnprocessableEntityError,
@@ -78,22 +79,22 @@ def list_watchlist(
     if not include_status:
         return WatchlistListResponse(items=[WatchlistItemResponse.from_domain(item) for item in paged_items], total=total)
 
-    daily_metrics_repo = _resolve_optional_dependency(
+    daily_metrics_repo = _resolve_status_dependency(
         request=request,
         value_key="daily_metrics_repository",
         factory_key="daily_metrics_repository_factory",
     )
-    metric_medians_repo = _resolve_optional_dependency(
+    metric_medians_repo = _resolve_status_dependency(
         request=request,
         value_key="metric_medians_repository",
         factory_key="metric_medians_repository_factory",
     )
-    signal_state_repo = _resolve_optional_dependency(
+    signal_state_repo = _resolve_status_dependency(
         request=request,
         value_key="signal_state_repository",
         factory_key="signal_state_repository_factory",
     )
-    earnings_calendar_repo = _resolve_optional_dependency(
+    earnings_calendar_repo = _resolve_status_dependency(
         request=request,
         value_key="earnings_calendar_repository",
         factory_key="earnings_calendar_repository_factory",
@@ -202,7 +203,7 @@ def delete_watchlist_item(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-def _resolve_optional_dependency(
+def _resolve_status_dependency(
     *,
     request: Request,
     value_key: str,
@@ -214,11 +215,11 @@ def _resolve_optional_dependency(
 
     factory = getattr(request.app.state, factory_key, None)
     if factory is None:
-        return None
+        raise InternalServerError(f"{value_key} の依存解決に失敗しました。")
     try:
         dependency = factory()
-    except Exception:
-        return None
+    except Exception as exc:
+        raise InternalServerError(f"{value_key} の初期化に失敗しました。") from exc
     setattr(request.app.state, value_key, dependency)
     return dependency
 

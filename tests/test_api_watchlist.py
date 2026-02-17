@@ -309,6 +309,29 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(item["signal_category"], "超PER割安")
         self.assertEqual(item["next_earnings_date"], "2099-01-10")
 
+    def test_watchlist_list_include_status_returns_error_when_dependency_is_missing(self) -> None:
+        repository = InMemoryWatchlistRepository()
+        service = WatchlistService(repository, max_items=100)
+        service.add_item(
+            ticker="3901:TSE",
+            name="富士フイルム",
+            metric_type="PER",
+            notify_channel="DISCORD",
+            notify_timing="IMMEDIATE",
+        )
+        app = create_app(
+            watchlist_service=service,
+            daily_metrics_repository=None,
+            token_verifier=FakeTokenVerifier(),
+        )
+        app.state.daily_metrics_repository_factory = None
+        client = TestClient(app)
+
+        response = client.get("/api/v1/watchlist?include_status=true", headers=_auth_header())
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["error"]["code"], "internal_error")
+
 
 if __name__ == "__main__":
     unittest.main()
