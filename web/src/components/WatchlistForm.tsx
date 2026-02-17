@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import type {
   MetricType,
-  NotifyChannel,
   NotifyTiming,
   XAccountLink,
   WatchlistItem,
@@ -11,7 +10,6 @@ export interface WatchlistFormValues {
   ticker: string;
   name: string;
   metric_type: MetricType;
-  notify_channel: NotifyChannel;
   notify_timing: NotifyTiming;
   reason: string;
   ir_urls_text: string;
@@ -37,7 +35,6 @@ const buildInitialValues = (item?: WatchlistItem): WatchlistFormValues => {
     ticker: item?.ticker ?? '',
     name: item?.name ?? '',
     metric_type: item?.metric_type ?? 'PER',
-    notify_channel: item?.notify_channel ?? 'DISCORD',
     notify_timing: item?.notify_timing ?? 'IMMEDIATE',
     reason: '',
     ir_urls_text: (item?.ir_urls ?? []).join('\n'),
@@ -169,19 +166,6 @@ export const WatchlistForm = ({
         </label>
 
         <label>
-          通知先
-          <select
-            value={values.notify_channel}
-            onChange={(event) => {
-              updateField('notify_channel', event.target.value as NotifyChannel);
-            }}
-          >
-            <option value="DISCORD">DISCORD</option>
-            <option value="OFF">OFF</option>
-          </select>
-        </label>
-
-        <label>
           通知時間
           <select
             value={values.notify_timing}
@@ -286,7 +270,7 @@ export const buildWatchlistPayload = (values: WatchlistFormValues) => {
   return {
     name: values.name,
     metric_type: values.metric_type,
-    notify_channel: values.notify_channel,
+    notify_channel: 'DISCORD' as const,
     notify_timing: values.notify_timing,
     is_active: values.is_active,
     ai_enabled: values.ai_enabled,

@@ -229,7 +229,6 @@ export const WatchlistPage = () => {
                 <th>ticker</th>
                 <th>name</th>
                 <th>metric_type</th>
-                <th>notify_channel</th>
                 <th>notify_timing</th>
                 <th>is_active</th>
                 <th>current_metric</th>
@@ -242,7 +241,7 @@ export const WatchlistPage = () => {
             <tbody>
               {!isLoading && items.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="empty-cell">
+                  <td colSpan={10} className="empty-cell">
                     データがありません。
                   </td>
                 </tr>
@@ -253,7 +252,6 @@ export const WatchlistPage = () => {
                   <td>{item.ticker}</td>
                   <td>{item.name}</td>
                   <td>{item.metric_type}</td>
-                  <td>{item.notify_channel}</td>
                   <td>{item.notify_timing}</td>
                   <td>{item.is_active ? 'true' : 'false'}</td>
                   <td>{formatMetric(item.current_metric_value)}</td>

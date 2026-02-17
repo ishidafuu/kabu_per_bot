@@ -1,5 +1,5 @@
 export const USER_GUIDE_TITLE = 'kabu_per_bot 管理画面 使い方手順書';
-export const USER_GUIDE_UPDATED_AT = '2026-02-15';
+export const USER_GUIDE_UPDATED_AT = '2026-02-17';
 
 export interface GuideSection {
   title: string;
@@ -22,7 +22,7 @@ export const USER_GUIDE_SECTIONS: GuideSection[] = [
       'ログイン画面でメールアドレス/パスワードを入力し、「Firebaseでログイン」を押します。',
       'ダッシュボード右上の「ウォッチリストへ」を押します。',
       '「新規追加」を押して、例として ticker に 7203:TSE、会社名に トヨタ自動車 を入力します。',
-      '通知設定は迷ったら notify_channel=DISCORD、notify_timing=IMMEDIATE のままで保存します。',
+      '通知先は Discord 固定です。通知時間は迷ったら notify_timing=IMMEDIATE のままで保存します。',
       '保存後、一覧に1件表示されれば初期設定は完了です。',
     ],
   },
@@ -57,8 +57,7 @@ export const USER_GUIDE_SECTIONS: GuideSection[] = [
   {
     title: '5. 通知設定の選び方（迷ったらここだけ）',
     body: [
-      'notify_channel=DISCORD: 通知を受け取る（通常はこちら）。',
-      'notify_channel=OFF: その銘柄だけ通知しない。',
+      '通知先は Discord 固定です（画面での選択はありません）。',
       'notify_timing=IMMEDIATE: 日次ジョブ側で通知対象。',
       'notify_timing=AT_21: 21時系ジョブ側で通知対象。',
       'notify_timing=OFF: 通知対象外。',
@@ -80,7 +79,7 @@ export const USER_GUIDE_SECTIONS: GuideSection[] = [
       'ログインできない: メールアドレス/パスワードの再確認、Firebase Auth の登録状態を確認。',
       'APIに接続できません: いったんログアウトし、ページ再読み込み後に再ログイン。',
       '一覧にデータが出ない: ticker形式、検索条件（絞り込み）、該当銘柄の登録有無を確認。',
-      '通知が来ない: notify_channel が OFF になっていないか、notify_timing 設定を確認。',
+      '通知が来ない: notify_timing が OFF になっていないか、設定を確認。',
     ],
   },
   {
