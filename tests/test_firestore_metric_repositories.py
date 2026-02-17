@@ -62,6 +62,84 @@ class FakeFirestoreClient:
         return FakeCollectionRef(path=name, db=self.db)
 
 
+@dataclass
+class IndexFailingQuery:
+    rows: list[dict]
+
+    def where(self, field_path: str, op_string: str, value: str) -> "IndexFailingQuery":
+        filtered: list[dict] = []
+        for row in self.rows:
+            current = row.get(field_path)
+            if op_string == "==" and current == value:
+                filtered.append(row)
+            elif op_string == ">=" and isinstance(current, str) and current >= value:
+                filtered.append(row)
+            elif op_string == "<" and isinstance(current, str) and current < value:
+                filtered.append(row)
+        return IndexFailingQuery(filtered)
+
+    def order_by(self, field_path: str, direction: str = "ASCENDING") -> "IndexFailingQuery":
+        del field_path, direction
+        return self
+
+    def offset(self, count: int) -> "IndexFailingQuery":
+        return IndexFailingQuery(self.rows[count:])
+
+    def limit(self, count: int) -> "IndexFailingQuery":
+        return IndexFailingQuery(self.rows[:count])
+
+    def stream(self) -> list[FakeSnapshot]:
+        raise RuntimeError("The query requires an index.")
+
+
+@dataclass
+class IndexFailingCollectionRef(FakeCollectionRef):
+    def where(self, field_path: str, op_string: str, value: str) -> IndexFailingQuery:
+        del field_path, op_string, value
+        prefix = f"{self.path}/"
+        rows = [dict(v) for k, v in self.db.items() if k.startswith(prefix)]
+        return IndexFailingQuery(rows)
+
+    def order_by(self, field_path: str, direction: str = "ASCENDING") -> IndexFailingQuery:
+        del field_path, direction
+        prefix = f"{self.path}/"
+        rows = [dict(v) for k, v in self.db.items() if k.startswith(prefix)]
+        return IndexFailingQuery(rows)
+
+
+@dataclass
+class IndexFailingFirestoreClient(FakeFirestoreClient):
+    def collection(self, name: str) -> IndexFailingCollectionRef:
+        return IndexFailingCollectionRef(path=name, db=self.db)
+
+
+@dataclass
+class NonIndexFailingQuery(IndexFailingQuery):
+    def stream(self) -> list[FakeSnapshot]:
+        raise RuntimeError("permission denied")
+
+
+@dataclass
+class NonIndexFailingCollectionRef(FakeCollectionRef):
+    def where(self, field_path: str, op_string: str, value: str) -> NonIndexFailingQuery:
+        del field_path, op_string, value
+        prefix = f"{self.path}/"
+        rows = [dict(v) for k, v in self.db.items() if k.startswith(prefix)]
+        return NonIndexFailingQuery(rows)
+
+    def order_by(self, field_path: str, direction: str = "ASCENDING") -> NonIndexFailingQuery:
+        del field_path, direction
+        prefix = f"{self.path}/"
+        rows = [dict(v) for k, v in self.db.items() if k.startswith(prefix)]
+        return NonIndexFailingQuery(rows)
+
+
+@dataclass
+class NonIndexFailingFirestoreClient(FakeFirestoreClient):
+    def collection(self, name: str) -> NonIndexFailingCollectionRef:
+        return NonIndexFailingCollectionRef(path=name, db=self.db)
+
+
 class FirestoreMetricRepositoriesTest(unittest.TestCase):
     def test_daily_metrics_repository(self) -> None:
         repo = FirestoreDailyMetricsRepository(FakeFirestoreClient())
@@ -218,6 +296,54 @@ class FirestoreMetricRepositoriesTest(unittest.TestCase):
         rows = repo.list_by_ticker("3901:TSE")
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].earnings_time, "15:00")
+
+    def test_notification_log_repository_falls_back_when_query_requires_index(self) -> None:
+        repo = FirestoreNotificationLogRepository(IndexFailingFirestoreClient())
+        repo.append(
+            NotificationLogEntry(
+                entry_id="n1",
+                ticker="3901:TSE",
+                category="SNS注目",
+                condition_key="SNS:1",
+                sent_at="2026-02-18T00:01:00+00:00",
+                channel="DISCORD",
+                payload_hash="h1",
+                is_strong=False,
+            )
+        )
+        repo.append(
+            NotificationLogEntry(
+                entry_id="n2",
+                ticker="3901:TSE",
+                category="SNS注目",
+                condition_key="SNS:2",
+                sent_at="2026-02-18T00:02:00+00:00",
+                channel="DISCORD",
+                payload_hash="h2",
+                is_strong=False,
+            )
+        )
+
+        rows = repo.list_recent("3901:TSE")
+        self.assertEqual([row.entry_id for row in rows], ["n2", "n1"])
+        self.assertEqual(repo.count_timeline(ticker="3901:TSE"), 2)
+
+    def test_notification_log_repository_raises_non_index_error(self) -> None:
+        repo = FirestoreNotificationLogRepository(NonIndexFailingFirestoreClient())
+        repo.append(
+            NotificationLogEntry(
+                entry_id="n1",
+                ticker="3901:TSE",
+                category="SNS注目",
+                condition_key="SNS:1",
+                sent_at="2026-02-18T00:01:00+00:00",
+                channel="DISCORD",
+                payload_hash="h1",
+                is_strong=False,
+            )
+        )
+        with self.assertRaisesRegex(RuntimeError, "permission denied"):
+            repo.list_recent("3901:TSE")
 
 
 if __name__ == "__main__":

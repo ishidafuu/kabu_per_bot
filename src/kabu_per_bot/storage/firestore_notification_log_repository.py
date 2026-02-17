@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import hashlib
+import logging
 from typing import Any
 
 from kabu_per_bot.signal import NotificationLogEntry
 from kabu_per_bot.storage.firestore_schema import COLLECTION_JOB_RUN, COLLECTION_NOTIFICATION_LOG, normalize_ticker
 
 EARNINGS_JOB_NAME_PREFIX = "earnings_"
+LOGGER = logging.getLogger(__name__)
+_MISSING_INDEX_WARNING_KEYS: set[str] = set()
 
 
 class FirestoreNotificationLogRepository:
@@ -67,36 +70,46 @@ class FirestoreNotificationLogRepository:
         from_dt = _parse_iso_datetime(sent_at_from) if sent_at_from else None
         to_dt = _parse_iso_datetime(sent_at_to) if sent_at_to else None
         if hasattr(self._collection, "where") and hasattr(self._collection, "order_by"):
-            query = self._collection
-            if normalized_ticker:
-                query = query.where("ticker", "==", normalized_ticker)
-            if sent_at_from is not None:
-                query = query.where("sent_at", ">=", sent_at_from)
-            if sent_at_to is not None:
-                query = query.where("sent_at", "<", sent_at_to)
-            query = query.order_by("sent_at", direction="DESCENDING")
-            if offset > 0 and hasattr(query, "offset"):
-                query = query.offset(offset)
-            if limit is not None and hasattr(query, "limit"):
-                query = query.limit(limit)
-            return [NotificationLogEntry.from_document(snapshot.to_dict() or {}) for snapshot in query.stream()]
+            try:
+                query = self._collection
+                if normalized_ticker:
+                    query = query.where("ticker", "==", normalized_ticker)
+                if sent_at_from is not None:
+                    query = query.where("sent_at", ">=", sent_at_from)
+                if sent_at_to is not None:
+                    query = query.where("sent_at", "<", sent_at_to)
+                query = query.order_by("sent_at", direction="DESCENDING")
+                if offset > 0 and hasattr(query, "offset"):
+                    query = query.offset(offset)
+                if limit is not None and hasattr(query, "limit"):
+                    query = query.limit(limit)
+                return [NotificationLogEntry.from_document(snapshot.to_dict() or {}) for snapshot in query.stream()]
+            except Exception as exc:
+                if not _is_missing_index_error(exc):
+                    raise
+                _log_missing_index_warning_once(key="timeline.primary", exc=exc)
 
-        rows: list[NotificationLogEntry] = []
-        for snapshot in self._collection.stream():
-            data = snapshot.to_dict() or {}
-            if normalized_ticker and str(data.get("ticker", "")).upper() != normalized_ticker:
-                continue
-            row = NotificationLogEntry.from_document(data)
-            sent_at = _parse_iso_datetime(row.sent_at)
-            if from_dt is not None and sent_at < from_dt:
-                continue
-            if to_dt is not None and sent_at >= to_dt:
-                continue
-            rows.append(row)
-        rows.sort(key=lambda row: _parse_iso_datetime(row.sent_at), reverse=True)
-        if limit is None:
-            return rows[offset:]
-        return rows[offset : offset + limit]
+                reduced_rows = _try_list_timeline_with_reduced_query(
+                    collection=self._collection,
+                    normalized_ticker=normalized_ticker,
+                    sent_at_from=sent_at_from,
+                    sent_at_to=sent_at_to,
+                    from_dt=from_dt,
+                    to_dt=to_dt,
+                    limit=limit,
+                    offset=offset,
+                )
+                if reduced_rows is not None:
+                    return reduced_rows
+
+        return _list_timeline_in_memory(
+            collection=self._collection,
+            normalized_ticker=normalized_ticker,
+            from_dt=from_dt,
+            to_dt=to_dt,
+            limit=limit,
+            offset=offset,
+        )
 
     def count_timeline(
         self,
@@ -109,30 +122,26 @@ class FirestoreNotificationLogRepository:
         from_dt = _parse_iso_datetime(sent_at_from) if sent_at_from else None
         to_dt = _parse_iso_datetime(sent_at_to) if sent_at_to else None
         if hasattr(self._collection, "where"):
-            query = self._collection
-            if normalized_ticker:
-                query = query.where("ticker", "==", normalized_ticker)
-            if sent_at_from is not None:
-                query = query.where("sent_at", ">=", sent_at_from)
-            if sent_at_to is not None:
-                query = query.where("sent_at", "<", sent_at_to)
-            return sum(1 for _ in query.stream())
+            try:
+                query = self._collection
+                if normalized_ticker:
+                    query = query.where("ticker", "==", normalized_ticker)
+                if sent_at_from is not None:
+                    query = query.where("sent_at", ">=", sent_at_from)
+                if sent_at_to is not None:
+                    query = query.where("sent_at", "<", sent_at_to)
+                return sum(1 for _ in query.stream())
+            except Exception as exc:
+                if not _is_missing_index_error(exc):
+                    raise
+                _log_missing_index_warning_once(key="count.primary", exc=exc)
 
-        count = 0
-        for snapshot in self._collection.stream():
-            data = snapshot.to_dict() or {}
-            if normalized_ticker and str(data.get("ticker", "")).upper() != normalized_ticker:
-                continue
-            sent_at_raw = data.get("sent_at")
-            if sent_at_raw is None:
-                continue
-            sent_at = _parse_iso_datetime(str(sent_at_raw))
-            if from_dt is not None and sent_at < from_dt:
-                continue
-            if to_dt is not None and sent_at >= to_dt:
-                continue
-            count += 1
-        return count
+        return _count_timeline_in_memory(
+            collection=self._collection,
+            normalized_ticker=normalized_ticker,
+            from_dt=from_dt,
+            to_dt=to_dt,
+        )
 
     def failed_job_exists(
         self,
@@ -211,3 +220,116 @@ def _is_dashboard_target_job(data: dict[str, Any]) -> bool:
     if not job_name.startswith(EARNINGS_JOB_NAME_PREFIX):
         return False
     return _is_failed_job_document(data)
+
+
+def _is_missing_index_error(exc: Exception) -> bool:
+    lowered = str(exc).lower()
+    return "requires an index" in lowered
+
+
+def _log_missing_index_warning_once(*, key: str, exc: Exception) -> None:
+    if key in _MISSING_INDEX_WARNING_KEYS:
+        return
+    _MISSING_INDEX_WARNING_KEYS.add(key)
+    LOGGER.warning("notification_log query index不足のためフォールバック: %s", exc)
+
+
+def _try_list_timeline_with_reduced_query(
+    *,
+    collection: Any,
+    normalized_ticker: str | None,
+    sent_at_from: str | None,
+    sent_at_to: str | None,
+    from_dt: datetime | None,
+    to_dt: datetime | None,
+    limit: int | None,
+    offset: int,
+) -> list[NotificationLogEntry] | None:
+    if not hasattr(collection, "where"):
+        return None
+    try:
+        query = collection
+        if normalized_ticker:
+            query = query.where("ticker", "==", normalized_ticker)
+        if sent_at_from is not None:
+            query = query.where("sent_at", ">=", sent_at_from)
+        if sent_at_to is not None:
+            query = query.where("sent_at", "<", sent_at_to)
+        rows = [NotificationLogEntry.from_document(snapshot.to_dict() or {}) for snapshot in query.stream()]
+        rows = _filter_sort_paginate_rows(rows=rows, from_dt=from_dt, to_dt=to_dt, limit=limit, offset=offset)
+        return rows
+    except Exception as exc:
+        if not _is_missing_index_error(exc):
+            raise
+        _log_missing_index_warning_once(key="timeline.reduced", exc=exc)
+        return None
+
+
+def _list_timeline_in_memory(
+    *,
+    collection: Any,
+    normalized_ticker: str | None,
+    from_dt: datetime | None,
+    to_dt: datetime | None,
+    limit: int | None,
+    offset: int,
+) -> list[NotificationLogEntry]:
+    rows: list[NotificationLogEntry] = []
+    for snapshot in collection.stream():
+        data = snapshot.to_dict() or {}
+        if normalized_ticker and str(data.get("ticker", "")).upper() != normalized_ticker:
+            continue
+        row = NotificationLogEntry.from_document(data)
+        sent_at = _parse_iso_datetime(row.sent_at)
+        if from_dt is not None and sent_at < from_dt:
+            continue
+        if to_dt is not None and sent_at >= to_dt:
+            continue
+        rows.append(row)
+    return _filter_sort_paginate_rows(rows=rows, from_dt=from_dt, to_dt=to_dt, limit=limit, offset=offset)
+
+
+def _count_timeline_in_memory(
+    *,
+    collection: Any,
+    normalized_ticker: str | None,
+    from_dt: datetime | None,
+    to_dt: datetime | None,
+) -> int:
+    count = 0
+    for snapshot in collection.stream():
+        data = snapshot.to_dict() or {}
+        if normalized_ticker and str(data.get("ticker", "")).upper() != normalized_ticker:
+            continue
+        sent_at_raw = data.get("sent_at")
+        if sent_at_raw is None:
+            continue
+        sent_at = _parse_iso_datetime(str(sent_at_raw))
+        if from_dt is not None and sent_at < from_dt:
+            continue
+        if to_dt is not None and sent_at >= to_dt:
+            continue
+        count += 1
+    return count
+
+
+def _filter_sort_paginate_rows(
+    *,
+    rows: list[NotificationLogEntry],
+    from_dt: datetime | None,
+    to_dt: datetime | None,
+    limit: int | None,
+    offset: int,
+) -> list[NotificationLogEntry]:
+    filtered: list[NotificationLogEntry] = []
+    for row in rows:
+        sent_at = _parse_iso_datetime(row.sent_at)
+        if from_dt is not None and sent_at < from_dt:
+            continue
+        if to_dt is not None and sent_at >= to_dt:
+            continue
+        filtered.append(row)
+    filtered.sort(key=lambda row: _parse_iso_datetime(row.sent_at), reverse=True)
+    if limit is None:
+        return filtered[offset:]
+    return filtered[offset : offset + limit]
