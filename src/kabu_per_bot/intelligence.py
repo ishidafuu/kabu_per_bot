@@ -43,7 +43,8 @@ class IntelEvent:
 
     @property
     def fingerprint(self) -> str:
-        raw = "|".join([self.ticker, self.kind.value, self.url, self.title, self.published_at])
+        # published_at はソース次第で実行時刻になるため、重複判定キーから除外する。
+        raw = "|".join([self.ticker, self.kind.value, self.url.strip()])
         return hashlib.sha1(raw.encode("utf-8")).hexdigest()
 
 
@@ -73,8 +74,20 @@ class CompositeIntelSource:
 
     def fetch_events(self, item: WatchlistItem, *, now_iso: str) -> list[IntelEvent]:
         merged: list[IntelEvent] = []
+        errors: list[str] = []
         for source in self.sources:
-            merged.extend(source.fetch_events(item, now_iso=now_iso))
+            try:
+                merged.extend(source.fetch_events(item, now_iso=now_iso))
+            except IntelSourceError as exc:
+                source_name = source.__class__.__name__
+                LOGGER.warning("IR/SNSソース取得失敗: ticker=%s source=%s error=%s", item.ticker, source_name, exc)
+                errors.append(f"{source_name}: {exc}")
+            except Exception as exc:
+                source_name = source.__class__.__name__
+                LOGGER.exception("IR/SNSソース予期せぬ失敗: ticker=%s source=%s", item.ticker, source_name)
+                errors.append(f"{source_name}: {exc}")
+        if errors and not merged:
+            raise IntelSourceError("; ".join(errors))
         unique: dict[str, IntelEvent] = {}
         for event in merged:
             unique[event.fingerprint] = event
