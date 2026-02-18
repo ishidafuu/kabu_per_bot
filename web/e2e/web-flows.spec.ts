@@ -83,7 +83,7 @@ test('ウォッチリスト一覧で作成・編集・削除できる', async ({
   await expect(page.locator('tbody tr', { hasText: ticker })).toHaveCount(0);
 });
 
-test('履歴画面と通知ログ画面が表示される', async ({ page }) => {
+test('履歴画面と通知ログ画面と使い方ページが表示される', async ({ page }) => {
   await loginWithMock(page, '/watchlist');
 
   await page.getByRole('link', { name: '履歴' }).click();
@@ -110,4 +110,9 @@ test('履歴画面と通知ログ画面が表示される', async ({ page }) => 
   expect(await logRows.count()).toBeGreaterThan(0);
   await expect(page.locator('tbody tr', { hasText: '6501:TSE' }).first()).toBeVisible();
   await expect(page.locator('tbody tr', { hasText: '6501:TSE' }).first()).toContainText('PSR');
+
+  await page.getByRole('link', { name: '使い方' }).click();
+  await expect(page).toHaveURL(/\/guide$/);
+  await expect(page.getByRole('heading', { name: 'ヘルプ / ドキュメント' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'kabu_per_bot 管理画面 使い方手順書' })).toBeVisible();
 });

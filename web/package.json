@@ -4,11 +4,16 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "sync:help-docs": "node scripts/sync-help-docs.mjs",
+    "predev": "npm run sync:help-docs",
     "dev": "vite",
+    "prebuild": "npm run sync:help-docs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "pretest:e2e": "npm run sync:help-docs",
     "test:e2e": "playwright test",
+    "pretest:e2e:api": "npm run sync:help-docs",
     "test:e2e:api": "playwright test --config=playwright.api.config.ts",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
@@ -18,6 +23,8 @@
     "firebase": "^12.9.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "react-router-dom": "^7.13.0"
   },
   "devDependencies": {

@@ -20,6 +20,13 @@
 - `/watchlist`: ウォッチリスト管理（保護画面）
 - `/watchlist/history`: ウォッチリスト履歴（保護画面）
 - `/notifications/logs`: 通知ログ（保護画面）
+- `/guide`: ヘルプ/ドキュメント（保護画面）
+
+## ヘルプドキュメント運用
+
+- 管理画面のヘルプは `../docs` を正本として表示します（`web/src/content` への二重管理はしません）。
+- `npm run dev` / `npm run build` / `npm run test:e2e` の前に、`npm run sync:help-docs` が自動実行されます。
+- 同期で `web/public/help-docs/` にMarkdownと`index.json`を生成し、`/guide` から読み込みます。
 
 ## 起動手順
 
