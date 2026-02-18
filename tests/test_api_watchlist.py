@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -156,6 +157,23 @@ class WatchlistApiTest(unittest.TestCase):
         missing = client.get("/api/v1/watchlist/3901:TSE", headers=_auth_header())
         self.assertEqual(missing.status_code, 404)
         self.assertEqual(missing.json()["error"]["code"], "not_found")
+
+    def test_create_triggers_registration_warmup(self) -> None:
+        client = _build_client()
+        with patch("kabu_per_bot.api.routes.watchlist._run_watchlist_registration_warmup") as mocked_warmup:
+            response = client.post(
+                "/api/v1/watchlist",
+                headers=_auth_header(),
+                json={
+                    "ticker": "3901:tse",
+                    "name": "富士フイルム",
+                    "metric_type": "PER",
+                    "notify_channel": "DISCORD",
+                    "notify_timing": "IMMEDIATE",
+                },
+            )
+        self.assertEqual(response.status_code, 201)
+        mocked_warmup.assert_called_once()
 
     def test_duplicate_and_limit_error(self) -> None:
         client = _build_client(max_items=1)

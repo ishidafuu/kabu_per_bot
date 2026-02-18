@@ -3,13 +3,25 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
+import logging
+import os
+import threading
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from kabu_per_bot.earnings import EarningsCalendarEntry
-from kabu_per_bot.api.dependencies import get_watchlist_service
+from kabu_per_bot.api.dependencies import create_firestore_client, get_watchlist_service
+from kabu_per_bot.backfill_service import (
+    DEFAULT_INITIAL_LOOKBACK_DAYS,
+    backfill_ticker_from_jquants,
+    refresh_latest_medians_and_signal,
+    resolve_incremental_from_date,
+    upsert_latest_snapshot_metric,
+)
+from kabu_per_bot.jquants_v2 import JQuantsV2Client
+from kabu_per_bot.market_data import create_default_market_data_source
 from kabu_per_bot.api.errors import (
     BadRequestError,
     ConflictError,
@@ -26,7 +38,11 @@ from kabu_per_bot.api.schemas import (
     WatchlistUpdateRequest,
 )
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
+from kabu_per_bot.settings import load_settings
 from kabu_per_bot.signal import SignalState
+from kabu_per_bot.storage.firestore_daily_metrics_repository import FirestoreDailyMetricsRepository
+from kabu_per_bot.storage.firestore_metric_medians_repository import FirestoreMetricMediansRepository
+from kabu_per_bot.storage.firestore_signal_state_repository import FirestoreSignalStateRepository
 from kabu_per_bot.watchlist import (
     MetricType,
     NotifyChannel,
@@ -37,6 +53,8 @@ from kabu_per_bot.watchlist import (
     WatchlistItem,
     WatchlistService,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/watchlist",
@@ -144,6 +162,7 @@ def get_watchlist_item(
     responses=error_responses(401, 403, 409, 422, 429, 500),
 )
 def create_watchlist_item(
+    request: Request,
     payload: WatchlistCreateRequest,
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> WatchlistItemResponse:
@@ -162,6 +181,7 @@ def create_watchlist_item(
             x_executive_accounts=[row.model_dump() for row in payload.x_executive_accounts],
             reason=payload.reason,
         )
+    _run_watchlist_registration_warmup(request=request, item=created)
     return WatchlistItemResponse.from_domain(created)
 
 
@@ -361,3 +381,122 @@ def _normalize_map_keys(values: Any) -> dict[str, Any]:
     for key, value in values.items():
         normalized[str(key).strip().upper()] = value
     return normalized
+
+
+def _run_watchlist_registration_warmup(*, request: Request, item: WatchlistItem) -> None:
+    settings = load_settings()
+    trade_date = datetime.now(ZoneInfo(settings.timezone)).date().isoformat()
+    try:
+        daily_metrics_repo = _resolve_status_dependency(
+            request=request,
+            value_key="daily_metrics_repository",
+            factory_key="daily_metrics_repository_factory",
+        )
+        metric_medians_repo = _resolve_status_dependency(
+            request=request,
+            value_key="metric_medians_repository",
+            factory_key="metric_medians_repository_factory",
+        )
+        signal_state_repo = _resolve_status_dependency(
+            request=request,
+            value_key="signal_state_repository",
+            factory_key="signal_state_repository_factory",
+        )
+    except InternalServerError as exc:
+        LOGGER.warning("登録直後ウォームアップをスキップ: ticker=%s reason=%s", item.ticker, exc)
+        return
+
+    try:
+        upsert_latest_snapshot_metric(
+            item=item,
+            trade_date=trade_date,
+            market_data_source=create_default_market_data_source(),
+            daily_metrics_repo=daily_metrics_repo,
+        )
+        refresh_latest_medians_and_signal(
+            item=item,
+            daily_metrics_repo=daily_metrics_repo,
+            medians_repo=metric_medians_repo,
+            signal_state_repo=signal_state_repo,
+            window_1w_days=settings.window_1w_days,
+            window_3m_days=settings.window_3m_days,
+            window_1y_days=settings.window_1y_days,
+        )
+        LOGGER.info("登録直後ウォームアップ完了: ticker=%s trade_date=%s", item.ticker, trade_date)
+    except Exception as exc:
+        LOGGER.exception("登録直後ウォームアップ失敗: ticker=%s error=%s", item.ticker, exc)
+
+    api_key = os.environ.get("JQUANTS_API_KEY", "").strip()
+    if not api_key:
+        LOGGER.warning("JQUANTS_API_KEY 未設定のため、登録直後バックフィルをスキップ: ticker=%s", item.ticker)
+        return
+
+    thread = threading.Thread(
+        target=_run_watchlist_registration_backfill_worker,
+        kwargs={
+            "item": item,
+            "api_key": api_key,
+            "timezone_name": settings.timezone,
+            "window_1w_days": settings.window_1w_days,
+            "window_3m_days": settings.window_3m_days,
+            "window_1y_days": settings.window_1y_days,
+        },
+        daemon=True,
+    )
+    thread.start()
+
+
+def _run_watchlist_registration_backfill_worker(
+    *,
+    item: WatchlistItem,
+    api_key: str,
+    timezone_name: str,
+    window_1w_days: int,
+    window_3m_days: int,
+    window_1y_days: int,
+) -> None:
+    to_date = datetime.now(ZoneInfo(timezone_name)).date().isoformat()
+    from_date = resolve_incremental_from_date(
+        latest_trade_date=None,
+        to_date=to_date,
+        initial_lookback_days=DEFAULT_INITIAL_LOOKBACK_DAYS,
+        overlap_days=0,
+    )
+    try:
+        client = create_firestore_client()
+        daily_metrics_repo = FirestoreDailyMetricsRepository(client)
+        metric_medians_repo = FirestoreMetricMediansRepository(client)
+        signal_state_repo = FirestoreSignalStateRepository(client)
+        jquants_client = JQuantsV2Client(api_key=api_key)
+        result = backfill_ticker_from_jquants(
+            item=item,
+            from_date=from_date,
+            to_date=to_date,
+            jquants_client=jquants_client,
+            daily_metrics_repo=daily_metrics_repo,
+        )
+        refresh_latest_medians_and_signal(
+            item=item,
+            daily_metrics_repo=daily_metrics_repo,
+            medians_repo=metric_medians_repo,
+            signal_state_repo=signal_state_repo,
+            window_1w_days=window_1w_days,
+            window_3m_days=window_3m_days,
+            window_1y_days=window_1y_days,
+        )
+        LOGGER.info(
+            "登録直後バックフィル完了: ticker=%s from=%s to=%s generated=%s upserted=%s",
+            item.ticker,
+            result.from_date,
+            result.to_date,
+            result.generated,
+            result.upserted,
+        )
+    except Exception as exc:
+        LOGGER.exception(
+            "登録直後バックフィル失敗: ticker=%s from=%s to=%s error=%s",
+            item.ticker,
+            from_date,
+            to_date,
+            exc,
+        )

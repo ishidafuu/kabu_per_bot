@@ -116,6 +116,7 @@ PYTHONPATH=src python scripts/run_daily_job.py --stdout --no-notification-log
 - タイムゾーン: `Asia/Tokyo`
 - `sc-kabu-daily`（平日18:00）: `kabu-daily` を実行し、`notify_timing=IMMEDIATE` 銘柄を評価
 - `sc-kabu-daily-at21`（平日21:05）: `kabu-daily-at21` を実行し、`notify_timing=AT_21` 銘柄を評価
+- `sc-kabu-backfill-incremental`（平日21:15）: `kabu-backfill-incremental` を実行し、`daily_metrics` 欠損/遅延を増分補完
 - `sc-kabu-earnings-weekly`（土曜21:00）: `kabu-earnings-weekly` を実行
 - `sc-kabu-earnings-tomorrow`（毎日21:00）: `kabu-earnings-tomorrow` を実行
 
@@ -153,6 +154,17 @@ PYTHONPATH=src python scripts/run_backfill_daily_metrics.py --from-date 2025-02-
 - APIキーは `JQUANTS_API_KEY`（環境変数）または `--api-key` で指定。
 - `--tickers 3984:TSE,6238:TSE` で対象銘柄を絞り込み可能。
 - 現時点の着手範囲は `daily_metrics` への投入まで（中央値・シグナル再計算は次Issue）。
+
+増分バックフィル（通常運用）:
+
+```bash
+PYTHONPATH=src python scripts/run_incremental_backfill_job.py --dry-run
+PYTHONPATH=src python scripts/run_incremental_backfill_job.py
+```
+
+- 最新 `daily_metrics` から差分だけ再取得（既定 `overlap_days=7`）。
+- 履歴ゼロ銘柄は初回 `initial_lookback_days=400` を取得。
+- 実行後に `metric_medians` / `signal_state` の最新を再計算。
 
 ## IR/SNS/AI通知ジョブ実行
 

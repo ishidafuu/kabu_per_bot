@@ -60,6 +60,7 @@ PYTHONPATH=src python scripts/run_daily_job.py --execution-mode at_21 --discord-
 
 - `kabu-daily` <- `sc-kabu-daily`（平日18:00 JST）
 - `kabu-daily-at21` <- `sc-kabu-daily-at21`（平日21:05 JST）
+- `kabu-backfill-incremental` <- `sc-kabu-backfill-incremental`（平日21:15 JST）
 - `kabu-earnings-weekly` <- `sc-kabu-earnings-weekly`（土曜21:00 JST）
 - `kabu-earnings-tomorrow` <- `sc-kabu-earnings-tomorrow`（毎日21:00 JST）
 
