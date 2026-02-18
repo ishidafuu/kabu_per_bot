@@ -188,6 +188,24 @@ class IntelligenceTest(unittest.TestCase):
         with self.assertRaises(AiAnalyzeError):
             analyzer.analyze(item=item, event=event)
 
+    def test_vertex_gemini_ai_analyzer_wraps_credentials_error(self) -> None:
+        analyzer = VertexGeminiAiAnalyzer(
+            project_id="demo-project",
+            credentials_provider=lambda: (_ for _ in ()).throw(RuntimeError("adc failed")),
+            http_client=FakeHttpClient(FakeResponse(payload={})),
+        )
+        event = IntelEvent(
+            ticker="3901:TSE",
+            kind=IntelKind.IR,
+            title="決算資料を公開",
+            url="https://example.com/ir/1",
+            published_at="2026-02-15T00:00:00+09:00",
+            source_label="IRサイト",
+            content="決算資料を公開しました",
+        )
+        with self.assertRaises(AiAnalyzeError):
+            analyzer.analyze(item=self._watch_item(), event=event)
+
     def test_ir_website_source_extracts_html_body_content(self) -> None:
         listing_url = "https://example.com/ir"
         detail_url = "https://example.com/ir/notice-1"
@@ -244,6 +262,37 @@ class IntelligenceTest(unittest.TestCase):
         self.assertIn("売上高100億円", events[0].content)
         self.assertEqual(events[0].url, pdf_url)
 
+    def test_ir_website_source_accepts_pdf_direct_url(self) -> None:
+        pdf_url = "https://example.com/ir/2026_q3_results.pdf"
+        watch_item = WatchlistItem(
+            ticker="3901:TSE",
+            name="富士フイルム",
+            metric_type=MetricType.PER,
+            notify_channel=NotifyChannel.DISCORD,
+            notify_timing=NotifyTiming.IMMEDIATE,
+            ai_enabled=True,
+            ir_urls=(pdf_url,),
+        )
+        client = FakeWebClient(
+            {
+                pdf_url: FakeWebResponse(
+                    status_code=200,
+                    content=b"%PDF-1.7 direct",
+                    headers={"content-type": "application/pdf"},
+                ),
+            }
+        )
+        source = IRWebsiteIntelSource(http_client=client)
+
+        with patch("kabu_per_bot.intelligence._extract_pdf_text", return_value="売上高100億円 営業利益20億円 増益です"):
+            events = source.fetch_events(watch_item, now_iso="2026-02-15T00:00:00+09:00")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].url, pdf_url)
+        self.assertIn("2026_q3_results", events[0].title)
+        self.assertIn("売上高100億円", events[0].content)
+        self.assertEqual(client.calls, [pdf_url])
+
     def test_ir_website_source_falls_back_to_title_when_detail_fetch_fails(self) -> None:
         listing_url = "https://example.com/ir"
         detail_url = "https://example.com/ir/notice-2"
@@ -290,6 +339,36 @@ class IntelligenceTest(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0].url, detail_a)
         self.assertEqual(client.calls, [listing_url, detail_a])
+
+    def test_ir_website_source_prioritizes_ir_links_over_navigation(self) -> None:
+        listing_url = "https://example.com/ir"
+        nav_url = "https://example.com/contact"
+        ir_pdf_url = "https://example.com/ir/library/2026_q3.pdf"
+        client = FakeWebClient(
+            {
+                listing_url: FakeWebResponse(
+                    status_code=200,
+                    text=(
+                        f'<a href="{nav_url}">お問い合わせ</a>'
+                        f'<a href="{ir_pdf_url}">2026年3Q 決算短信</a>'
+                    ),
+                ),
+                nav_url: FakeWebResponse(status_code=200, text="<p>お問い合わせはこちら</p>"),
+                ir_pdf_url: FakeWebResponse(
+                    status_code=200,
+                    content=b"%PDF-1.7",
+                    headers={"content-type": "application/pdf"},
+                ),
+            }
+        )
+        source = IRWebsiteIntelSource(http_client=client, max_events_per_url=1)
+
+        with patch("kabu_per_bot.intelligence._extract_pdf_text", return_value="売上高100億円 営業利益20億円 増益です"):
+            events = source.fetch_events(self._watch_item(), now_iso="2026-02-15T00:00:00+09:00")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].url, ir_pdf_url)
+        self.assertEqual(client.calls, [listing_url, ir_pdf_url])
 
     def test_event_fingerprint_is_stable_when_only_published_at_changes(self) -> None:
         event_a = IntelEvent(

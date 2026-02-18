@@ -10,7 +10,7 @@ import json
 import logging
 import re
 from typing import Any, Callable, Protocol
-from urllib.parse import urljoin
+from urllib.parse import unquote, urljoin, urlparse
 
 import httpx
 
@@ -123,26 +123,48 @@ class IRWebsiteIntelSource:
     def fetch_events(self, item: WatchlistItem, *, now_iso: str) -> list[IntelEvent]:
         events: list[IntelEvent] = []
         for ir_url in item.ir_urls:
-            page = self._request_text(url=ir_url, ticker=item.ticker)
+            response = self._request_response(url=ir_url, ticker=item.ticker)
+            content_type = str(getattr(response, "headers", {}).get("content-type", "")).lower()
+            if ir_url.lower().endswith(".pdf") or "application/pdf" in content_type:
+                title = _build_direct_ir_title(ir_url)
+                content = self._extract_content_from_response(
+                    response=response,
+                    ticker=item.ticker,
+                    url=ir_url,
+                    fallback_text=title,
+                )
+                events.append(
+                    IntelEvent(
+                        ticker=item.ticker,
+                        kind=IntelKind.IR,
+                        title=title,
+                        url=ir_url,
+                        published_at=now_iso,
+                        source_label="IRサイト",
+                        content=content,
+                    )
+                )
+                continue
+
+            page = response.text
+            if not page.strip():
+                raise IntelSourceError(f"IR取得失敗: ticker={item.ticker} url={ir_url} reason=empty_body")
             extracted = self._extract_events_from_page(
                 ticker=item.ticker,
                 page=page,
                 base_url=ir_url,
                 now_iso=now_iso,
             )
-            events.extend(extracted[: self._max_events_per_url])
+            events.extend(extracted)
         return events
 
-    def _request_text(self, *, url: str, ticker: str) -> str:
+    def _request_response(self, *, url: str, ticker: str):
         try:
             response = self._client.get(url, timeout=self._timeout_sec)
             response.raise_for_status()
         except Exception as exc:
             raise IntelSourceError(f"IR取得失敗: ticker={ticker} url={url} reason={exc}") from exc
-        body = response.text
-        if not body.strip():
-            raise IntelSourceError(f"IR取得失敗: ticker={ticker} url={url} reason=empty_body")
-        return body
+        return response
 
     def _extract_events_from_page(
         self,
@@ -152,9 +174,9 @@ class IRWebsiteIntelSource:
         base_url: str,
         now_iso: str,
     ) -> list[IntelEvent]:
-        candidates: list[tuple[str, str]] = []
+        candidates: list[tuple[int, str, str]] = []
         seen_urls: set[str] = set()
-        for href, label in self._HREF_PATTERN.findall(page):
+        for index, (href, label) in enumerate(self._HREF_PATTERN.findall(page)):
             title = _normalize_title(label)
             if len(title) < 4:
                 continue
@@ -164,12 +186,16 @@ class IRWebsiteIntelSource:
             if absolute_url in seen_urls:
                 continue
             seen_urls.add(absolute_url)
-            candidates.append((title, absolute_url))
-            if len(candidates) >= self._max_events_per_url:
-                break
+            candidates.append((index, title, absolute_url))
+
+        ranked = sorted(
+            candidates,
+            key=lambda row: (-_score_ir_candidate(title=row[1], url=row[2], base_url=base_url), row[0]),
+        )
+        selected = ranked[: self._max_events_per_url]
 
         events: list[IntelEvent] = []
-        for title, absolute_url in candidates:
+        for _, title, absolute_url in selected:
             content = self._request_event_content(ticker=ticker, url=absolute_url, fallback_text=title)
             events.append(
                 IntelEvent(
@@ -186,12 +212,19 @@ class IRWebsiteIntelSource:
 
     def _request_event_content(self, *, ticker: str, url: str, fallback_text: str) -> str:
         try:
-            response = self._client.get(url, timeout=self._timeout_sec)
-            response.raise_for_status()
+            response = self._request_response(url=url, ticker=ticker)
         except Exception as exc:
             LOGGER.warning("IR本文取得失敗: ticker=%s url=%s error=%s", ticker, url, exc)
             return fallback_text
 
+        return self._extract_content_from_response(
+            response=response,
+            ticker=ticker,
+            url=url,
+            fallback_text=fallback_text,
+        )
+
+    def _extract_content_from_response(self, *, response: Any, ticker: str, url: str, fallback_text: str) -> str:
         try:
             content_type = str(getattr(response, "headers", {}).get("content-type", "")).lower()
             if url.lower().endswith(".pdf") or "application/pdf" in content_type:
@@ -353,7 +386,12 @@ class VertexGeminiAiAnalyzer:
         self._client = http_client or httpx.Client()
 
     def analyze(self, *, item: WatchlistItem, event: IntelEvent) -> AiInsight:
-        token, inferred_project_id = self._credentials_provider()
+        try:
+            token, inferred_project_id = self._credentials_provider()
+        except AiAnalyzeError:
+            raise
+        except Exception as exc:
+            raise AiAnalyzeError(f"AI解析失敗: Vertex AI 認証情報の取得に失敗しました: {exc}") from exc
         project_id = self._project_id or (inferred_project_id or "").strip()
         if not project_id:
             raise AiAnalyzeError(
@@ -480,9 +518,12 @@ def _default_vertex_credentials() -> tuple[str, str | None]:
         raise AiAnalyzeError(
             "AI解析失敗: google-auth が未インストールです。`pip install -e '.[gcp]'` を実行してください。"
         ) from exc
-    credentials, project_id = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
-    if not getattr(credentials, "token", None):
-        credentials.refresh(Request())
+    try:
+        credentials, project_id = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        if not getattr(credentials, "token", None):
+            credentials.refresh(Request())
+    except Exception as exc:
+        raise AiAnalyzeError(f"AI解析失敗: Vertex AI 認証情報の取得に失敗しました: {exc}") from exc
     token = str(getattr(credentials, "token", "") or "").strip()
     if not token:
         raise AiAnalyzeError("AI解析失敗: Vertex AI 用アクセストークンの取得に失敗しました。")
@@ -655,3 +696,63 @@ def _normalize_content_text(text: str, *, max_chars: int) -> str:
     if len(normalized) <= max_chars:
         return normalized
     return normalized[:max_chars].rstrip()
+
+
+def _build_direct_ir_title(url: str) -> str:
+    path = urlparse(url).path
+    filename = unquote(path.rsplit("/", 1)[-1]).strip()
+    if filename.lower().endswith(".pdf"):
+        filename = filename[:-4]
+    if filename:
+        return filename
+    return "IR資料"
+
+
+def _score_ir_candidate(*, title: str, url: str, base_url: str) -> int:
+    title_l = title.lower()
+    url_l = url.lower()
+    score = 0
+
+    if url_l.endswith(".pdf"):
+        score += 6
+    if _contains_any(
+        title_l,
+        (
+            "決算",
+            "説明資料",
+            "決算短信",
+            "適時開示",
+            "有価証券",
+            "financial",
+            "earnings",
+            "presentation",
+            "results",
+        ),
+    ):
+        score += 5
+    if _contains_any(
+        url_l,
+        (
+            "/ir/",
+            "/investor",
+            "/disclosure",
+            "/results",
+            "/earnings",
+            "/financial",
+            "/library",
+            ".pdf",
+        ),
+    ):
+        score += 4
+    if _contains_any(title_l + " " + url_l, ("privacy", "recruit", "contact", "company", "profile", "map")):
+        score -= 3
+
+    base_host = urlparse(base_url).hostname or ""
+    url_host = urlparse(url).hostname or ""
+    if base_host and url_host and base_host == url_host:
+        score += 1
+    return score
+
+
+def _contains_any(text: str, keywords: tuple[str, ...]) -> bool:
+    return any(keyword in text for keyword in keywords)
