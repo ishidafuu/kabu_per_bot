@@ -215,6 +215,27 @@ th {
   gap: 8px;
 }
 
+.job-grid,
+.skip-reason-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.job-card,
+.skip-reason-card {
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.backfill-form-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: end;
+}
+
 .empty-cell {
   text-align: center;
   color: #64748b;

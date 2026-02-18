@@ -27,6 +27,36 @@ uvicorn kabu_per_bot.api.app:app --reload
 - ウォッチリストAPI: `GET/POST/PATCH/DELETE /api/v1/watchlist`
 - 認証: `Authorization: Bearer <Firebase IDトークン>`
 
+### 管理運用パネル（ダッシュボード）
+
+ダッシュボードから以下をワンボタン実行できます（管理者のみ）。
+
+- 日次ジョブ実行（`kabu-daily`）
+- 21:05ジョブ実行（`kabu-daily-at21`）
+- 今週決算ジョブ実行（`kabu-earnings-weekly`）
+- 明日決算ジョブ実行（`kabu-earnings-tomorrow`）
+- バックフィルジョブ実行（`OPS_BACKFILL_JOB_NAME` 指定時のみ）
+- Discord疎通テスト送信
+- Cloud Run 実行履歴表示
+- 日次系ジョブのスキップ理由集計（Cloud Logging解析）
+
+必要な環境変数（API側）:
+
+- `API_ADMIN_UIDS`: 管理者UID（`,`区切り）。または Firebase カスタムクレーム `admin=true`
+- `OPS_GCP_PROJECT_ID`: Cloud Run Job 実行先プロジェクト（未指定時は `FIRESTORE_PROJECT_ID`）
+- `OPS_GCP_REGION`: Cloud Run リージョン（既定: `asia-northeast1`）
+- `OPS_DAILY_JOB_NAME`（既定: `kabu-daily`）
+- `OPS_DAILY_AT21_JOB_NAME`（既定: `kabu-daily-at21`）
+- `OPS_EARNINGS_WEEKLY_JOB_NAME`（既定: `kabu-earnings-weekly`）
+- `OPS_EARNINGS_TOMORROW_JOB_NAME`（既定: `kabu-earnings-tomorrow`）
+- `OPS_BACKFILL_JOB_NAME`（任意）
+- `DISCORD_WEBHOOK_URL`（Discord疎通テストAPIで使用）
+
+必要な権限（API実行SA）:
+
+- `roles/run.developer`（Cloud Run Jobs 実行/参照）
+- `roles/logging.viewer`（スキップ理由集計）
+
 `google-cloud-firestore` と `firebase-admin` が必要なため、`pip install -e ".[gcp]"` を事前に実行してください。
 
 ## テスト実行

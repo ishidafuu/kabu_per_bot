@@ -29,6 +29,16 @@
   - 本日のPER/PSR通知件数
   - 本日のデータ不明件数
   - 直近失敗ジョブ有無
+- 管理者向け運用パネル:
+  - Cloud Run Jobs 手動実行
+    - 日次（IMMEDIATE）
+    - 21:05（AT_21）
+    - 今週決算
+    - 明日決算
+    - バックフィル（任意設定）
+  - Discord疎通テスト送信
+  - 実行履歴表示（execution/status/start/completion/log link）
+  - 日次系ジョブの通知スキップ理由集計（Cloud Logging の `通知スキップ:` 行解析）
 
 ### 3.3 ウォッチリスト一覧画面
 
@@ -170,6 +180,33 @@
     - `items[]`
     - `total`
 
+### 4.5 管理運用API（管理者のみ）
+
+1. `GET /admin/ops/summary`
+  - 目的: 運用パネル表示に必要なジョブ設定・実行履歴・最新スキップ理由を取得
+  - 200レスポンス:
+    - `jobs[]`
+    - `recent_executions[]`
+    - `latest_skip_reasons[]`
+
+2. `GET /admin/ops/jobs/{job_key}/executions`
+  - 目的: ジョブ単位の実行履歴取得
+  - クエリ:
+    - `limit`（1〜50）
+  - 200レスポンス:
+    - `items[]`
+
+3. `POST /admin/ops/jobs/{job_key}/run`
+  - 目的: 指定ジョブを手動実行
+  - 409: 同一ジョブの実行中競合（多重実行防止）
+  - 備考:
+    - `job_key=backfill` の場合のみ、bodyで `from_date/to_date/tickers/dry_run` を受け付ける
+
+4. `POST /admin/ops/discord/test`
+  - 目的: Discord疎通テスト通知の送信
+  - 200レスポンス:
+    - `sent_at`
+
 2. `GET /notifications/logs`
   - 目的: 通知ログの時系列取得
   - クエリ:
@@ -186,6 +223,9 @@
 2. API リクエストは `Authorization: Bearer <id_token>` を付与
 3. FastAPI 側で Firebase Admin SDK によりトークン検証
 4. 未認証は `401`、権限不足は `403`
+5. 管理運用APIは追加で管理者判定を行う
+  - `API_ADMIN_UIDS` 環境変数の許可UID
+  - または Firebase カスタムクレーム `admin=true`
 
 ## 6. エラーコード方針
 

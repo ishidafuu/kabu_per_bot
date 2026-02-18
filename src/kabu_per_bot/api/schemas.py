@@ -167,6 +167,58 @@ class DashboardSummaryResponse(BaseModel):
     failed_job_exists: bool = Field(description="失敗ジョブ有無")
 
 
+class AdminOpsJobResponse(BaseModel):
+    key: str
+    label: str
+    job_name: str | None
+    configured: bool
+
+
+class AdminOpsSkipReasonResponse(BaseModel):
+    reason: str
+    count: int = Field(ge=0)
+
+
+class AdminOpsExecutionResponse(BaseModel):
+    job_key: str
+    job_label: str
+    job_name: str
+    execution_name: str
+    status: str
+    create_time: str | None
+    start_time: str | None
+    completion_time: str | None
+    message: str | None
+    log_uri: str | None
+    skip_reasons: list[AdminOpsSkipReasonResponse]
+    skip_reason_error: str | None
+
+
+class AdminOpsSummaryResponse(BaseModel):
+    jobs: list[AdminOpsJobResponse]
+    recent_executions: list[AdminOpsExecutionResponse]
+    latest_skip_reasons: list[AdminOpsExecutionResponse]
+
+
+class AdminOpsExecutionListResponse(BaseModel):
+    items: list[AdminOpsExecutionResponse]
+
+
+class AdminOpsRunResponse(BaseModel):
+    execution: AdminOpsExecutionResponse
+
+
+class AdminOpsDiscordTestResponse(BaseModel):
+    sent_at: str
+
+
+class AdminOpsBackfillRequest(BaseModel):
+    from_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    to_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    tickers: list[str] = Field(default_factory=list, max_length=100)
+    dry_run: bool = True
+
+
 class WatchlistHistoryItemResponse(BaseModel):
     record_id: str
     ticker: str

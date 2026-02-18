@@ -4,6 +4,14 @@ from typing import Any, Callable, Protocol, TypeVar
 
 from fastapi import Request
 
+from kabu_per_bot.admin_ops import (
+    AdminOpsJob,
+    AdminOpsSummary,
+    BackfillRunRequest,
+    CloudRunAdminOpsService,
+    JobExecution,
+)
+from kabu_per_bot.api.errors import ForbiddenError, UnauthorizedError
 from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
 from kabu_per_bot.signal import NotificationLogEntry
@@ -101,6 +109,23 @@ class EarningsCalendarReader(Protocol):
         """Get next earnings rows by ticker."""
 
 
+class AdminOpsReader(Protocol):
+    def list_jobs(self) -> tuple[AdminOpsJob, ...]:
+        """List available admin jobs."""
+
+    def list_executions(self, *, job_key: str, limit: int = 20) -> tuple[JobExecution, ...]:
+        """List executions for a job key."""
+
+    def run_job(self, *, job_key: str, backfill: BackfillRunRequest | None = None) -> JobExecution:
+        """Run selected job and return latest execution."""
+
+    def get_summary(self, *, limit_per_job: int = 5) -> AdminOpsSummary:
+        """Get admin operation summary."""
+
+    def send_discord_test(self, *, requested_uid: str) -> str:
+        """Send Discord test notification."""
+
+
 DependencyT = TypeVar("DependencyT")
 
 
@@ -154,6 +179,10 @@ def create_earnings_calendar_repository() -> EarningsCalendarReader:
     return FirestoreEarningsCalendarRepository(client)
 
 
+def create_admin_ops_service() -> AdminOpsReader:
+    return CloudRunAdminOpsService()
+
+
 def _resolve_dependency(
     request: Request,
     *,
@@ -198,3 +227,25 @@ def get_notification_log_repository(request: Request) -> NotificationLogReader:
         factory_key="notification_log_repository_factory",
         missing_message="notification_log_repository が初期化されていません。",
     )
+
+
+def get_admin_ops_service(request: Request) -> AdminOpsReader:
+    return _resolve_dependency(
+        request,
+        value_key="admin_ops_service",
+        factory_key="admin_ops_service_factory",
+        missing_message="admin_ops_service が初期化されていません。",
+    )
+
+
+def get_authenticated_uid(request: Request) -> str:
+    uid = getattr(request.state, "auth_uid", None)
+    if uid is None or not str(uid).strip():
+        raise UnauthorizedError("認証情報が取得できません。")
+    return str(uid).strip()
+
+
+def require_admin_user(request: Request) -> None:
+    if bool(getattr(request.state, "auth_is_admin", False)):
+        return
+    raise ForbiddenError("管理者権限が必要です。")

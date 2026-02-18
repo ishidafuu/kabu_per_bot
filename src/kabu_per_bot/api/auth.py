@@ -78,6 +78,26 @@ def _allowed_uids_from_env() -> set[str] | None:
     return values or None
 
 
+def _admin_uids_from_env() -> set[str]:
+    raw = os.getenv("API_ADMIN_UIDS", "").strip()
+    if not raw:
+        return set()
+    return {item.strip() for item in raw.split(",") if item.strip()}
+
+
+def _parse_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    return normalized in {"1", "true", "yes", "on"}
+
+
+def _is_admin_user(*, uid: str, claims: Mapping[str, Any]) -> bool:
+    if uid in _admin_uids_from_env():
+        return True
+    return _parse_bool(claims.get("admin"))
+
+
 def get_token_verifier(request: Request) -> TokenVerifier:
     verifier = getattr(request.app.state, "token_verifier", None)
     if verifier is not None:
@@ -109,3 +129,7 @@ def authenticate_request(
     allowed_uids = _allowed_uids_from_env()
     if allowed_uids is not None and uid not in allowed_uids:
         raise ForbiddenError("このユーザーは許可されていません。")
+
+    request.state.auth_uid = uid
+    request.state.auth_claims = dict(claims)
+    request.state.auth_is_admin = _is_admin_user(uid=uid, claims=claims)
