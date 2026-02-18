@@ -3,7 +3,12 @@ import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
 import { createDashboardClient } from '../lib/api';
 import { ApiError, toUserMessage } from '../lib/api/errors';
-import type { AdminJobKey, AdminOpsExecution, AdminOpsSummary } from '../types/dashboard';
+import type {
+  AdminGlobalSettings,
+  AdminJobKey,
+  AdminOpsExecution,
+  AdminOpsSummary,
+} from '../types/dashboard';
 
 type VisibleJobKey = Exclude<AdminJobKey, 'backfill'>;
 
@@ -77,18 +82,27 @@ export const OpsPage = () => {
   const [opsForbidden, setOpsForbidden] = useState(false);
   const [opNotice, setOpNotice] = useState('');
   const [runningJobKey, setRunningJobKey] = useState<VisibleJobKey | 'discord_test' | null>(null);
+  const [globalSettings, setGlobalSettings] = useState<AdminGlobalSettings | null>(null);
+  const [cooldownHoursInput, setCooldownHoursInput] = useState('');
+  const [isSavingGlobalSettings, setIsSavingGlobalSettings] = useState(false);
 
   const refreshOps = useCallback(async (): Promise<void> => {
     setIsLoading(true);
     setOpsError('');
     setOpsForbidden(false);
     try {
-      const response = await client.getAdminOpsSummary();
-      setOpsSummary(response);
+      const [opsSummaryResponse, globalSettingsResponse] = await Promise.all([
+        client.getAdminOpsSummary(),
+        client.getAdminGlobalSettings(),
+      ]);
+      setOpsSummary(opsSummaryResponse);
+      setGlobalSettings(globalSettingsResponse);
+      setCooldownHoursInput(String(globalSettingsResponse.cooldown_hours));
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) {
         setOpsForbidden(true);
         setOpsSummary(null);
+        setGlobalSettings(null);
         return;
       }
       setOpsError(toUserMessage(error));
@@ -152,6 +166,29 @@ export const OpsPage = () => {
     }
   }, [client]);
 
+  const saveGlobalSettings = useCallback(async (): Promise<void> => {
+    const rawValue = cooldownHoursInput.trim();
+    const parsed = Number(rawValue);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      setOpsError('クールダウン時間は1以上の整数で入力してください。');
+      return;
+    }
+
+    setIsSavingGlobalSettings(true);
+    setOpsError('');
+    setOpNotice('');
+    try {
+      const response = await client.updateAdminGlobalSettings({ cooldown_hours: parsed });
+      setGlobalSettings(response);
+      setCooldownHoursInput(String(response.cooldown_hours));
+      setOpNotice(`全体設定を更新しました（クールダウン: ${response.cooldown_hours}時間）。`);
+    } catch (error) {
+      setOpsError(toUserMessage(error));
+    } finally {
+      setIsSavingGlobalSettings(false);
+    }
+  }, [client, cooldownHoursInput]);
+
   const jobRows =
     opsSummary?.jobs.filter((row): row is typeof row & { key: VisibleJobKey } => isVisibleJobKey(row.key)) ?? [];
   const recentExecutions: AdminOpsExecution[] = opsSummary?.recent_executions ?? [];
@@ -159,6 +196,45 @@ export const OpsPage = () => {
 
   return (
     <AppLayout title="運用操作（管理者）">
+      <section className="panel controls-panel">
+        <div className="meta-row">
+          <span>全体設定（通知）</span>
+        </div>
+        <p className="muted">
+          同一条件通知のクールダウン時間を設定します。通常→強への昇格通知はクールダウン内でも即時通知されます。
+        </p>
+        <div className="settings-inline">
+          <label className="inline-field">
+            クールダウン（時間）
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={cooldownHoursInput}
+              onChange={(event) => setCooldownHoursInput(event.target.value)}
+              disabled={opsForbidden || isSavingGlobalSettings}
+            />
+          </label>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => void saveGlobalSettings()}
+            disabled={opsForbidden || isSavingGlobalSettings}
+          >
+            {isSavingGlobalSettings ? '保存中...' : '設定を保存'}
+          </button>
+        </div>
+        <p className="muted">
+          現在値: {globalSettings ? `${globalSettings.cooldown_hours}時間` : '-'} / 反映元:{' '}
+          {globalSettings?.source === 'firestore' ? '管理画面設定' : '環境変数デフォルト'}
+        </p>
+        {globalSettings?.updated_at && (
+          <p className="muted">
+            最終更新: {formatTime(globalSettings.updated_at)}（{globalSettings.updated_by ?? 'unknown'}）
+          </p>
+        )}
+      </section>
+
       <section className="panel controls-panel">
         <div className="meta-row">
           <span>手動実行メニュー</span>

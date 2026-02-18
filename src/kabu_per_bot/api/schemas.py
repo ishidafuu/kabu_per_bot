@@ -219,6 +219,17 @@ class AdminOpsBackfillRequest(BaseModel):
     dry_run: bool = True
 
 
+class AdminGlobalSettingsResponse(BaseModel):
+    cooldown_hours: int = Field(ge=1)
+    source: str
+    updated_at: str | None = None
+    updated_by: str | None = None
+
+
+class AdminGlobalSettingsUpdateRequest(BaseModel):
+    cooldown_hours: int = Field(ge=1)
+
+
 class WatchlistHistoryItemResponse(BaseModel):
     record_id: str
     ticker: str

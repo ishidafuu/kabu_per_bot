@@ -45,6 +45,17 @@ export interface AdminOpsSummary {
   latest_skip_reasons: AdminOpsExecution[];
 }
 
+export interface AdminGlobalSettings {
+  cooldown_hours: number;
+  source: 'env_default' | 'firestore';
+  updated_at?: string | null;
+  updated_by?: string | null;
+}
+
+export interface AdminGlobalSettingsUpdatePayload {
+  cooldown_hours: number;
+}
+
 export interface BackfillRunPayload {
   from_date: string;
   to_date: string;

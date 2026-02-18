@@ -226,6 +226,17 @@ th {
   gap: 8px;
 }
 
+.settings-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: end;
+}
+
+.inline-field {
+  width: 220px;
+}
+
 .job-grid,
 .skip-reason-grid {
   display: grid;

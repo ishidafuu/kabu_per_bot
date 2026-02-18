@@ -238,6 +238,50 @@ class RunDailyJobTest(TestCase):
         config = mocked_pipeline.call_args.kwargs["config"]
         self.assertEqual(config.execution_mode.value, "AT_21")
 
+    def test_main_prefers_firestore_global_settings_for_cooldown(self) -> None:
+        client = FakeFirestoreClient(
+            db={
+                "global_settings/runtime": {
+                    "cooldown_hours": 5,
+                    "updated_at": "2026-02-12T09:00:00+00:00",
+                    "updated_by": "admin-user",
+                }
+            }
+        )
+        args = run_daily_job.argparse.Namespace(
+            trade_date="2026-02-12",
+            now_iso="2026-02-12T09:00:00+00:00",
+            discord_webhook_url="",
+            execution_mode="daily",
+            stdout=True,
+            no_notification_log=False,
+        )
+        settings = AppSettings(
+            app_env="test",
+            timezone="Asia/Tokyo",
+            window_1w_days=2,
+            window_3m_days=2,
+            window_1y_days=2,
+            cooldown_hours=2,
+            firestore_project_id="",
+            ai_notifications_enabled=False,
+            x_api_bearer_token="",
+        )
+
+        with (
+            patch.object(run_daily_job, "parse_args", return_value=args),
+            patch.object(run_daily_job, "load_settings", return_value=settings),
+            patch.object(run_daily_job, "_create_firestore_client", return_value=client),
+            patch.object(run_daily_job, "create_default_market_data_source", return_value=StaticMarketDataSource()),
+            patch.object(run_daily_job, "run_daily_pipeline", return_value=run_daily_job.PipelineResult()) as mocked_pipeline,
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            code = run_daily_job.main()
+
+        self.assertEqual(code, 0)
+        config = mocked_pipeline.call_args.kwargs["config"]
+        self.assertEqual(config.cooldown_hours, 5)
+
     def test_main_stdout_no_notification_log_does_not_persist_log(self) -> None:
         client = FakeFirestoreClient(
             db={

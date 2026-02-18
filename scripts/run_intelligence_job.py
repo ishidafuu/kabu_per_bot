@@ -11,7 +11,9 @@ from kabu_per_bot.discord_notifier import DiscordNotifier
 from kabu_per_bot.intelligence import CompositeIntelSource, IRWebsiteIntelSource, VertexGeminiAiAnalyzer, XApiIntelSource
 from kabu_per_bot.intelligence_pipeline import IntelligencePipelineConfig, run_intelligence_pipeline
 from kabu_per_bot.pipeline import NotificationExecutionMode
+from kabu_per_bot.runtime_settings import resolve_runtime_settings
 from kabu_per_bot.settings import load_settings
+from kabu_per_bot.storage.firestore_global_settings_repository import FirestoreGlobalSettingsRepository
 from kabu_per_bot.storage.firestore_intel_seen_repository import FirestoreIntelSeenRepository
 from kabu_per_bot.storage.firestore_notification_log_repository import FirestoreNotificationLogRepository
 from kabu_per_bot.storage.firestore_watchlist_repository import FirestoreWatchlistRepository
@@ -87,6 +89,24 @@ def _resolve_execution_mode(raw: str) -> NotificationExecutionMode:
     return mapping[raw]
 
 
+def _resolve_runtime_cooldown_hours(*, settings, client) -> int:
+    try:
+        repository = FirestoreGlobalSettingsRepository(client)
+        runtime_settings = resolve_runtime_settings(
+            default_cooldown_hours=settings.cooldown_hours,
+            global_settings=repository.get_global_settings(),
+        )
+        LOGGER.info(
+            "クールダウン設定: %s時間 (source=%s)",
+            runtime_settings.cooldown_hours,
+            runtime_settings.source,
+        )
+        return runtime_settings.cooldown_hours
+    except Exception as exc:
+        LOGGER.warning("全体設定の取得に失敗したため環境変数設定を使用: %s", exc)
+        return settings.cooldown_hours
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args()
@@ -94,6 +114,7 @@ def main() -> int:
     sender = _resolve_sender(args)
     now_iso = _resolve_now_utc_iso(now_iso=args.now_iso)
     client = _create_firestore_client(project_id=settings.firestore_project_id)
+    cooldown_hours = _resolve_runtime_cooldown_hours(settings=settings, client=client)
     watchlist_repo = FirestoreWatchlistRepository(client)
     log_repo = FirestoreNotificationLogRepository(client)
     seen_repo = FirestoreIntelSeenRepository(client)
@@ -115,7 +136,7 @@ def main() -> int:
         notification_log_repo=log_repo,
         sender=sender,
         config=IntelligencePipelineConfig(
-            cooldown_hours=settings.cooldown_hours,
+            cooldown_hours=cooldown_hours,
             now_iso=now_iso,
             execution_mode=_resolve_execution_mode(args.execution_mode),
             ai_global_enabled=settings.ai_notifications_enabled,

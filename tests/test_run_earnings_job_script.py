@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 import scripts.run_earnings_job as target
+from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
 
 
 @dataclass
@@ -123,6 +124,40 @@ class RunEarningsJobScriptTest(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "job failed"):
                 target.main()
+
+    def test_main_prefers_firestore_global_settings_for_cooldown(self) -> None:
+        fake_log_repo = _FakeLogRepository()
+        args = SimpleNamespace(
+            job="weekly",
+            now_iso="2026-02-14T21:00:00+09:00",
+            discord_webhook_url="",
+            stdout=True,
+        )
+        settings = SimpleNamespace(firestore_project_id="demo-project", cooldown_hours=2)
+        result = SimpleNamespace(
+            processed_tickers=1,
+            sent_notifications=0,
+            skipped_notifications=0,
+            errors=0,
+        )
+        fake_global_repo = SimpleNamespace(
+            get_global_settings=lambda: GlobalRuntimeSettings(cooldown_hours=6, updated_at=None, updated_by=None)
+        )
+
+        with (
+            patch.object(target, "parse_args", return_value=args),
+            patch.object(target, "load_settings", return_value=settings),
+            patch.object(target, "_create_firestore_client", return_value=object()),
+            patch.object(target, "FirestoreWatchlistRepository", return_value=object()),
+            patch.object(target, "FirestoreEarningsCalendarRepository", return_value=object()),
+            patch.object(target, "FirestoreNotificationLogRepository", return_value=fake_log_repo),
+            patch.object(target, "FirestoreGlobalSettingsRepository", return_value=fake_global_repo),
+            patch.object(target, "run_earnings_job", return_value=result) as mocked_run,
+        ):
+            exit_code = target.main()
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(mocked_run.call_args.kwargs["cooldown_hours"], 6)
 
 
 if __name__ == "__main__":

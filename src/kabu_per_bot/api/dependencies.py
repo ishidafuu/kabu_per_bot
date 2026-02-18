@@ -14,10 +14,12 @@ from kabu_per_bot.admin_ops import (
 from kabu_per_bot.api.errors import ForbiddenError, UnauthorizedError
 from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
+from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
 from kabu_per_bot.signal import NotificationLogEntry
 from kabu_per_bot.settings import load_settings
 from kabu_per_bot.storage.firestore_daily_metrics_repository import FirestoreDailyMetricsRepository
 from kabu_per_bot.storage.firestore_earnings_calendar_repository import FirestoreEarningsCalendarRepository
+from kabu_per_bot.storage.firestore_global_settings_repository import FirestoreGlobalSettingsRepository
 from kabu_per_bot.storage.firestore_metric_medians_repository import FirestoreMetricMediansRepository
 from kabu_per_bot.storage.firestore_notification_log_repository import FirestoreNotificationLogRepository
 from kabu_per_bot.storage.firestore_signal_state_repository import FirestoreSignalStateRepository
@@ -126,6 +128,20 @@ class AdminOpsReader(Protocol):
         """Send Discord test notification."""
 
 
+class GlobalSettingsRepository(Protocol):
+    def get_global_settings(self) -> GlobalRuntimeSettings:
+        """Get global runtime settings."""
+
+    def upsert_global_settings(
+        self,
+        *,
+        cooldown_hours: int,
+        updated_at: str,
+        updated_by: str | None,
+    ) -> None:
+        """Upsert global runtime settings."""
+
+
 DependencyT = TypeVar("DependencyT")
 
 
@@ -183,6 +199,11 @@ def create_admin_ops_service() -> AdminOpsReader:
     return CloudRunAdminOpsService()
 
 
+def create_global_settings_repository() -> GlobalSettingsRepository:
+    client = create_firestore_client()
+    return FirestoreGlobalSettingsRepository(client)
+
+
 def _resolve_dependency(
     request: Request,
     *,
@@ -235,6 +256,15 @@ def get_admin_ops_service(request: Request) -> AdminOpsReader:
         value_key="admin_ops_service",
         factory_key="admin_ops_service_factory",
         missing_message="admin_ops_service が初期化されていません。",
+    )
+
+
+def get_global_settings_repository(request: Request) -> GlobalSettingsRepository:
+    return _resolve_dependency(
+        request,
+        value_key="global_settings_repository",
+        factory_key="global_settings_repository_factory",
+        missing_message="global_settings_repository が初期化されていません。",
     )
 
 

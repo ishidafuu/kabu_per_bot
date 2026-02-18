@@ -10,6 +10,7 @@
 6. `earnings_calendar`
 7. `notification_log`
 8. `job_run`
+9. `global_settings`
 
 ## 2. 一意制約（ドキュメントIDで担保）
 
@@ -32,6 +33,9 @@ FirestoreはRDBの一意制約を持たないため、ドキュメントIDを合
    - doc id: `{job_name}|{hash}`
    - 必須フィールド: `job_name`, `started_at`, `finished_at`, `status`, `error_count`, `failed`
    - `status` は `SUCCESS` / `FAILED`
+7. `global_settings`
+   - doc id: `runtime`
+   - 主なフィールド: `cooldown_hours`, `updated_at`, `updated_by`
 
 ## 3. インデックス
 

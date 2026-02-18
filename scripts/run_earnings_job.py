@@ -9,8 +9,10 @@ import os
 
 from kabu_per_bot.discord_notifier import DiscordNotifier
 from kabu_per_bot.earnings_job import JST_TIMEZONE, resolve_now_utc_iso, run_earnings_job
+from kabu_per_bot.runtime_settings import resolve_runtime_settings
 from kabu_per_bot.settings import load_settings
 from kabu_per_bot.storage.firestore_earnings_calendar_repository import FirestoreEarningsCalendarRepository
+from kabu_per_bot.storage.firestore_global_settings_repository import FirestoreGlobalSettingsRepository
 from kabu_per_bot.storage.firestore_notification_log_repository import FirestoreNotificationLogRepository
 from kabu_per_bot.storage.firestore_watchlist_repository import FirestoreWatchlistRepository
 
@@ -61,6 +63,24 @@ def _create_firestore_client(*, project_id: str):
     return firestore.Client(project=project_id or None)
 
 
+def _resolve_runtime_cooldown_hours(*, settings, client) -> int:
+    try:
+        repository = FirestoreGlobalSettingsRepository(client)
+        runtime_settings = resolve_runtime_settings(
+            default_cooldown_hours=settings.cooldown_hours,
+            global_settings=repository.get_global_settings(),
+        )
+        LOGGER.info(
+            "クールダウン設定: %s時間 (source=%s)",
+            runtime_settings.cooldown_hours,
+            runtime_settings.source,
+        )
+        return runtime_settings.cooldown_hours
+    except Exception as exc:
+        LOGGER.warning("全体設定の取得に失敗したため環境変数設定を使用: %s", exc)
+        return settings.cooldown_hours
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args()
@@ -74,6 +94,7 @@ def main() -> int:
         watchlist_repo = FirestoreWatchlistRepository(client)
         earnings_repo = FirestoreEarningsCalendarRepository(client)
         notification_log_repo = FirestoreNotificationLogRepository(client)
+        cooldown_hours = _resolve_runtime_cooldown_hours(settings=settings, client=client)
         job_started_at = _resolve_job_recorded_at(now_iso=args.now_iso)
 
         if args.stdout:
@@ -92,7 +113,7 @@ def main() -> int:
             earnings_reader=earnings_repo,
             notification_log_repo=notification_log_repo,
             sender=sender,
-            cooldown_hours=settings.cooldown_hours,
+            cooldown_hours=cooldown_hours,
             now_iso=args.now_iso,
             timezone_name=JST_TIMEZONE,
             channel="DISCORD",

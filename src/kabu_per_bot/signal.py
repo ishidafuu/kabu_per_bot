@@ -241,7 +241,7 @@ def evaluate_cooldown(
         if entry.condition_key != candidate_condition_key:
             continue
         if _is_recent(entry.sent_at, threshold):
-            return CooldownDecision(should_send=False, reason="2時間クールダウン中")
+            return CooldownDecision(should_send=False, reason=f"{cooldown_hours}時間クールダウン中")
 
     if candidate_is_strong:
         metric_prefix = candidate_condition_key.split(":", 1)[0]

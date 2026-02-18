@@ -1,4 +1,6 @@
 import type {
+  AdminGlobalSettings,
+  AdminGlobalSettingsUpdatePayload,
   AdminJobKey,
   AdminOpsExecution,
   AdminOpsSummary,
@@ -31,6 +33,12 @@ const mockJobs: AdminOpsSummary['jobs'] = [
 ];
 
 const mockRecentExecutions: AdminOpsExecution[] = [];
+let mockGlobalSettings: AdminGlobalSettings = {
+  cooldown_hours: 2,
+  source: 'env_default',
+  updated_at: null,
+  updated_by: null,
+};
 
 const appendExecution = (jobKey: AdminJobKey): AdminOpsExecution => {
   const job = mockJobs.find((row) => row.key === jobKey);
@@ -96,5 +104,21 @@ export class MockDashboardClient implements DashboardClient {
   async sendDiscordTest(): Promise<{ sent_at: string }> {
     await wait(60);
     return { sent_at: new Date().toISOString() };
+  }
+
+  async getAdminGlobalSettings(): Promise<AdminGlobalSettings> {
+    await wait(60);
+    return mockGlobalSettings;
+  }
+
+  async updateAdminGlobalSettings(payload: AdminGlobalSettingsUpdatePayload): Promise<AdminGlobalSettings> {
+    await wait(80);
+    mockGlobalSettings = {
+      cooldown_hours: payload.cooldown_hours,
+      source: 'firestore',
+      updated_at: new Date().toISOString(),
+      updated_by: 'mock-admin',
+    };
+    return mockGlobalSettings;
   }
 }

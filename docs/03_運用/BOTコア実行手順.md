@@ -24,7 +24,7 @@ PYTHONPATH=src python -m unittest discover -s tests
 
 - under判定/強通知
 - streak更新
-- クールダウン2時間
+- クールダウン（デフォルト2時間、全体設定で変更可）
 - 通知フォーマット
 - 欠損通知（`【データ不明】`）
 
@@ -44,6 +44,7 @@ PYTHONPATH=src python scripts/run_daily_job.py
   - `all`: 両方
 - 標準出力のJSONは `processed` / `sent` / `skipped` / `errors` を返す。
 - 通知条件（割安/データ不明/常時通知ON時の状況通知）に一致しなければ `sent=0` でも正常（ジョブ成功）である。
+- クールダウン時間は `global_settings/runtime.cooldown_hours` があればそれを優先し、未設定時は `COOLDOWN_HOURS` を使用する。
 
 stdout送信を明示する場合:
 

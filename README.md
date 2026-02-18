@@ -130,7 +130,7 @@ PYTHONPATH=src python scripts/run_daily_job.py --stdout --no-notification-log
 - 割安シグナル成立（`1Y+3M` / `3M+1W` / `1Y+1W` / `1Y+3M+1W`）
 - `always_notify_enabled=true` の銘柄で割安未成立（`PER状況` / `PSR状況`）
 - 欠損発生（`【データ不明】`）
-- 2時間クールダウンを超過、または通常→強への遷移
+- クールダウン時間（デフォルト2時間）を超過、または通常→強への遷移
 
 そのため、ジョブが成功していても `sent=0` は正常です（当日条件に一致する銘柄がなく、かつ常時通知対象がないケース）。
 

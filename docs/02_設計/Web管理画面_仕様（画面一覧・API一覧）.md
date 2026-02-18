@@ -47,6 +47,7 @@
 ### 3.3 運用操作画面（管理者）
 
 - 管理者向け運用パネル:
+  - 全体設定（クールダウン時間）の参照・更新
   - Cloud Run Jobs 手動実行
     - 日次（IMMEDIATE）
     - 21:05（AT_21）
@@ -225,6 +226,26 @@
   - 目的: Discord疎通テスト通知の送信
   - 200レスポンス:
     - `sent_at`
+
+### 4.6 全体設定API（管理者のみ）
+
+1. `GET /admin/settings/global`
+  - 目的: 全体設定（クールダウン時間）の取得
+  - 200レスポンス:
+    - `cooldown_hours`
+    - `source`（`env_default` / `firestore`）
+    - `updated_at`（任意）
+    - `updated_by`（任意）
+
+2. `PATCH /admin/settings/global`
+  - 目的: 全体設定（クールダウン時間）の更新
+  - リクエスト:
+    - `cooldown_hours`（1以上の整数）
+  - 200レスポンス:
+    - `cooldown_hours`
+    - `source`
+    - `updated_at`
+    - `updated_by`
 
 2. `GET /notifications/logs`
   - 目的: 通知ログの時系列取得

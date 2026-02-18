@@ -1,4 +1,6 @@
 import type {
+  AdminGlobalSettings,
+  AdminGlobalSettingsUpdatePayload,
   AdminJobKey,
   AdminOpsExecution,
   AdminOpsSummary,
@@ -11,6 +13,8 @@ import { HttpClient } from './httpClient';
 export interface DashboardClient {
   getSummary(): Promise<DashboardSummary>;
   getAdminOpsSummary(): Promise<AdminOpsSummary>;
+  getAdminGlobalSettings(): Promise<AdminGlobalSettings>;
+  updateAdminGlobalSettings(payload: AdminGlobalSettingsUpdatePayload): Promise<AdminGlobalSettings>;
   runAdminJob(jobKey: AdminJobKey, payload?: BackfillRunPayload): Promise<RunAdminJobResponse>;
   listAdminExecutions(jobKey: AdminJobKey, limit?: number): Promise<AdminOpsExecution[]>;
   sendDiscordTest(): Promise<{ sent_at: string }>;
@@ -55,6 +59,19 @@ export class HttpDashboardClient implements DashboardClient {
   async sendDiscordTest(): Promise<{ sent_at: string }> {
     return this.httpClient.request<{ sent_at: string }>('/admin/ops/discord/test', {
       method: 'POST',
+    });
+  }
+
+  async getAdminGlobalSettings(): Promise<AdminGlobalSettings> {
+    return this.httpClient.request<AdminGlobalSettings>('/admin/settings/global', {
+      method: 'GET',
+    });
+  }
+
+  async updateAdminGlobalSettings(payload: AdminGlobalSettingsUpdatePayload): Promise<AdminGlobalSettings> {
+    return this.httpClient.request<AdminGlobalSettings>('/admin/settings/global', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
     });
   }
 }
