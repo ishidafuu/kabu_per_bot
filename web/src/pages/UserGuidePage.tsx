@@ -24,6 +24,30 @@ interface HelpDocIndex {
   categories: HelpDocCategory[];
 }
 
+const extractSectionTitles = (markdown: string): string[] => {
+  const titles: string[] = [];
+  const lines = markdown.split('\n');
+
+  for (const line of lines) {
+    const matched = line.match(/^##\s+(.+)$/);
+    if (!matched) {
+      continue;
+    }
+
+    const normalized = matched[1]
+      .replace(/\[(.*?)\]\(.*?\)/g, '$1')
+      .replace(/`/g, '')
+      .replace(/^\d+[.)、]?\s*/, '')
+      .trim();
+
+    if (normalized) {
+      titles.push(normalized);
+    }
+  }
+
+  return titles;
+};
+
 const findDocById = (index: HelpDocIndex | null, id: string): HelpDocItem | null => {
   if (!index || !id) {
     return null;
@@ -163,6 +187,19 @@ export const UserGuidePage = () => {
   }, [selectedDoc]);
 
   const generatedAt = index ? formatGeneratedAt(index.generated_at) : '-';
+  const sectionTitles = useMemo(() => extractSectionTitles(markdown), [markdown]);
+
+  const scrollToSection = (title: string): void => {
+    const headings = Array.from(document.querySelectorAll<HTMLElement>('.help-markdown h2'));
+    const target = headings.find((heading) => {
+      const text = heading.textContent?.trim();
+      return text ? text.includes(title) : false;
+    });
+
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   return (
     <main className="page-shell">
@@ -203,42 +240,70 @@ export const UserGuidePage = () => {
       </nav>
 
       <section className="panel guide-panel">
-        <h2>ドキュメント一覧</h2>
+        <h2>使い方ヘルプ</h2>
         <p className="muted">最終同期: {generatedAt}（JST）</p>
+        <div className="help-summary-grid">
+          <div className="help-summary-card">
+            <h3>最短で始める</h3>
+            <p className="muted">「3分で始める」を上から順に実施すれば初期設定が完了します。</p>
+            <button type="button" className="ghost help-jump-button" onClick={() => scrollToSection('3分で始める')}>
+              3分で始めるへ移動
+            </button>
+          </div>
+          <div className="help-summary-card">
+            <h3>銘柄設定を見直す</h3>
+            <p className="muted">ticker形式・通知時間・常時通知の設定ルールを確認できます。</p>
+            <button type="button" className="ghost help-jump-button" onClick={() => scrollToSection('入力ルール')}>
+              入力ルールへ移動
+            </button>
+          </div>
+          <div className="help-summary-card">
+            <h3>通知トラブル確認</h3>
+            <p className="muted">通知が来ないときの確認ポイントをすぐに見られます。</p>
+            <button type="button" className="ghost help-jump-button" onClick={() => scrollToSection('よくあるトラブル')}>
+              よくあるトラブルへ移動
+            </button>
+          </div>
+        </div>
       </section>
 
       <section className="help-layout">
-        <aside className="panel help-sidebar" aria-label="ヘルプドキュメント選択">
-          {isIndexLoading && <p className="muted">ドキュメント一覧を読み込み中です...</p>}
+        <aside className="panel help-toc" aria-label="ガイド目次">
+          <h3>目次</h3>
+          <p className="muted">必要な項目だけ素早く確認できます。</p>
+          {isIndexLoading && <p className="muted">ガイドを準備中です...</p>}
           {indexError && <p className="error-text">{indexError}</p>}
-
-          {!isIndexLoading && !indexError && index?.categories.map((category) => (
-            <section key={category.key} className="help-category">
-              <h3>{category.label}</h3>
-              <div className="help-links">
-                {category.items.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`help-link${item.id === selectedDocId ? ' active' : ''}`}
-                    onClick={() => {
-                      setSelectedDocId(item.id);
-                    }}
-                  >
-                    <span>{item.title}</span>
-                    {item.summary && <small>{item.summary}</small>}
-                  </button>
-                ))}
-              </div>
-            </section>
-          ))}
+          {!isIndexLoading && !indexError && sectionTitles.length > 0 && (
+            <div className="help-toc-links">
+              {sectionTitles.map((title) => (
+                <button
+                  key={title}
+                  type="button"
+                  className="help-toc-link"
+                  onClick={() => {
+                    scrollToSection(title);
+                  }}
+                >
+                  {title}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="help-shortcuts">
+            <Link to="/watchlist" className="nav-link">
+              ウォッチリストへ
+            </Link>
+            <Link to="/notifications/logs" className="nav-link">
+              通知ログへ
+            </Link>
+          </div>
         </aside>
 
         <article className="panel help-content" aria-live="polite">
           {selectedDoc && (
             <div className="help-meta-row">
-              <p className="muted">表示中: {selectedDoc.title}</p>
-              <p className="muted">正本: {selectedDoc.source_path}</p>
+              <p className="muted">表示中: トレーダー向けガイド</p>
+              <p className="muted">最初に「3分で始める」だけ読めば基本操作は完了です。</p>
             </div>
           )}
 

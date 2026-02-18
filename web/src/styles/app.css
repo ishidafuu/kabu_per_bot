@@ -353,7 +353,33 @@ th {
   margin-bottom: 12px;
   padding: 16px;
   display: grid;
-  gap: 6px;
+  gap: 12px;
+}
+
+.help-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.help-summary-card {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.help-summary-card h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.help-jump-button {
+  width: 100%;
+  white-space: normal;
+  text-align: left;
 }
 
 .guide-sections {
@@ -379,11 +405,49 @@ th {
 .help-layout {
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(250px, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(230px, 280px) minmax(0, 1fr);
 }
 
 .help-layout > * {
   min-width: 0;
+}
+
+.help-toc {
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.help-toc h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.help-toc-links {
+  display: grid;
+  gap: 8px;
+}
+
+.help-toc-link {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px;
+  font-weight: 600;
+  white-space: normal;
+  line-height: 1.45;
+}
+
+.help-shortcuts {
+  display: grid;
+  gap: 8px;
+}
+
+.help-shortcuts .nav-link {
+  text-align: center;
 }
 
 .help-sidebar {
