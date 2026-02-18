@@ -3,6 +3,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotificationLogsPage } from './pages/NotificationLogsPage';
+import { OpsPage } from './pages/OpsPage';
 import { UserGuidePage } from './pages/UserGuidePage';
 import { WatchlistPage } from './pages/WatchlistPage';
 import { WatchlistHistoryPage } from './pages/WatchlistHistoryPage';
@@ -50,6 +51,14 @@ function App() {
           element={
             <ProtectedRoute>
               <UserGuidePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ops"
+          element={
+            <ProtectedRoute>
+              <OpsPage />
             </ProtectedRoute>
           }
         />

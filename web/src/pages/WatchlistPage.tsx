@@ -184,6 +184,9 @@ export const WatchlistPage = () => {
           <Link to="/dashboard" className="nav-link">
             ダッシュボードへ
           </Link>
+          <Link to="/ops" className="nav-link">
+            運用操作へ
+          </Link>
           <Link to="/guide" className="nav-link">
             使い方
           </Link>
@@ -212,6 +215,9 @@ export const WatchlistPage = () => {
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
         >
           通知ログ
+        </NavLink>
+        <NavLink to="/ops" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+          運用操作
         </NavLink>
         <NavLink to="/guide" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
           使い方

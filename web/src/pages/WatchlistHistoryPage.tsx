@@ -120,6 +120,9 @@ export const WatchlistHistoryPage = () => {
         >
           通知ログ
         </NavLink>
+        <NavLink to="/ops" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+          運用操作
+        </NavLink>
         <NavLink to="/guide" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
           使い方
         </NavLink>

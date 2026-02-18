@@ -27,18 +27,20 @@ uvicorn kabu_per_bot.api.app:app --reload
 - ウォッチリストAPI: `GET/POST/PATCH/DELETE /api/v1/watchlist`
 - 認証: `Authorization: Bearer <Firebase IDトークン>`
 
-### 管理運用パネル（ダッシュボード）
+### 管理運用ページ（`/ops`）
 
-ダッシュボードから以下をワンボタン実行できます（管理者のみ）。
+運用操作は `ダッシュボード` から分離し、`/ops` に集約しています（管理者のみ）。
 
 - 日次ジョブ実行（`kabu-daily`）
 - 21:05ジョブ実行（`kabu-daily-at21`）
 - 今週決算ジョブ実行（`kabu-earnings-weekly`）
 - 明日決算ジョブ実行（`kabu-earnings-tomorrow`）
-- バックフィルジョブ実行（`OPS_BACKFILL_JOB_NAME` 指定時のみ）
 - Discord疎通テスト送信
 - Cloud Run 実行履歴表示
 - 日次系ジョブのスキップ理由集計（Cloud Logging解析）
+
+補足:
+- バックフィルは誤操作防止のためWeb画面からは実行しません。必要時は `scripts/run_backfill_daily_metrics.py` または Cloud Run Job を使用してください。
 
 必要な環境変数（API側）:
 
@@ -49,7 +51,6 @@ uvicorn kabu_per_bot.api.app:app --reload
 - `OPS_DAILY_AT21_JOB_NAME`（既定: `kabu-daily-at21`）
 - `OPS_EARNINGS_WEEKLY_JOB_NAME`（既定: `kabu-earnings-weekly`）
 - `OPS_EARNINGS_TOMORROW_JOB_NAME`（既定: `kabu-earnings-tomorrow`）
-- `OPS_BACKFILL_JOB_NAME`（任意）
 - `DISCORD_WEBHOOK_URL`（Discord疎通テストAPIで使用）
 
 必要な権限（API実行SA）:

@@ -215,6 +215,9 @@ export const UserGuidePage = () => {
           <Link to="/watchlist" className="nav-link">
             ウォッチリストへ
           </Link>
+          <Link to="/ops" className="nav-link">
+            運用操作へ
+          </Link>
           <button type="button" className="ghost" onClick={() => void logout()}>
             ログアウト
           </button>
@@ -233,6 +236,9 @@ export const UserGuidePage = () => {
         </NavLink>
         <NavLink to="/notifications/logs" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
           通知ログ
+        </NavLink>
+        <NavLink to="/ops" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+          運用操作
         </NavLink>
         <NavLink to="/guide" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
           使い方
@@ -292,6 +298,9 @@ export const UserGuidePage = () => {
           <div className="help-shortcuts">
             <Link to="/watchlist" className="nav-link">
               ウォッチリストへ
+            </Link>
+            <Link to="/ops" className="nav-link">
+              運用操作へ
             </Link>
             <Link to="/notifications/logs" className="nav-link">
               通知ログへ

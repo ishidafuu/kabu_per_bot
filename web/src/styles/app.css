@@ -202,6 +202,10 @@ table {
   min-width: 1240px;
 }
 
+table.ops-job-table {
+  min-width: 980px;
+}
+
 th,
 td {
   border-bottom: 1px solid #e2e8f0;
@@ -210,6 +214,10 @@ td {
   font-size: 0.92rem;
   vertical-align: middle;
   white-space: nowrap;
+}
+
+.ops-job-table td {
+  white-space: normal;
 }
 
 th {
