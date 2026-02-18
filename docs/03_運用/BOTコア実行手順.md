@@ -65,6 +65,9 @@ PYTHONPATH=src python scripts/run_daily_job.py --execution-mode at_21 --discord-
 - `kabu-earnings-weekly` <- `sc-kabu-earnings-weekly`（土曜21:00 JST）
 - `kabu-earnings-tomorrow` <- `sc-kabu-earnings-tomorrow`（毎日21:00 JST）
 
+補足:
+- `kabu-backfill-incremental` は `J-Quants APIキー` の Secret（既定: `jquants-api-key`）が利用可能な場合のみ作成される。
+
 確認コマンド:
 
 ```bash

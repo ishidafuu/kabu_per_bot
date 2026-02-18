@@ -120,6 +120,10 @@ PYTHONPATH=src python scripts/run_daily_job.py --stdout --no-notification-log
 - `sc-kabu-earnings-weekly`（土曜21:00）: `kabu-earnings-weekly` を実行
 - `sc-kabu-earnings-tomorrow`（毎日21:00）: `kabu-earnings-tomorrow` を実行
 
+補足:
+- 増分バックフィルJobは `J-Quants APIキー` の Secret（既定: `jquants-api-key`）が利用可能な場合のみ作成されます。
+- `scripts/setup_scheduler.sh` 実行時に `JQUANTS_API_KEY`（環境変数または `.env`）があると、Secretへ最新バージョンとして登録されます。
+
 日次ジョブで通知が送信されるのは、以下のいずれかに該当した場合のみです。
 
 - 割安シグナル成立（`1Y+3M` / `3M+1W` / `1Y+1W` / `1Y+3M+1W`）
