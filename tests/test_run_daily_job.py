@@ -121,6 +121,7 @@ class RunDailyJobTest(TestCase):
             discord_webhook_url="",
             execution_mode="daily",
             stdout=True,
+            no_notification_log=False,
         )
         settings = AppSettings(
             app_env="test",
@@ -176,6 +177,7 @@ class RunDailyJobTest(TestCase):
             discord_webhook_url="",
             execution_mode="daily",
             stdout=False,
+            no_notification_log=False,
         )
         settings = AppSettings(
             app_env="test",
@@ -208,6 +210,7 @@ class RunDailyJobTest(TestCase):
             discord_webhook_url="",
             execution_mode="at_21",
             stdout=True,
+            no_notification_log=False,
         )
         settings = AppSettings(
             app_env="test",
@@ -234,6 +237,95 @@ class RunDailyJobTest(TestCase):
         self.assertEqual(code, 0)
         config = mocked_pipeline.call_args.kwargs["config"]
         self.assertEqual(config.execution_mode.value, "AT_21")
+
+    def test_main_stdout_no_notification_log_does_not_persist_log(self) -> None:
+        client = FakeFirestoreClient(
+            db={
+                "watchlist/3901:TSE": {
+                    "ticker": "3901:TSE",
+                    "name": "富士フイルム",
+                    "metric_type": "PER",
+                    "notify_channel": "DISCORD",
+                    "notify_timing": "IMMEDIATE",
+                    "ai_enabled": False,
+                    "is_active": True,
+                    "created_at": "2026-02-11T00:00:00+00:00",
+                    "updated_at": "2026-02-11T00:00:00+00:00",
+                },
+                "daily_metrics/3901:TSE|2026-02-11": {
+                    "ticker": "3901:TSE",
+                    "trade_date": "2026-02-11",
+                    "close_price": 150.0,
+                    "eps_forecast": 10.0,
+                    "sales_forecast": 100.0,
+                    "per_value": 15.0,
+                    "psr_value": 1.5,
+                    "data_source": "株探",
+                    "fetched_at": "2026-02-11T00:00:00+00:00",
+                },
+            }
+        )
+        args = run_daily_job.argparse.Namespace(
+            trade_date="2026-02-12",
+            now_iso="2026-02-12T09:00:00+00:00",
+            discord_webhook_url="",
+            execution_mode="daily",
+            stdout=True,
+            no_notification_log=True,
+        )
+        settings = AppSettings(
+            app_env="test",
+            timezone="Asia/Tokyo",
+            window_1w_days=2,
+            window_3m_days=2,
+            window_1y_days=2,
+            cooldown_hours=2,
+            firestore_project_id="",
+            ai_notifications_enabled=False,
+            x_api_bearer_token="",
+        )
+        with (
+            patch.object(run_daily_job, "parse_args", return_value=args),
+            patch.object(run_daily_job, "load_settings", return_value=settings),
+            patch.object(run_daily_job, "_create_firestore_client", return_value=client),
+            patch.object(run_daily_job, "create_default_market_data_source", return_value=StaticMarketDataSource()),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            code = run_daily_job.main()
+
+        self.assertEqual(code, 0)
+        lines = [line for line in stdout.getvalue().splitlines() if line.strip()]
+        summary = json.loads(lines[-1])
+        self.assertEqual(summary, {"processed": 1, "sent": 1, "skipped": 0, "errors": 0})
+        self.assertFalse(any(path.startswith("notification_log/") for path in client.db))
+
+    def test_main_no_notification_log_requires_stdout(self) -> None:
+        args = run_daily_job.argparse.Namespace(
+            trade_date="2026-02-12",
+            now_iso="2026-02-12T09:00:00+00:00",
+            discord_webhook_url="https://example.com/webhook",
+            execution_mode="daily",
+            stdout=False,
+            no_notification_log=True,
+        )
+        settings = AppSettings(
+            app_env="test",
+            timezone="Asia/Tokyo",
+            window_1w_days=2,
+            window_3m_days=2,
+            window_1y_days=2,
+            cooldown_hours=2,
+            firestore_project_id="",
+            ai_notifications_enabled=False,
+            x_api_bearer_token="",
+        )
+        with (
+            patch.object(run_daily_job, "parse_args", return_value=args),
+            patch.object(run_daily_job, "load_settings", return_value=settings),
+            patch.object(run_daily_job, "_create_firestore_client", return_value=FakeFirestoreClient()),
+        ):
+            with self.assertRaisesRegex(ValueError, "--no-notification-log は --stdout と併用してください"):
+                run_daily_job.main()
 
 
 if __name__ == "__main__":

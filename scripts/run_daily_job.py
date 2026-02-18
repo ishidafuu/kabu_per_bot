@@ -30,6 +30,18 @@ class StdoutSender:
         print(message)
 
 
+class NotificationLogBypassRepository:
+    """Preview mode repository that bypasses cooldown and log writes."""
+
+    def list_recent(self, ticker: str, *, limit: int = 100):
+        _ = ticker, limit
+        return []
+
+    def append(self, entry) -> None:
+        _ = entry
+        return None
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run MVP daily pipeline with Firestore persistence.")
     parser.add_argument("--trade-date", default=None, help="Trade date (YYYY-MM-DD). Default: today(JST)")
@@ -50,6 +62,11 @@ def parse_args() -> argparse.Namespace:
         help="Dispatch filter mode. all=daily+21, daily=IMMEDIATE only, at_21=AT_21 only.",
     )
     parser.add_argument("--stdout", action="store_true", help="Send notifications to stdout.")
+    parser.add_argument(
+        "--no-notification-log",
+        action="store_true",
+        help="Use with --stdout for notification preview. Bypass cooldown and do not read/write notification_log.",
+    )
     return parser.parse_args()
 
 
@@ -98,6 +115,15 @@ def _resolve_sender(args: argparse.Namespace):
     return DiscordNotifier(webhook_url)
 
 
+def _resolve_notification_log_repo(args: argparse.Namespace, base_repo: FirestoreNotificationLogRepository):
+    if args.no_notification_log:
+        if not args.stdout:
+            raise ValueError("--no-notification-log は --stdout と併用してください。")
+        LOGGER.info("通知ログ: バイパス（cooldown無効・notification_log未記録）")
+        return NotificationLogBypassRepository()
+    return base_repo
+
+
 def _result_payload(result: PipelineResult) -> dict[str, int]:
     return {
         "processed": result.processed_tickers,
@@ -129,7 +155,7 @@ def main() -> int:
     daily_repo = FirestoreDailyMetricsRepository(client)
     medians_repo = FirestoreMetricMediansRepository(client)
     signal_repo = FirestoreSignalStateRepository(client)
-    log_repo = FirestoreNotificationLogRepository(client)
+    log_repo = _resolve_notification_log_repo(args, FirestoreNotificationLogRepository(client))
     watchlist_items = watchlist_repo.list_all()
 
     LOGGER.info("日次ジョブ開始: trade_date=%s watchlist_items=%s", trade_date, len(watchlist_items))

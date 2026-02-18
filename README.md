@@ -75,6 +75,12 @@ stdout送信を明示する場合:
 PYTHONPATH=src python scripts/run_daily_job.py --stdout
 ```
 
+通知チェック（cooldown無効・notification_log未記録）:
+
+```bash
+PYTHONPATH=src python scripts/run_daily_job.py --stdout --no-notification-log
+```
+
 ### 本番定期実行構成（2026-02-18 時点）
 
 - タイムゾーン: `Asia/Tokyo`
