@@ -8,7 +8,7 @@ import os
 from datetime import datetime, timezone
 
 from kabu_per_bot.discord_notifier import DiscordNotifier
-from kabu_per_bot.intelligence import CompositeIntelSource, HeuristicAiAnalyzer, IRWebsiteIntelSource, XApiIntelSource
+from kabu_per_bot.intelligence import CompositeIntelSource, IRWebsiteIntelSource, VertexGeminiAiAnalyzer, XApiIntelSource
 from kabu_per_bot.intelligence_pipeline import IntelligencePipelineConfig, run_intelligence_pipeline
 from kabu_per_bot.pipeline import NotificationExecutionMode
 from kabu_per_bot.settings import load_settings
@@ -106,7 +106,11 @@ def main() -> int:
     result = run_intelligence_pipeline(
         watchlist_items=watchlist_repo.list_all(),
         source=source,
-        analyzer=HeuristicAiAnalyzer(),
+        analyzer=VertexGeminiAiAnalyzer(
+            project_id=settings.firestore_project_id,
+            location=settings.vertex_ai_location,
+            model=settings.vertex_ai_model,
+        ),
         seen_repo=seen_repo,
         notification_log_repo=log_repo,
         sender=sender,

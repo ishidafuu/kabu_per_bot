@@ -115,6 +115,7 @@ PYTHONPATH=src python scripts/run_intelligence_job.py --discord-webhook-url <DIS
 
 - `AI_NOTIFICATIONS_ENABLED=true` かつ銘柄設定 `ai_enabled=true` の場合に `AI注目` を送信。
 - X監視には `X_API_BEARER_TOKEN` が必要。
+- AI要約は `Vertex AI Gemini` を利用（既定: `VERTEX_AI_LOCATION=global`, `VERTEX_AI_MODEL=gemini-2.0-flash-001`）。
 - `--execution-mode daily|at_21` で通知時間フィルタを選択可能。
 
 ## Web E2E（W12）

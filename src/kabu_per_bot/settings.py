@@ -29,6 +29,8 @@ class AppSettings:
     firestore_project_id: str
     ai_notifications_enabled: bool
     x_api_bearer_token: str
+    vertex_ai_location: str = "global"
+    vertex_ai_model: str = "gemini-2.0-flash-001"
 
 
 def _read_dotenv(dotenv_path: Path) -> dict[str, str]:
@@ -118,4 +120,6 @@ def load_settings(
         firestore_project_id=merged.get("FIRESTORE_PROJECT_ID", "").strip(),
         ai_notifications_enabled=_get_bool(merged, "AI_NOTIFICATIONS_ENABLED", False),
         x_api_bearer_token=merged.get("X_API_BEARER_TOKEN", "").strip(),
+        vertex_ai_location=_get_str(merged, "VERTEX_AI_LOCATION", "global"),
+        vertex_ai_model=_get_str(merged, "VERTEX_AI_MODEL", "gemini-2.0-flash-001"),
     )

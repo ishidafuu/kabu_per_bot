@@ -5,9 +5,10 @@ from datetime import datetime, timezone
 from enum import Enum
 import hashlib
 import html
+import json
 import logging
 import re
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 from urllib.parse import urljoin
 
 import httpx
@@ -286,6 +287,65 @@ class HeuristicAiAnalyzer:
         )
 
 
+class VertexGeminiAiAnalyzer:
+    def __init__(
+        self,
+        *,
+        project_id: str,
+        location: str = "global",
+        model: str = "gemini-2.0-flash-001",
+        timeout_sec: float = 20.0,
+        credentials_provider: Callable[[], tuple[str, str | None]] | None = None,
+        http_client: httpx.Client | None = None,
+    ) -> None:
+        self._project_id = project_id.strip()
+        self._location = location.strip() or "global"
+        self._model = model.strip() or "gemini-2.0-flash-001"
+        self._timeout_sec = timeout_sec
+        self._credentials_provider = credentials_provider or _default_vertex_credentials
+        self._client = http_client or httpx.Client()
+
+    def analyze(self, *, item: WatchlistItem, event: IntelEvent) -> AiInsight:
+        token, inferred_project_id = self._credentials_provider()
+        project_id = self._project_id or (inferred_project_id or "").strip()
+        if not project_id:
+            raise AiAnalyzeError(
+                "AI解析失敗: project_id が未設定です。FIRESTORE_PROJECT_ID か ADC のデフォルトプロジェクトを設定してください。"
+            )
+        endpoint = (
+            "https://aiplatform.googleapis.com/v1/projects/"
+            f"{project_id}/locations/{self._location}/publishers/google/models/{self._model}:generateContent"
+        )
+        payload = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": _build_vertex_prompt(item=item, event=event)}],
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.1,
+                "maxOutputTokens": 400,
+            },
+        }
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        try:
+            response = self._client.post(
+                endpoint,
+                headers=headers,
+                json=payload,
+                timeout=self._timeout_sec,
+            )
+            response.raise_for_status()
+            body = response.json()
+        except Exception as exc:
+            raise AiAnalyzeError(f"AI解析失敗: Vertex AI API 呼び出しに失敗しました: {exc}") from exc
+        return _build_ai_insight_from_vertex_response(event=event, payload=body)
+
+
 def resolve_now_utc_iso(*, now_iso: str | None = None) -> str:
     if now_iso is None:
         return datetime.now(timezone.utc).isoformat()
@@ -362,3 +422,153 @@ def _resolve_sns_label(event: IntelEvent) -> str:
     if "公式" in event.source_label:
         return "公式"
     return "役員"
+
+
+def _default_vertex_credentials() -> tuple[str, str | None]:
+    try:
+        import google.auth
+        from google.auth.transport.requests import Request
+    except ModuleNotFoundError as exc:
+        raise AiAnalyzeError(
+            "AI解析失敗: google-auth が未インストールです。`pip install -e '.[gcp]'` を実行してください。"
+        ) from exc
+    credentials, project_id = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    if not getattr(credentials, "token", None):
+        credentials.refresh(Request())
+    token = str(getattr(credentials, "token", "") or "").strip()
+    if not token:
+        raise AiAnalyzeError("AI解析失敗: Vertex AI 用アクセストークンの取得に失敗しました。")
+    return (token, project_id)
+
+
+def _build_vertex_prompt(*, item: WatchlistItem, event: IntelEvent) -> str:
+    instructions = [
+        "あなたは日本株のIR/SNS通知を要約するアシスタントです。",
+        "入力情報から、通知で使う要約と分類をJSONのみで返してください。",
+        "要件:",
+        "- summary は120文字以内の日本語1文",
+        "- evidence_urls は根拠URL配列（最低1件）",
+        "- ir_label は 決算資料/適時開示/説明会/該当なし のいずれか",
+        "- sns_label は 公式/役員/該当なし のいずれか",
+        "- tone は ポジ/ニュートラル/ネガ のいずれか",
+        "- confidence は High/Med/Low のいずれか",
+        "出力形式:",
+        '{"summary":"...","evidence_urls":["..."],"ir_label":"...","sns_label":"...","tone":"...","confidence":"..."}',
+        "入力:",
+        f"ticker: {item.ticker}",
+        f"name: {item.name}",
+        f"kind: {event.kind.value}",
+        f"title: {event.title}",
+        f"url: {event.url}",
+        f"source_label: {event.source_label}",
+        f"content: {event.content}",
+    ]
+    return "\n".join(instructions)
+
+
+def _build_ai_insight_from_vertex_response(*, event: IntelEvent, payload: dict[str, Any]) -> AiInsight:
+    text = _extract_vertex_text(payload)
+    parsed = _parse_vertex_response_json(text)
+    base_text = " ".join([event.title, event.content]).strip()
+    summary = str(parsed.get("summary", "")).strip() or _summarize_text(base_text, max_chars=120)
+    evidence_urls = _normalize_evidence_urls(parsed.get("evidence_urls"), fallback_url=event.url)
+    ir_label = str(parsed.get("ir_label", "")).strip() or _resolve_ir_label(event)
+    sns_label = str(parsed.get("sns_label", "")).strip() or _resolve_sns_label(event)
+    tone = _normalize_tone(str(parsed.get("tone", "")).strip(), fallback_text=base_text)
+    confidence = _normalize_confidence(str(parsed.get("confidence", "")).strip(), fallback_text=base_text)
+    return AiInsight(
+        summary=summary,
+        evidence_urls=evidence_urls,
+        ir_label=ir_label,
+        sns_label=sns_label,
+        tone=tone,
+        confidence=confidence,
+    )
+
+
+def _extract_vertex_text(payload: dict[str, Any]) -> str:
+    candidates = payload.get("candidates")
+    if not isinstance(candidates, list) or not candidates:
+        raise AiAnalyzeError("AI解析失敗: Vertex AI レスポンスに candidates がありません。")
+    first = candidates[0]
+    if not isinstance(first, dict):
+        raise AiAnalyzeError("AI解析失敗: Vertex AI レスポンス形式が不正です。")
+    content = first.get("content")
+    if not isinstance(content, dict):
+        raise AiAnalyzeError("AI解析失敗: Vertex AI レスポンスに content がありません。")
+    parts = content.get("parts")
+    if not isinstance(parts, list) or not parts:
+        raise AiAnalyzeError("AI解析失敗: Vertex AI レスポンスに parts がありません。")
+    texts = [str(part.get("text", "")).strip() for part in parts if isinstance(part, dict) and part.get("text")]
+    merged = "\n".join([row for row in texts if row]).strip()
+    if not merged:
+        raise AiAnalyzeError("AI解析失敗: Vertex AI レスポンスにテキストがありません。")
+    return merged
+
+
+def _parse_vertex_response_json(text: str) -> dict[str, Any]:
+    normalized = text.strip()
+    if normalized.startswith("```"):
+        normalized = re.sub(r"^```(?:json)?\s*", "", normalized, flags=re.I)
+        normalized = re.sub(r"\s*```$", "", normalized)
+        normalized = normalized.strip()
+    start = normalized.find("{")
+    end = normalized.rfind("}")
+    if start < 0 or end <= start:
+        raise AiAnalyzeError("AI解析失敗: Vertex AI レスポンスからJSONオブジェクトを抽出できません。")
+    candidate = normalized[start : end + 1]
+    try:
+        parsed = json.loads(candidate)
+    except json.JSONDecodeError as exc:
+        raise AiAnalyzeError(f"AI解析失敗: Vertex AI JSONの解析に失敗しました: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise AiAnalyzeError("AI解析失敗: Vertex AI JSONがオブジェクト形式ではありません。")
+    return parsed
+
+
+def _normalize_evidence_urls(value: Any, *, fallback_url: str) -> list[str]:
+    rows: list[str] = []
+    if isinstance(value, list):
+        for raw in value:
+            url = str(raw).strip()
+            if not url.startswith("http"):
+                continue
+            if url not in rows:
+                rows.append(url)
+    if fallback_url.startswith("http") and fallback_url not in rows:
+        rows.insert(0, fallback_url)
+    if not rows:
+        rows = [fallback_url]
+    return rows
+
+
+def _normalize_tone(value: str, *, fallback_text: str) -> str:
+    normalized = value.strip().lower()
+    mapping = {
+        "ポジ": "ポジ",
+        "positive": "ポジ",
+        "ネガ": "ネガ",
+        "negative": "ネガ",
+        "ニュートラル": "ニュートラル",
+        "neutral": "ニュートラル",
+    }
+    if normalized in mapping:
+        return mapping[normalized]
+    return _detect_tone(
+        fallback_text,
+        positives=("増収", "増益", "上方修正", "受注", "好調", "成長", "過去最高"),
+        negatives=("減収", "減益", "下方修正", "赤字", "訴訟", "不正", "遅延"),
+    )
+
+
+def _normalize_confidence(value: str, *, fallback_text: str) -> str:
+    normalized = value.strip().upper()
+    mapping = {
+        "HIGH": "High",
+        "MEDIUM": "Med",
+        "MED": "Med",
+        "LOW": "Low",
+    }
+    if normalized in mapping:
+        return mapping[normalized]
+    return _estimate_confidence(fallback_text)

@@ -20,6 +20,8 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.firestore_project_id, "")
         self.assertFalse(settings.ai_notifications_enabled)
         self.assertEqual(settings.x_api_bearer_token, "")
+        self.assertEqual(settings.vertex_ai_location, "global")
+        self.assertEqual(settings.vertex_ai_model, "gemini-2.0-flash-001")
 
     def test_env_override(self) -> None:
         settings = load_settings(
@@ -33,6 +35,8 @@ class LoadSettingsTest(unittest.TestCase):
                 "FIRESTORE_PROJECT_ID": "demo-project",
                 "AI_NOTIFICATIONS_ENABLED": "true",
                 "X_API_BEARER_TOKEN": "token-123",
+                "VERTEX_AI_LOCATION": "asia-northeast1",
+                "VERTEX_AI_MODEL": "gemini-2.5-flash",
             },
             dotenv_path="does-not-exist.env",
         )
@@ -46,6 +50,8 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.firestore_project_id, "demo-project")
         self.assertTrue(settings.ai_notifications_enabled)
         self.assertEqual(settings.x_api_bearer_token, "token-123")
+        self.assertEqual(settings.vertex_ai_location, "asia-northeast1")
+        self.assertEqual(settings.vertex_ai_model, "gemini-2.5-flash")
 
     def test_dotenv_loaded_when_env_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
