@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
+import { AppLayout } from '../components/AppLayout';
 import { createDashboardClient } from '../lib/api';
 import { toUserMessage } from '../lib/api/errors';
 import type { DashboardSummary } from '../types/dashboard';
@@ -14,7 +14,7 @@ const getFailedJobClassName = (value: boolean): string => {
 };
 
 export const DashboardPage = () => {
-  const { user, logout, getIdToken } = useAuth();
+  const { getIdToken } = useAuth();
   const client = useMemo(() => createDashboardClient({ getToken: getIdToken }), [getIdToken]);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,66 +38,19 @@ export const DashboardPage = () => {
   }, [fetchSummary]);
 
   return (
-    <main className="page-shell">
-      <header className="top-bar panel">
-        <div>
-          <h1>ダッシュボード</h1>
-          <p className="muted">ログイン中: {user?.email ?? 'unknown'}</p>
-        </div>
-        <div className="top-actions">
-          <Link to="/watchlist" className="nav-link">
-            ウォッチリストへ
-          </Link>
-          <Link to="/ops" className="nav-link">
-            運用操作へ
-          </Link>
-          <Link to="/guide" className="nav-link">
-            使い方
-          </Link>
-          <button type="button" className="ghost" onClick={() => void logout()}>
-            ログアウト
-          </button>
-        </div>
-      </header>
-
-      <nav className="panel page-nav" aria-label="ページ遷移">
-        <NavLink to="/dashboard" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          ダッシュボード
-        </NavLink>
-        <NavLink to="/watchlist" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          ウォッチリスト
-        </NavLink>
-        <NavLink to="/watchlist/history" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          履歴
-        </NavLink>
-        <NavLink to="/notifications/logs" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          通知ログ
-        </NavLink>
-        <NavLink to="/ops" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          運用操作
-        </NavLink>
-        <NavLink to="/guide" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          使い方
-        </NavLink>
-      </nav>
-
+    <AppLayout title="ダッシュボード">
       <section className="panel controls-panel">
         <div className="meta-row">
           <span>運用主要KPI</span>
         </div>
-        <div className="inline-actions">
-          <button
-            type="button"
-            className="secondary fit-content"
-            disabled={isLoading}
-            onClick={() => void fetchSummary()}
-          >
-            {isLoading ? '読込中...' : '再読み込み'}
-          </button>
-          <Link to="/ops" className="nav-link">
-            運用操作を開く
-          </Link>
-        </div>
+        <button
+          type="button"
+          className="secondary fit-content"
+          disabled={isLoading}
+          onClick={() => void fetchSummary()}
+        >
+          {isLoading ? '読込中...' : '再読み込み'}
+        </button>
         <p className="muted">ジョブ実行やDiscord疎通テストは「運用操作」ページに集約しています。</p>
       </section>
 
@@ -135,6 +88,6 @@ export const DashboardPage = () => {
           </article>
         </section>
       )}
-    </main>
+    </AppLayout>
   );
 };

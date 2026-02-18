@@ -113,17 +113,6 @@ button:disabled {
   color: #0f172a;
 }
 
-.nav-link {
-  border: 1px solid #94a3b8;
-  color: #0f172a;
-  background: transparent;
-  border-radius: 10px;
-  cursor: pointer;
-  padding: 9px 14px;
-  font-weight: 600;
-  text-decoration: none;
-}
-
 .danger {
   background: #fee2e2;
   color: #b91c1c;
@@ -151,16 +140,22 @@ button:disabled {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .nav-link {
   text-decoration: none;
   border: 1px solid #94a3b8;
   color: #0f172a;
+  background: #f8fafc;
   padding: 8px 12px;
   border-radius: 999px;
   font-size: 0.9rem;
   font-weight: 600;
+}
+
+.nav-link:hover {
+  border-color: #0f766e;
 }
 
 .nav-link.active {
@@ -447,15 +442,6 @@ th {
   font-weight: 600;
   white-space: normal;
   line-height: 1.45;
-}
-
-.help-shortcuts {
-  display: grid;
-  gap: 8px;
-}
-
-.help-shortcuts .nav-link {
-  text-align: center;
 }
 
 .help-sidebar {

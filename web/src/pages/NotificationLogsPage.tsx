@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
+import { AppLayout } from '../components/AppLayout';
 import { createNotificationLogClient } from '../lib/api';
 import { toUserMessage } from '../lib/api/errors';
 import { appConfig } from '../lib/config';
@@ -32,7 +32,7 @@ const formatDateTime = (value: string): string => {
 };
 
 export const NotificationLogsPage = () => {
-  const { user, logout, getIdToken } = useAuth();
+  const { getIdToken } = useAuth();
   const client = useMemo(() => createNotificationLogClient({ getToken: getIdToken }), [getIdToken]);
 
   const [items, setItems] = useState<NotificationLogItem[]>([]);
@@ -79,45 +79,7 @@ export const NotificationLogsPage = () => {
   const canGoNext = offset + limit < total;
 
   return (
-    <main className="page-shell">
-      <header className="top-bar panel">
-        <div>
-          <h1>通知ログ</h1>
-          <p className="muted">ログイン中: {user?.email ?? 'unknown'}</p>
-        </div>
-        <button type="button" className="ghost" onClick={() => void logout()}>
-          ログアウト
-        </button>
-      </header>
-
-      <nav className="panel page-nav" aria-label="ページ遷移">
-        <NavLink
-          to="/watchlist"
-          end
-          className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-        >
-          ウォッチリスト
-        </NavLink>
-        <NavLink
-          to="/watchlist/history"
-          className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-        >
-          履歴
-        </NavLink>
-        <NavLink
-          to="/notifications/logs"
-          className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-        >
-          通知ログ
-        </NavLink>
-        <NavLink to="/ops" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          運用操作
-        </NavLink>
-        <NavLink to="/guide" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          使い方
-        </NavLink>
-      </nav>
-
+    <AppLayout title="通知ログ">
       <section className="panel controls-panel">
         <div className="search-row compact">
           <input
@@ -218,6 +180,6 @@ export const NotificationLogsPage = () => {
           </button>
         </div>
       </section>
-    </main>
+    </AppLayout>
   );
 };

@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, NavLink } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useAuth } from '../auth/useAuth';
+import { AppLayout } from '../components/AppLayout';
 
 interface HelpDocItem {
   id: string;
@@ -88,8 +87,6 @@ const formatGeneratedAt = (value: string): string => {
 };
 
 export const UserGuidePage = () => {
-  const { user, logout } = useAuth();
-
   const [index, setIndex] = useState<HelpDocIndex | null>(null);
   const [selectedDocId, setSelectedDocId] = useState('');
   const [markdown, setMarkdown] = useState('');
@@ -202,49 +199,7 @@ export const UserGuidePage = () => {
   };
 
   return (
-    <main className="page-shell">
-      <header className="top-bar panel">
-        <div>
-          <h1>ヘルプ / ドキュメント</h1>
-          <p className="muted">ログイン中: {user?.email ?? 'unknown'}</p>
-        </div>
-        <div className="top-actions">
-          <Link to="/dashboard" className="nav-link">
-            ダッシュボードへ
-          </Link>
-          <Link to="/watchlist" className="nav-link">
-            ウォッチリストへ
-          </Link>
-          <Link to="/ops" className="nav-link">
-            運用操作へ
-          </Link>
-          <button type="button" className="ghost" onClick={() => void logout()}>
-            ログアウト
-          </button>
-        </div>
-      </header>
-
-      <nav className="panel page-nav" aria-label="ページ遷移">
-        <NavLink to="/dashboard" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          ダッシュボード
-        </NavLink>
-        <NavLink to="/watchlist" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          ウォッチリスト
-        </NavLink>
-        <NavLink to="/watchlist/history" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          履歴
-        </NavLink>
-        <NavLink to="/notifications/logs" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          通知ログ
-        </NavLink>
-        <NavLink to="/ops" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          運用操作
-        </NavLink>
-        <NavLink to="/guide" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          使い方
-        </NavLink>
-      </nav>
-
+    <AppLayout title="ヘルプ / ドキュメント">
       <section className="panel guide-panel">
         <h2>使い方ヘルプ</h2>
         <p className="muted">最終同期: {generatedAt}（JST）</p>
@@ -295,17 +250,6 @@ export const UserGuidePage = () => {
               ))}
             </div>
           )}
-          <div className="help-shortcuts">
-            <Link to="/watchlist" className="nav-link">
-              ウォッチリストへ
-            </Link>
-            <Link to="/ops" className="nav-link">
-              運用操作へ
-            </Link>
-            <Link to="/notifications/logs" className="nav-link">
-              通知ログへ
-            </Link>
-          </div>
         </aside>
 
         <article className="panel help-content" aria-live="polite">
@@ -326,6 +270,6 @@ export const UserGuidePage = () => {
           )}
         </article>
       </section>
-    </main>
+    </AppLayout>
   );
 };

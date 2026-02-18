@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
-import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
+import { AppLayout } from '../components/AppLayout';
 import { WatchlistForm, type WatchlistFormValues } from '../components/WatchlistForm';
 import { createWatchlistClient } from '../lib/api';
 import { toUserMessage } from '../lib/api/errors';
@@ -27,7 +27,7 @@ const formatEarnings = (date?: string | null, time?: string | null): string => {
 };
 
 export const WatchlistPage = () => {
-  const { user, logout, getIdToken } = useAuth();
+  const { getIdToken } = useAuth();
   const client = useMemo(() => createWatchlistClient({ getToken: getIdToken }), [getIdToken]);
 
   const [items, setItems] = useState<WatchlistItem[]>([]);
@@ -174,56 +174,7 @@ export const WatchlistPage = () => {
   };
 
   return (
-    <main className="page-shell">
-      <header className="top-bar panel">
-        <div>
-          <h1>ウォッチリスト管理</h1>
-          <p className="muted">ログイン中: {user?.email ?? 'unknown'}</p>
-        </div>
-        <div className="top-actions">
-          <Link to="/dashboard" className="nav-link">
-            ダッシュボードへ
-          </Link>
-          <Link to="/ops" className="nav-link">
-            運用操作へ
-          </Link>
-          <Link to="/guide" className="nav-link">
-            使い方
-          </Link>
-          <button type="button" className="ghost" onClick={() => void logout()}>
-            ログアウト
-          </button>
-        </div>
-      </header>
-
-      <nav className="panel page-nav" aria-label="ページ遷移">
-        <NavLink
-          to="/watchlist"
-          end
-          className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-        >
-          ウォッチリスト
-        </NavLink>
-        <NavLink
-          to="/watchlist/history"
-          className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-        >
-          履歴
-        </NavLink>
-        <NavLink
-          to="/notifications/logs"
-          className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-        >
-          通知ログ
-        </NavLink>
-        <NavLink to="/ops" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          運用操作
-        </NavLink>
-        <NavLink to="/guide" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          使い方
-        </NavLink>
-      </nav>
-
+    <AppLayout title="ウォッチリスト管理">
       <section className="panel controls-panel">
         <div className="search-row">
           <input
@@ -376,6 +327,6 @@ export const WatchlistPage = () => {
           </div>
         </div>
       )}
-    </main>
+    </AppLayout>
   );
 };
