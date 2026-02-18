@@ -118,6 +118,10 @@ class IntelligenceTest(unittest.TestCase):
         self.assertEqual(insight.tone, "ポジ")
         self.assertEqual(insight.confidence, "High")
         self.assertEqual(insight.evidence_urls, ["https://example.com/ir/1"])
+        self.assertEqual(
+            analyzer._client.last_json["generationConfig"]["responseMimeType"],
+            "application/json",
+        )
 
     def test_vertex_gemini_ai_analyzer_raises_on_invalid_response(self) -> None:
         analyzer = VertexGeminiAiAnalyzer(

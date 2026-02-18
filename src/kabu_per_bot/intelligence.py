@@ -326,6 +326,7 @@ class VertexGeminiAiAnalyzer:
             "generationConfig": {
                 "temperature": 0.1,
                 "maxOutputTokens": 400,
+                "responseMimeType": "application/json",
             },
         }
         headers = {
