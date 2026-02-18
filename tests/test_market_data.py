@@ -168,6 +168,32 @@ class MarketDataSourceTest(unittest.TestCase):
         self.assertEqual(snapshot.sales_forecast, 50000.0)
         self.assertEqual(snapshot.earnings_date, "2026-02-19")
 
+    def test_jquants_source_without_earnings_calendar_date_raises_fetch_error(self) -> None:
+        client = FakeJQuantsClient(
+            bars=[{"Date": "2026-02-18", "C": 1234.5}],
+            summary=[{"DiscDate": "2026-02-14", "DiscTime": "15:30:00", "DiscNo": "1", "FEPS": 100.0, "FSales": 50000.0}],
+            earnings=[],
+        )
+        source = JQuantsMarketDataSource(jquants_client=client, lookback_days=30)
+        with self.assertRaises(MarketDataFetchError) as ctx:
+            source.fetch_snapshot("3984:TSE")
+        self.assertIn("earnings_date", str(ctx.exception))
+
+    def test_jquants_source_uses_latest_fin_summary_by_time_and_discno(self) -> None:
+        client = FakeJQuantsClient(
+            bars=[{"Date": "2026-02-18", "C": 1234.5}],
+            summary=[
+                {"DiscDate": "2026-02-18", "DiscTime": "9:00:00", "DiscNo": "9", "FEPS": 10.0, "FSales": 100.0},
+                {"DiscDate": "2026-02-18", "DiscTime": "15:00:00", "DiscNo": "1", "FEPS": 20.0, "FSales": 200.0},
+                {"DiscDate": "2026-02-18", "DiscTime": "15:00:00", "DiscNo": "10", "FEPS": 30.0, "FSales": 300.0},
+            ],
+            earnings=[{"Code": "39840", "Date": "2026-02-19"}],
+        )
+        source = JQuantsMarketDataSource(jquants_client=client, lookback_days=30)
+        snapshot = source.fetch_snapshot("3984:TSE")
+        self.assertEqual(snapshot.eps_forecast, 30.0)
+        self.assertEqual(snapshot.sales_forecast, 300.0)
+
     def test_kabutan_source_parses_snapshot(self) -> None:
         stock_url = "https://kabutan.jp/stock/?code=7203"
         finance_url = "https://kabutan.jp/stock/finance?code=7203"

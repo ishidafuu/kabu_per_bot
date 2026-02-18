@@ -385,8 +385,6 @@ class JQuantsMarketDataSource:
         sales_forecast = _as_float_or_none(None if latest_fin is None else latest_fin.get("FSales"))
 
         earnings_date = _find_earnings_date_from_jquants_calendar(earnings_calendar, code4)
-        if earnings_date is None and latest_fin is not None:
-            earnings_date = _as_iso_date_or_none(latest_fin.get("DiscDate"))
 
         errors = _required_field_errors(
             close_price=close_price,
@@ -595,10 +593,10 @@ def _latest_fin_summary_row(rows: list[dict[str, object]]) -> dict[str, object] 
     if not rows:
         return None
 
-    def row_key(row: dict[str, object]) -> tuple[date, str, str]:
+    def row_key(row: dict[str, object]) -> tuple[date, tuple[int, int, int], tuple[int, str]]:
         disc_date = _as_iso_date_or_none(row.get("DiscDate")) or "1970-01-01"
-        disc_time = str(row.get("DiscTime", "")).strip()
-        disc_no = str(row.get("DiscNo", "")).strip()
+        disc_time = _disc_time_sort_key(row.get("DiscTime"))
+        disc_no = _disc_no_sort_key(row.get("DiscNo"))
         return date.fromisoformat(disc_date), disc_time, disc_no
 
     ordered = sorted(rows, key=row_key, reverse=True)
@@ -606,6 +604,43 @@ def _latest_fin_summary_row(rows: list[dict[str, object]]) -> dict[str, object] 
         if _as_float_or_none(row.get("FEPS")) is not None and _as_float_or_none(row.get("FSales")) is not None:
             return row
     return ordered[0]
+
+
+def _disc_time_sort_key(value: object) -> tuple[int, int, int]:
+    text = str(value or "").strip()
+    if not text:
+        return (-1, -1, -1)
+
+    parts = text.split(":")
+    if len(parts) == 2:
+        hour = _safe_int(parts[0], default=-1)
+        minute = _safe_int(parts[1], default=-1)
+        if hour >= 0 and minute >= 0:
+            return (hour, minute, 0)
+        return (-1, -1, -1)
+    if len(parts) == 3:
+        hour = _safe_int(parts[0], default=-1)
+        minute = _safe_int(parts[1], default=-1)
+        second = _safe_int(parts[2], default=-1)
+        if hour >= 0 and minute >= 0 and second >= 0:
+            return (hour, minute, second)
+        return (-1, -1, -1)
+    return (-1, -1, -1)
+
+
+def _disc_no_sort_key(value: object) -> tuple[int, str]:
+    text = str(value or "").strip()
+    if not text:
+        return (-1, "")
+    numeric = _safe_int(text, default=-1)
+    return (numeric, text)
+
+
+def _safe_int(value: str, *, default: int) -> int:
+    try:
+        return int(value.strip())
+    except Exception:
+        return default
 
 
 def _find_earnings_date_from_jquants_calendar(rows: list[dict[str, object]], code4: str) -> str | None:
