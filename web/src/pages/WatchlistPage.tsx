@@ -257,15 +257,15 @@ export const WatchlistPage = () => {
           <table>
             <thead>
               <tr>
-                <th>ticker</th>
-                <th>name</th>
-                <th>metric_type</th>
-                <th>notify_timing</th>
-                <th>always_notify</th>
-                <th>is_active</th>
-                <th>current_metric</th>
-                <th>median(1W/3M/1Y)</th>
-                <th>signal</th>
+                <th>銘柄コード</th>
+                <th>会社名</th>
+                <th>監視指標</th>
+                <th>通知タイミング</th>
+                <th>常時通知</th>
+                <th>有効状態</th>
+                <th>現在値</th>
+                <th>中央値（1W/3M/1Y）</th>
+                <th>シグナル</th>
                 <th>次回決算</th>
                 <th>操作</th>
               </tr>

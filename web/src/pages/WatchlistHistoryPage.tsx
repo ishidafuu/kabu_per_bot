@@ -161,11 +161,11 @@ export const WatchlistHistoryPage = () => {
           <table>
             <thead>
               <tr>
-                <th>acted_at</th>
-                <th>ticker</th>
-                <th>action</th>
-                <th>reason</th>
-                <th>record_id</th>
+                <th>操作日時</th>
+                <th>銘柄コード</th>
+                <th>操作種別</th>
+                <th>理由メモ</th>
+                <th>履歴ID</th>
                 <th>操作</th>
               </tr>
             </thead>

@@ -151,13 +151,13 @@ export const NotificationLogsPage = () => {
           <table>
             <thead>
               <tr>
-                <th>sent_at</th>
-                <th>ticker</th>
-                <th>category</th>
-                <th>channel</th>
-                <th>is_strong</th>
-                <th>condition_key</th>
-                <th>entry_id</th>
+                <th>送信日時</th>
+                <th>銘柄コード</th>
+                <th>通知カテゴリ</th>
+                <th>通知先</th>
+                <th>強通知</th>
+                <th>条件キー</th>
+                <th>通知ID</th>
               </tr>
             </thead>
             <tbody>
