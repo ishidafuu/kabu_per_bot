@@ -134,7 +134,7 @@ PYTHONPATH=src python scripts/run_daily_job.py --stdout --no-notification-log
 
 そのため、ジョブが成功していても `sent=0` は正常です（当日条件に一致する銘柄がなく、かつ常時通知対象がないケース）。
 
-## 決算通知ジョブ実行（Issue 15）
+## 決算通知ジョブ実行
 
 Firestoreの `watchlist` / `earnings_calendar` を使って通知する実行コマンド:
 
@@ -147,7 +147,7 @@ PYTHONPATH=src python scripts/run_earnings_job.py --job tomorrow --discord-webho
 - `tomorrow`: 毎日21時（JST）想定。翌日分を `明日決算` カテゴリで通知。
 - `--discord-webhook-url` 未指定時は `DISCORD_WEBHOOK_URL` を利用。
 
-## J-Quants v2 バックフィル（Issue BF-01〜03 着手）
+## J-Quants v2 バックフィル
 
 `daily_metrics` の過去データを J-Quants v2（Light）から補完する実行コマンド:
 
@@ -158,7 +158,7 @@ PYTHONPATH=src python scripts/run_backfill_daily_metrics.py --from-date 2025-02-
 
 - APIキーは `JQUANTS_API_KEY`（環境変数）または `--api-key` で指定。
 - `--tickers 3984:TSE,6238:TSE` で対象銘柄を絞り込み可能。
-- 現時点の着手範囲は `daily_metrics` への投入まで（中央値・シグナル再計算は次Issue）。
+- 一括バックフィルは `daily_metrics` を補完し、増分バックフィル実行時は `metric_medians` / `signal_state` の最新再計算まで行う。
 
 増分バックフィル（通常運用）:
 
@@ -200,7 +200,7 @@ E2E_API_PYTHON=../.venv/bin/python npm run test:e2e:api
 - 日常運用コマンド一覧: `docs/03_運用/日常運用コマンド一覧.md`
 - 依頼主向け手順書: `docs/04_利用ガイド/トレーダー向け_使い方手順書.md`（管理画面 `/guide` からも参照可能）
 
-## Discord疎通テスト（Issue 12）
+## Discord疎通テスト
 
 ```bash
 PYTHONPATH=src python scripts/send_discord_test_notification.py --webhook-url <DISCORD_WEBHOOK_URL>
@@ -208,9 +208,7 @@ PYTHONPATH=src python scripts/send_discord_test_notification.py --webhook-url <D
 
 `--webhook-url` 未指定時は `DISCORD_WEBHOOK_URL` 環境変数を利用します。
 
-## 実装スコープ対応
+## ドキュメント運用
 
-- Issue 04: watchlist履歴記録
-- Issue 05〜10: データ取得IF、PER/PSR計算、中央値、under/強通知、streak、クールダウン
-- Issue 11〜12: 通知文面整形、Discord通知アダプタ
-- Issue 14〜18（骨格）: 決算選定、欠損通知、通知ログ、日次E2Eパイプライン
+- 現行仕様は `docs/README.md` の「正本（運用中）」を参照。
+- 完了済みの受け入れ基準や旧版は `docs/90_アーカイブ/` を参照。

@@ -1,98 +1,50 @@
-# J-Quants v2（Light）バックフィル Issue分割（受け入れ基準つき）
+# J-Quants v2 バックフィル仕様（現行運用版）
 
-## 0. 前提
+最終更新: 2026-02-18（JST）
 
-- 本ドキュメントは、PER/PSR算出に必要な過去データを J-Quants API v2（Lightプラン）で補完するためのIssue分割を定義する。
-- 対象はMVP拡張として扱い、通知チャネルや通知フォーマットは既存仕様を維持する。
-- 時刻基準はJST固定とする。
+このドキュメントは、J-Quantsバックフィルの現行運用仕様をまとめた正本です。  
+Issue分割の受け入れ基準チェックリストは完了済みのためアーカイブへ退避しています。
 
-## 1. Issue一覧
+- アーカイブ: `docs/90_アーカイブ/2026-02-18/J-Quants_v2バックフィル_Issue分割_受け入れ基準_2026-02-18時点.md`
 
-### Issue BF-01: J-Quants v2接続基盤を実装
+## 1. 目的
 
-- 概要
-  - APIキー認証（`x-api-key`）で J-Quants v2 へ接続するクライアントを実装する。
-- 背景/目的
-  - 既存のスクレイピング基盤だけでは過去データの安定取得が難しいため。
-- スコープ
-  - `eq-bars-daily`（株価四本値）取得
-  - `fin-summary`（財務サマリ）取得
-  - ページネーション対応
-  - APIエラー時の例外化（サイレント失敗禁止）
-- 受け入れ基準
-  - [ ] APIキー未設定時に明示的なエラーを返す
-  - [ ] 指定銘柄・期間の株価データを取得できる
-  - [ ] 指定銘柄の財務サマリを取得できる
-  - [ ] HTTPエラー時に原因をログ/例外で追跡できる
-- 依存Issue
-  - なし
+- `daily_metrics` の欠損/遅延をJ-Quants v2で補完し、中央値判定とシグナル判定の精度を維持する。
 
-### Issue BF-02: バックフィル変換ロジックを実装
+## 2. 現行実装範囲
 
-- 概要
-  - 取得データから `daily_metrics` 投入用レコードを生成する。
-- 背景/目的
-  - 日次処理だけでは1W/3M/1Y中央値が埋まるまで時間を要するため。
-- スコープ
-  - 終値（`C`）と財務予想（`FEPS`/`FSales`）の時系列突合
-  - 「その日時点で公知だった最新予想値」を営業日ごとに適用
-  - `DailyMetric` 生成
-- 受け入れ基準
-  - [ ] 同一銘柄で日付昇順の `DailyMetric` を生成できる
-  - [ ] 予想値未公表期間は `eps_forecast`/`sales_forecast` を `None` として扱う
-  - [ ] 不正日付/不正銘柄コード入力時は明示的なエラーになる
-- 依存Issue
-  - BF-01
+1. `J-Quants v2` クライアント実装（APIキー認証、ページネーション、例外化）
+2. バックフィル変換ロジック（終値と予想値の突合）
+3. 一括バックフィルCLI（`scripts/run_backfill_daily_metrics.py`）
+4. 増分バックフィルCLI（`scripts/run_incremental_backfill_job.py`）
+5. 実行後の `metric_medians` / `signal_state` 最新再計算
 
-### Issue BF-03: Firestoreバックフィル実行CLIを実装
+## 3. 実行コマンド
 
-- 概要
-  - バックフィル実行スクリプトを追加する。
-- 背景/目的
-  - 運用担当が手順化されたコマンドで再現可能にするため。
-- スコープ
-  - `scripts/run_backfill_daily_metrics.py`
-  - 引数: `--from-date`, `--to-date`, `--tickers`, `--dry-run`
-  - `daily_metrics` への upsert
-- 受け入れ基準
-  - [ ] dry-runで書き込みせず件数確認できる
-  - [ ] 本実行で `daily_metrics` に保存できる
-  - [ ] 実行結果（対象銘柄数/生成件数/保存件数）を標準出力で確認できる
-- 依存Issue
-  - BF-01
-  - BF-02
+一括バックフィル:
 
-### Issue BF-04: 中央値・シグナル再計算の実装
+```bash
+PYTHONPATH=src python scripts/run_backfill_daily_metrics.py --from-date 2025-02-01 --to-date 2026-02-18 --dry-run
+PYTHONPATH=src python scripts/run_backfill_daily_metrics.py --from-date 2025-02-01 --to-date 2026-02-18
+```
 
-- 概要
-  - バックフィル後に `metric_medians` / `signal_state` を再計算する。
-- 背景/目的
-  - バックフィル直後に `N/A` 解消効果を反映するため。
-- スコープ
-  - 1W/3M/1Y中央値再計算
-  - 最新 trade_date のシグナル状態再評価
-- 受け入れ基準
-  - [ ] 1W以上の履歴がある銘柄で `median_1w` が保存される
-  - [ ] 63営業日以上で `median_3m` が保存される
-  - [ ] 252営業日以上で `median_1y` が保存される
-  - [ ] 再計算処理は通知送信を発生させない
-- 依存Issue
-  - BF-03
+増分バックフィル:
 
-### Issue BF-05: 運用手順と障害切り分けを追加
+```bash
+PYTHONPATH=src python scripts/run_incremental_backfill_job.py --dry-run
+PYTHONPATH=src python scripts/run_incremental_backfill_job.py
+```
 
-- 概要
-  - 実行手順・確認観点を運用ドキュメントへ追記する。
-- 背景/目的
-  - 本番運用での再現性と復旧速度を担保するため。
-- スコープ
-  - 実行コマンド例
-  - 失敗時チェック項目（APIキー、期間、銘柄コード、Firestore書き込み）
-  - 期待される出力例
-- 受け入れ基準
-  - [ ] 運用ドキュメントにコマンドと確認手順が追記される
-  - [ ] 「通知が来ない」「中央値が埋まらない」の切り分け導線がある
-- 依存Issue
-  - BF-03
-  - BF-04
+## 4. 失敗時ポリシー
 
+1. APIキー未設定は明示的エラーで停止する
+2. J-Quants API失敗時は例外/ログで追跡可能にする
+3. 不正な銘柄コード・不正日付は入力エラーとして扱う
+4. サイレント失敗は禁止
+
+## 5. 運用確認ポイント
+
+1. dry-runで対象銘柄数と生成件数を確認する
+2. 実行後に `daily_metrics` が更新されていることを確認する
+3. 必要に応じて `metric_medians` / `signal_state` の最新日付を確認する
+4. 通知系ジョブと混同しない（バックフィルは通知送信そのものを目的としない）
