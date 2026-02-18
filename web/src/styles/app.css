@@ -374,11 +374,16 @@ th {
   grid-template-columns: minmax(250px, 320px) minmax(0, 1fr);
 }
 
+.help-layout > * {
+  min-width: 0;
+}
+
 .help-sidebar {
   padding: 14px;
   display: grid;
   gap: 14px;
   align-content: start;
+  overflow-x: hidden;
 }
 
 .help-category {
@@ -408,6 +413,12 @@ th {
   font-weight: 600;
 }
 
+.help-link span,
+.help-link small {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .help-link small {
   color: #475569;
   font-size: 0.8rem;
@@ -423,7 +434,7 @@ th {
 .help-content {
   padding: 18px;
   min-height: 420px;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 .help-meta-row {
@@ -449,6 +460,10 @@ th {
 
 .help-markdown h1:first-child {
   margin-top: 0;
+}
+
+.help-markdown {
+  min-width: 0;
 }
 
 .help-markdown p,
