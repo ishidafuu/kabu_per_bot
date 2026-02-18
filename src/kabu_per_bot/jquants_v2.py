@@ -137,6 +137,9 @@ class JQuantsV2Client:
                 filtered.append(row)
         return filtered
 
+    def get_earnings_calendar(self) -> list[dict[str, Any]]:
+        return self._get_paginated(path="/equities/earnings-calendar", params={})
+
     def _get_paginated(
         self,
         *,

@@ -56,6 +56,11 @@ def parse_args() -> argparse.Namespace:
         help="Discord webhook URL. Required unless --stdout is set.",
     )
     parser.add_argument(
+        "--jquants-api-key",
+        default=os.environ.get("JQUANTS_API_KEY", "").strip(),
+        help="J-Quants API v2 key. If set, J-Quants is used as first market-data source.",
+    )
+    parser.add_argument(
         "--execution-mode",
         choices=("all", "daily", "at_21"),
         default="daily",
@@ -164,7 +169,9 @@ def main() -> int:
 
     result = run_daily_pipeline(
         watchlist_items=watchlist_items,
-        market_data_source=create_default_market_data_source(),
+        market_data_source=create_default_market_data_source(
+            jquants_api_key=getattr(args, "jquants_api_key", ""),
+        ),
         daily_metrics_repo=daily_repo,
         medians_repo=medians_repo,
         signal_state_repo=signal_repo,

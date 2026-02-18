@@ -4,6 +4,7 @@ import unittest
 
 from kabu_per_bot.market_data import (
     FallbackMarketDataSource,
+    JQuantsMarketDataSource,
     KabutanMarketDataSource,
     MarketDataFetchError,
     MarketDataSnapshot,
@@ -81,6 +82,26 @@ class FakeHttpClient:
         return None
 
 
+class FakeJQuantsClient:
+    def __init__(self, *, bars: list[dict] | None = None, summary: list[dict] | None = None, earnings: list[dict] | None = None) -> None:
+        self.bars = bars or []
+        self.summary = summary or []
+        self.earnings = earnings or []
+        self.calls: list[str] = []
+
+    def get_eq_bars_daily(self, **kwargs):
+        self.calls.append(f"bars:{kwargs.get('code_or_ticker')}")
+        return self.bars
+
+    def get_fin_summary(self, **kwargs):
+        self.calls.append(f"summary:{kwargs.get('code_or_ticker')}")
+        return self.summary
+
+    def get_earnings_calendar(self):
+        self.calls.append("earnings")
+        return self.earnings
+
+
 class MarketDataSourceTest(unittest.TestCase):
     def test_fallback_uses_next_source(self) -> None:
         provider = FallbackMarketDataSource(
@@ -120,6 +141,32 @@ class MarketDataSourceTest(unittest.TestCase):
             yahoo_client=FakeHttpClient({}),
         )
         self.assertEqual([source.source_name for source in provider._sources], ["四季報online", "株探", "Yahoo!ファイナンス"])
+
+    def test_default_source_order_uses_jquants_when_api_key_set(self) -> None:
+        provider = create_default_market_data_source(
+            jquants_api_key="test-key",
+            shikiho_client=FakeHttpClient({}),
+            kabutan_client=FakeHttpClient({}),
+            yahoo_client=FakeHttpClient({}),
+        )
+        self.assertEqual(
+            [source.source_name for source in provider._sources],
+            ["J-Quants v2", "四季報online", "株探", "Yahoo!ファイナンス"],
+        )
+
+    def test_jquants_source_parses_snapshot(self) -> None:
+        client = FakeJQuantsClient(
+            bars=[{"Date": "2026-02-18", "C": 1234.5}],
+            summary=[{"DiscDate": "2026-02-14", "DiscTime": "15:30:00", "DiscNo": "1", "FEPS": 100.0, "FSales": 50000.0}],
+            earnings=[{"Code": "39840", "Date": "2026-02-19"}],
+        )
+        source = JQuantsMarketDataSource(jquants_client=client, lookback_days=30)
+        snapshot = source.fetch_snapshot("3984:TSE")
+        self.assertEqual(snapshot.source, "J-Quants v2")
+        self.assertEqual(snapshot.close_price, 1234.5)
+        self.assertEqual(snapshot.eps_forecast, 100.0)
+        self.assertEqual(snapshot.sales_forecast, 50000.0)
+        self.assertEqual(snapshot.earnings_date, "2026-02-19")
 
     def test_kabutan_source_parses_snapshot(self) -> None:
         stock_url = "https://kabutan.jp/stock/?code=7203"

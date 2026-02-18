@@ -37,6 +37,7 @@ PYTHONPATH=src python scripts/run_daily_job.py
 - Firestore `watchlist` を読み込み、日次パイプラインを実行する。
 - 実行結果は `daily_metrics` / `metric_medians` / `signal_state` / `notification_log` に保存される。
 - `--stdout` 未指定時は `--discord-webhook-url` または `DISCORD_WEBHOOK_URL` が必要。
+- `JQUANTS_API_KEY` または `--jquants-api-key` を指定した場合、市場データ取得で `J-Quants v2` を最優先で試行し、その後に `四季報online → 株探 → Yahoo!ファイナンス` へフォールバックする。
 - `--execution-mode daily|at_21|all` で通知タイミング対象を選択できる（既定: `daily`）。
   - `daily`: `notify_timing=IMMEDIATE` の銘柄のみ
   - `at_21`: `notify_timing=AT_21` の銘柄のみ

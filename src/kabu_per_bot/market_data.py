@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import html
 import logging
 import re
@@ -9,6 +9,7 @@ from typing import Protocol
 
 import httpx
 
+from kabu_per_bot.jquants_v2 import JQuantsV2Client
 from kabu_per_bot.storage.firestore_schema import normalize_ticker
 
 
@@ -324,20 +325,128 @@ class YahooFinanceMarketDataSource(_HttpMarketDataSource):
         )
 
 
+class JQuantsMarketDataSource:
+    def __init__(
+        self,
+        *,
+        api_key: str | None = None,
+        jquants_client: JQuantsV2Client | None = None,
+        lookback_days: int = 45,
+    ) -> None:
+        if lookback_days <= 0:
+            raise ValueError("lookback_days must be > 0.")
+
+        if jquants_client is not None:
+            self._client = jquants_client
+        else:
+            api_key_value = (api_key or "").strip()
+            if not api_key_value:
+                raise ValueError("api_key is required when jquants_client is omitted.")
+            self._client = JQuantsV2Client(api_key=api_key_value)
+
+        self._lookback_days = lookback_days
+        self._earnings_calendar_cache: list[dict[str, object]] | None = None
+        self._earnings_calendar_cache_date: date | None = None
+
+    @property
+    def source_name(self) -> str:
+        return "J-Quants v2"
+
+    def fetch_snapshot(self, ticker: str) -> MarketDataSnapshot:
+        normalized_ticker = normalize_ticker(ticker)
+        code4 = _ticker_code(normalized_ticker)
+        today_jst = datetime.now(timezone(timedelta(hours=9))).date()
+        from_date = (today_jst - timedelta(days=self._lookback_days)).isoformat()
+        to_date = today_jst.isoformat()
+
+        try:
+            bars_daily = self._client.get_eq_bars_daily(
+                code_or_ticker=normalized_ticker,
+                from_date=from_date,
+                to_date=to_date,
+            )
+            fin_summary = self._client.get_fin_summary(
+                code_or_ticker=normalized_ticker,
+                from_date=from_date,
+                to_date=to_date,
+                lookback_days=max(self._lookback_days, 1),
+            )
+            earnings_calendar = self._get_earnings_calendar(today_jst=today_jst)
+        except Exception as exc:
+            raise MarketDataFetchError(
+                source=self.source_name,
+                ticker=normalized_ticker,
+                reason=f"J-Quants API request failed: {exc}",
+            ) from exc
+
+        close_price = _latest_close_price_from_jquants(bars_daily)
+        latest_fin = _latest_fin_summary_row(fin_summary)
+        eps_forecast = _as_float_or_none(None if latest_fin is None else latest_fin.get("FEPS"))
+        sales_forecast = _as_float_or_none(None if latest_fin is None else latest_fin.get("FSales"))
+
+        earnings_date = _find_earnings_date_from_jquants_calendar(earnings_calendar, code4)
+        if earnings_date is None and latest_fin is not None:
+            earnings_date = _as_iso_date_or_none(latest_fin.get("DiscDate"))
+
+        errors = _required_field_errors(
+            close_price=close_price,
+            eps_forecast=eps_forecast,
+            sales_forecast=sales_forecast,
+            earnings_date=earnings_date,
+        )
+        if errors:
+            raise MarketDataFetchError(source=self.source_name, ticker=normalized_ticker, reason="; ".join(errors))
+
+        return MarketDataSnapshot.create(
+            ticker=normalized_ticker,
+            close_price=close_price,
+            eps_forecast=eps_forecast,
+            sales_forecast=sales_forecast,
+            earnings_date=earnings_date,
+            source=self.source_name,
+        )
+
+    def _get_earnings_calendar(self, *, today_jst: date) -> list[dict[str, object]]:
+        if self._earnings_calendar_cache_date == today_jst and self._earnings_calendar_cache is not None:
+            return self._earnings_calendar_cache
+
+        rows = self._client.get_earnings_calendar()
+        normalized_rows = [row for row in rows if isinstance(row, dict)]
+        self._earnings_calendar_cache = normalized_rows
+        self._earnings_calendar_cache_date = today_jst
+        return normalized_rows
+
+
 def create_default_market_data_source(
     *,
+    jquants_api_key: str | None = None,
+    jquants_client: JQuantsV2Client | None = None,
+    jquants_lookback_days: int = 45,
     shikiho_client: httpx.Client | None = None,
     kabutan_client: httpx.Client | None = None,
     yahoo_client: httpx.Client | None = None,
     timeout_sec: float = 15.0,
 ) -> FallbackMarketDataSource:
-    return FallbackMarketDataSource(
+    sources: list[MarketDataSource] = []
+
+    key = (jquants_api_key or "").strip()
+    if jquants_client is not None or key:
+        sources.append(
+            JQuantsMarketDataSource(
+                api_key=key or None,
+                jquants_client=jquants_client,
+                lookback_days=jquants_lookback_days,
+            )
+        )
+
+    sources.extend(
         [
             ShikihoMarketDataSource(http_client=shikiho_client, timeout_sec=timeout_sec),
             KabutanMarketDataSource(http_client=kabutan_client, timeout_sec=timeout_sec),
             YahooFinanceMarketDataSource(http_client=yahoo_client, timeout_sec=timeout_sec),
         ]
     )
+    return FallbackMarketDataSource(sources)
 
 
 def _ticker_code(ticker: str) -> str:
@@ -434,6 +543,84 @@ def _extract_japanese_unit(value: str, unit: str) -> float:
     if not match:
         return 0.0
     return float(match.group(1))
+
+
+def _as_float_or_none(value: object) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return float(value)
+    text = str(value).strip()
+    if not text or text in {"-", "--", "---", "null", "None"}:
+        return None
+    try:
+        return float(text.replace(",", ""))
+    except ValueError:
+        return None
+
+
+def _as_iso_date_or_none(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return _parse_date_text(text)
+    except ValueError:
+        return None
+
+
+def _latest_close_price_from_jquants(rows: list[dict[str, object]]) -> float | None:
+    latest_date: date | None = None
+    latest_close: float | None = None
+
+    for row in rows:
+        raw_date = _as_iso_date_or_none(row.get("Date"))
+        if raw_date is None:
+            continue
+        trade_day = date.fromisoformat(raw_date)
+        close_price = _as_float_or_none(row.get("C"))
+        if close_price is None:
+            continue
+        if latest_date is None or trade_day >= latest_date:
+            latest_date = trade_day
+            latest_close = close_price
+    return latest_close
+
+
+def _latest_fin_summary_row(rows: list[dict[str, object]]) -> dict[str, object] | None:
+    if not rows:
+        return None
+
+    def row_key(row: dict[str, object]) -> tuple[date, str, str]:
+        disc_date = _as_iso_date_or_none(row.get("DiscDate")) or "1970-01-01"
+        disc_time = str(row.get("DiscTime", "")).strip()
+        disc_no = str(row.get("DiscNo", "")).strip()
+        return date.fromisoformat(disc_date), disc_time, disc_no
+
+    ordered = sorted(rows, key=row_key, reverse=True)
+    for row in ordered:
+        if _as_float_or_none(row.get("FEPS")) is not None and _as_float_or_none(row.get("FSales")) is not None:
+            return row
+    return ordered[0]
+
+
+def _find_earnings_date_from_jquants_calendar(rows: list[dict[str, object]], code4: str) -> str | None:
+    code5 = f"{code4}0"
+    matched_dates: list[str] = []
+    for row in rows:
+        raw_code = str(row.get("Code", "")).strip()
+        if raw_code not in {code4, code5}:
+            continue
+        date_text = _as_iso_date_or_none(row.get("Date"))
+        if date_text:
+            matched_dates.append(date_text)
+    if not matched_dates:
+        return None
+    return sorted(matched_dates)[-1]
 
 
 def _parse_date_text(value: str) -> str:

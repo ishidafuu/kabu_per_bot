@@ -137,6 +137,25 @@ class JQuantsV2ClientTest(unittest.TestCase):
         )
         self.assertEqual([row["DiscDate"] for row in rows], ["2025-01-15", "2025-08-01"])
 
+    def test_get_earnings_calendar(self) -> None:
+        fake_http = FakeHttpClient(
+            [
+                FakeResponse(
+                    status_code=200,
+                    payload={
+                        "data": [
+                            {"Date": "2026-02-19", "Code": "39840"},
+                        ]
+                    },
+                )
+            ]
+        )
+        client = JQuantsV2Client(api_key="test-key", http_client=fake_http)
+        rows = client.get_earnings_calendar()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["Code"], "39840")
+        self.assertEqual(fake_http.calls[0]["url"], "https://api.jquants.com/v2/equities/earnings-calendar")
+
 
 if __name__ == "__main__":
     unittest.main()
