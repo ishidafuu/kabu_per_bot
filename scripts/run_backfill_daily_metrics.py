@@ -123,7 +123,11 @@ def main() -> int:
                 from_date=args.from_date,
                 to_date=args.to_date,
             )
-            fin_summary = jquants_client.get_fin_summary(code_or_ticker=item.ticker)
+            fin_summary = jquants_client.get_fin_summary(
+                code_or_ticker=item.ticker,
+                from_date=args.from_date,
+                to_date=args.to_date,
+            )
             metrics = build_daily_metrics_from_jquants_v2(
                 ticker=item.ticker,
                 metric_type=item.metric_type,
@@ -192,4 +196,3 @@ if __name__ == "__main__":
     except Exception as exc:
         LOGGER.exception("backfill daily metrics failed: %s", exc)
         raise SystemExit(1) from exc
-

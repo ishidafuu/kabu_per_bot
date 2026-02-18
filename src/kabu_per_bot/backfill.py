@@ -11,6 +11,7 @@ from kabu_per_bot.watchlist import MetricType
 
 
 JST = timezone(timedelta(hours=9))
+BACKFILL_DISCLOSURE_CUTOFF_JST = time(hour=21, minute=5, second=0)
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,7 @@ def build_daily_metrics_from_jquants_v2(
     bars_daily_rows: list[dict[str, Any]],
     fin_summary_rows: list[dict[str, Any]],
     fetched_at: str,
+    disclosure_cutoff_time_jst: time = BACKFILL_DISCLOSURE_CUTOFF_JST,
 ) -> list[DailyMetric]:
     normalized_ticker = normalize_ticker(ticker)
     parsed_bars = _parse_bars(bars_daily_rows)
@@ -38,8 +40,8 @@ def build_daily_metrics_from_jquants_v2(
     sales_forecast: float | None = None
 
     for bar in parsed_bars:
-        day_end = datetime.combine(bar.trade_date, time(hour=23, minute=59, second=59), tzinfo=JST)
-        while next_forecast_index < len(forecast_points) and forecast_points[next_forecast_index].disclosed_at <= day_end:
+        day_cutoff = datetime.combine(bar.trade_date, disclosure_cutoff_time_jst, tzinfo=JST)
+        while next_forecast_index < len(forecast_points) and forecast_points[next_forecast_index].disclosed_at <= day_cutoff:
             point = forecast_points[next_forecast_index]
             if point.eps_forecast is not None:
                 eps_forecast = point.eps_forecast
@@ -150,4 +152,3 @@ def _as_float(value: Any) -> float | None:
     if text in {"-", "null", "None"}:
         return None
     return float(text.replace(",", ""))
-

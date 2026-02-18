@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from datetime import date
+from datetime import timedelta
 from typing import Any
+from typing import Callable
+import time as time_module
 
 import httpx
 
@@ -56,14 +59,24 @@ class JQuantsV2Client:
         api_key: str,
         base_url: str = JQUANTS_V2_BASE_URL,
         timeout_sec: float = 30.0,
+        retry_count: int = 3,
+        retry_base_sec: float = 1.0,
+        sleep_func: Callable[[float], None] | None = None,
         http_client: httpx.Client | None = None,
     ) -> None:
         api_key_value = api_key.strip()
         if not api_key_value:
             raise ValueError("api_key is required.")
+        if retry_count < 0:
+            raise ValueError("retry_count must be >= 0.")
+        if retry_base_sec <= 0:
+            raise ValueError("retry_base_sec must be > 0.")
         self._api_key = api_key_value
         self._base_url = base_url.rstrip("/")
         self._timeout_sec = timeout_sec
+        self._retry_count = retry_count
+        self._retry_base_sec = retry_base_sec
+        self._sleep = sleep_func or time_module.sleep
         self._owns_client = http_client is None
         self._http_client = http_client or httpx.Client()
 
@@ -92,11 +105,37 @@ class JQuantsV2Client:
         self,
         *,
         code_or_ticker: str,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        lookback_days: int = 400,
     ) -> list[dict[str, Any]]:
+        if lookback_days <= 0:
+            raise ValueError("lookback_days must be > 0.")
         params = {
             "code": normalize_jquants_code(code_or_ticker),
         }
-        return self._get_paginated(path="/fins/summary", params=params)
+        rows = self._get_paginated(path="/fins/summary", params=params)
+        if from_date is None and to_date is None:
+            return rows
+        if from_date is None or to_date is None:
+            raise ValueError("from_date and to_date must be both set or both omitted.")
+
+        from_day = date.fromisoformat(normalize_jquants_date(from_date))
+        to_day = date.fromisoformat(normalize_jquants_date(to_date))
+        lower_bound = from_day - timedelta(days=lookback_days)
+
+        filtered: list[dict[str, Any]] = []
+        for row in rows:
+            raw_disc_date = str(row.get("DiscDate", "")).strip()
+            if not raw_disc_date:
+                continue
+            try:
+                disc_day = date.fromisoformat(normalize_jquants_date(raw_disc_date))
+            except Exception:
+                continue
+            if lower_bound <= disc_day <= to_day:
+                filtered.append(row)
+        return filtered
 
     def _get_paginated(
         self,
@@ -125,24 +164,49 @@ class JQuantsV2Client:
 
     def _get_json(self, *, url: str, params: dict[str, Any]) -> dict[str, Any]:
         headers = {"x-api-key": self._api_key}
-        try:
-            response = self._http_client.get(url, params=params, headers=headers, timeout=self._timeout_sec)
-        except Exception as exc:
-            raise JQuantsV2ApiError(f"http request failed: {exc}") from exc
+        attempt = 0
+        while True:
+            try:
+                response = self._http_client.get(url, params=params, headers=headers, timeout=self._timeout_sec)
+            except Exception as exc:
+                if attempt < self._retry_count:
+                    self._sleep(self._retry_sleep_sec(attempt))
+                    attempt += 1
+                    continue
+                raise JQuantsV2ApiError(f"http request failed: {exc}") from exc
 
-        if response.status_code in {401, 403}:
-            raise JQuantsV2AuthError(f"auth failed: status={response.status_code}")
-        if response.status_code >= 400:
-            preview = response.text[:200].replace("\n", " ")
-            raise JQuantsV2ApiError(
-                f"request failed: status={response.status_code} url={url} body={preview}"
-            )
+            if response.status_code in {401, 403}:
+                raise JQuantsV2AuthError(f"auth failed: status={response.status_code}")
 
-        try:
-            payload = response.json()
-        except Exception as exc:
-            raise JQuantsV2ApiError("response is not valid JSON.") from exc
-        if not isinstance(payload, dict):
-            raise JQuantsV2ApiError("response JSON root must be object.")
-        return payload
+            if self._should_retry_status(response.status_code) and attempt < self._retry_count:
+                self._sleep(self._retry_sleep_sec(attempt, retry_after_raw=response.headers.get("Retry-After")))
+                attempt += 1
+                continue
 
+            if response.status_code >= 400:
+                preview = response.text[:200].replace("\n", " ")
+                raise JQuantsV2ApiError(
+                    f"request failed: status={response.status_code} url={url} body={preview}"
+                )
+
+            try:
+                payload = response.json()
+            except Exception as exc:
+                raise JQuantsV2ApiError("response is not valid JSON.") from exc
+            if not isinstance(payload, dict):
+                raise JQuantsV2ApiError("response JSON root must be object.")
+            return payload
+
+    @staticmethod
+    def _should_retry_status(status_code: int) -> bool:
+        return status_code in {429, 500, 502, 503, 504}
+
+    def _retry_sleep_sec(self, attempt: int, *, retry_after_raw: str | None = None) -> float:
+        if retry_after_raw:
+            try:
+                retry_after = float(retry_after_raw)
+                if retry_after > 0:
+                    return retry_after
+            except Exception:
+                pass
+        return self._retry_base_sec * (2**attempt)
