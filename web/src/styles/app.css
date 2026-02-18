@@ -423,6 +423,7 @@ th {
 .help-content {
   padding: 18px;
   min-height: 420px;
+  overflow-x: auto;
 }
 
 .help-meta-row {
@@ -431,12 +432,19 @@ th {
   gap: 4px;
 }
 
+.help-meta-row p {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .help-markdown h1,
 .help-markdown h2,
 .help-markdown h3,
 .help-markdown h4 {
   margin-top: 1.3em;
   margin-bottom: 0.5em;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .help-markdown h1:first-child {
@@ -448,6 +456,7 @@ th {
 .help-markdown ol {
   margin: 0 0 0.85em;
   line-height: 1.7;
+  overflow-wrap: anywhere;
 }
 
 .help-markdown li {
@@ -459,6 +468,12 @@ th {
   border-radius: 6px;
   padding: 1px 6px;
   font-size: 0.92em;
+}
+
+.help-markdown :not(pre) > code {
+  white-space: break-spaces;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .help-markdown pre {
