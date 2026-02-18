@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 from typing import Protocol
 
@@ -172,5 +172,14 @@ def refresh_latest_medians_and_signal(
     )
     previous_state = signal_state_repo.get_latest(item.ticker)
     state = build_signal_state(evaluation=evaluation, previous_state=previous_state)
+    if (
+        previous_state is not None
+        and previous_state.trade_date == latest_metric.trade_date
+        and previous_state.category == state.category
+        and previous_state.combo == state.combo
+        and previous_state.is_strong == state.is_strong
+    ):
+        # Same trade_date re-evaluation should not degrade streak_days.
+        state = replace(state, streak_days=previous_state.streak_days)
     signal_state_repo.upsert(state)
     return True

@@ -148,10 +148,17 @@ def main() -> int:
     total_generated = 0
     total_upserted = 0
     total_errors = 0
+    latest_metrics_by_ticker = {}
+    bulk_loader = getattr(daily_repo, "list_latest_by_tickers", None)
+    if callable(bulk_loader):
+        latest_metrics_by_ticker = bulk_loader([item.ticker for item in watch_items])
 
     for item in watch_items:
-        latest_rows = daily_repo.list_recent(item.ticker, limit=1)
-        latest_trade_date = latest_rows[0].trade_date if latest_rows else None
+        latest_metric = latest_metrics_by_ticker.get(item.ticker)
+        if latest_metric is None and not callable(bulk_loader):
+            latest_rows = daily_repo.list_recent(item.ticker, limit=1)
+            latest_metric = latest_rows[0] if latest_rows else None
+        latest_trade_date = latest_metric.trade_date if latest_metric is not None else None
         from_date = resolve_incremental_from_date(
             latest_trade_date=latest_trade_date,
             to_date=to_date,
