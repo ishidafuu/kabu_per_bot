@@ -105,6 +105,19 @@ PYTHONPATH=src python scripts/run_earnings_job.py --job tomorrow --discord-webho
 - `tomorrow`: 毎日21時（JST）想定。翌日分を `明日決算` カテゴリで通知。
 - `--discord-webhook-url` 未指定時は `DISCORD_WEBHOOK_URL` を利用。
 
+## J-Quants v2 バックフィル（Issue BF-01〜03 着手）
+
+`daily_metrics` の過去データを J-Quants v2（Light）から補完する実行コマンド:
+
+```bash
+PYTHONPATH=src python scripts/run_backfill_daily_metrics.py --from-date 2025-02-01 --to-date 2026-02-18 --dry-run
+PYTHONPATH=src python scripts/run_backfill_daily_metrics.py --from-date 2025-02-01 --to-date 2026-02-18
+```
+
+- APIキーは `JQUANTS_API_KEY`（環境変数）または `--api-key` で指定。
+- `--tickers 3984:TSE,6238:TSE` で対象銘柄を絞り込み可能。
+- 現時点の着手範囲は `daily_metrics` への投入まで（中央値・シグナル再計算は次Issue）。
+
 ## IR/SNS/AI通知ジョブ実行
 
 ウォッチリストの `ir_urls` / `x_official_account` / `x_executive_accounts` を監視し、`IR更新` / `SNS注目` / `AI注目` を通知する実行コマンド:
