@@ -24,9 +24,14 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 12px;
   padding: 16px 20px;
+}
+
+.top-bar > * {
+  min-width: 0;
 }
 
 h1,
@@ -38,6 +43,9 @@ h2 {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
 }
 
 p {
