@@ -420,7 +420,6 @@ def create_default_market_data_source(
     jquants_api_key: str | None = None,
     jquants_client: JQuantsV2Client | None = None,
     jquants_lookback_days: int = 45,
-    shikiho_client: httpx.Client | None = None,
     kabutan_client: httpx.Client | None = None,
     yahoo_client: httpx.Client | None = None,
     timeout_sec: float = 15.0,
@@ -439,7 +438,6 @@ def create_default_market_data_source(
 
     sources.extend(
         [
-            ShikihoMarketDataSource(http_client=shikiho_client, timeout_sec=timeout_sec),
             KabutanMarketDataSource(http_client=kabutan_client, timeout_sec=timeout_sec),
             YahooFinanceMarketDataSource(http_client=yahoo_client, timeout_sec=timeout_sec),
         ]

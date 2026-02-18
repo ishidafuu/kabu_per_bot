@@ -136,22 +136,20 @@ class MarketDataSourceTest(unittest.TestCase):
 
     def test_default_source_order_is_fixed(self) -> None:
         provider = create_default_market_data_source(
-            shikiho_client=FakeHttpClient({}),
             kabutan_client=FakeHttpClient({}),
             yahoo_client=FakeHttpClient({}),
         )
-        self.assertEqual([source.source_name for source in provider._sources], ["四季報online", "株探", "Yahoo!ファイナンス"])
+        self.assertEqual([source.source_name for source in provider._sources], ["株探", "Yahoo!ファイナンス"])
 
     def test_default_source_order_uses_jquants_when_api_key_set(self) -> None:
         provider = create_default_market_data_source(
             jquants_api_key="test-key",
-            shikiho_client=FakeHttpClient({}),
             kabutan_client=FakeHttpClient({}),
             yahoo_client=FakeHttpClient({}),
         )
         self.assertEqual(
             [source.source_name for source in provider._sources],
-            ["J-Quants v2", "四季報online", "株探", "Yahoo!ファイナンス"],
+            ["J-Quants v2", "株探", "Yahoo!ファイナンス"],
         )
 
     def test_jquants_source_parses_snapshot(self) -> None:
