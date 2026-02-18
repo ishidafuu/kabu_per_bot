@@ -523,6 +523,12 @@ th {
   white-space: normal;
 }
 
+@media (max-width: 1200px) {
+  .help-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .kpi-card {
   padding: 14px;
 }
