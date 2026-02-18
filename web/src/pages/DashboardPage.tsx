@@ -78,35 +78,26 @@ export const DashboardPage = () => {
     setOpsForbidden(false);
 
     try {
-      const [summaryResponse, opsResponse] = await Promise.all([
-        client.getSummary(),
-        client.getAdminOpsSummary().catch((error: unknown) => {
-          if (error instanceof ApiError && error.status === 403) {
-            setOpsForbidden(true);
-            return null;
-          }
-          throw error;
-        }),
-      ]);
+      const summaryResponse = await client.getSummary();
       setSummary(summaryResponse);
+    } catch (error) {
+      setLoadError(toUserMessage(error));
+    }
+
+    try {
+      const opsResponse = await client.getAdminOpsSummary();
       setOpsSummary(opsResponse);
     } catch (error) {
-      setSummary(null);
       if (error instanceof ApiError && error.status === 403) {
         setOpsForbidden(true);
-        setLoadError('');
-        return;
-      }
-      const message = toUserMessage(error);
-      if (!summary) {
-        setLoadError(message);
+        setOpsSummary(null);
       } else {
-        setOpsError(message);
+        setOpsError(toUserMessage(error));
       }
     } finally {
       setIsLoading(false);
     }
-  }, [client, summary]);
+  }, [client]);
 
   const refreshOps = useCallback(async (): Promise<void> => {
     if (opsForbidden) {

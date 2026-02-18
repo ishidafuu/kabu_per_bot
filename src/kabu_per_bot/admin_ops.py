@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import os
 import re
 import time
@@ -13,6 +13,8 @@ from kabu_per_bot.storage.firestore_schema import normalize_ticker, normalize_tr
 _CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 _RUNNING_STATUSES = {"PENDING", "RUNNING"}
 _DAILY_JOB_KEYS = {"daily", "daily_at21"}
+_RUN_LOOKUP_TIMEOUT_SECONDS = 12
+_RUN_LOOKUP_INTERVAL_SECONDS = 0.5
 
 
 class AdminOpsError(RuntimeError):
@@ -117,16 +119,16 @@ class CloudRunAdminOpsService:
         elif backfill is not None:
             raise AdminOpsConfigError("backfill指定は job=backfill でのみ使用できます。")
 
+        requested_at = datetime.now(timezone.utc)
         self._request_json(
             method="POST",
             url=f"{self._base_run_url}/jobs/{job_name}:run",
             payload=payload if payload else {},
         )
-        time.sleep(0.7)
-        latest = self.list_executions(job_key=job_key, limit=1)
-        if not latest:
+        execution = self._wait_for_new_execution(job_key=job.key, requested_at=requested_at)
+        if execution is None:
             raise AdminOpsError(f"job={job_name} の実行開始を確認できませんでした。")
-        return latest[0]
+        return execution
 
     def list_executions(self, *, job_key: str, limit: int = 20) -> tuple[JobExecution, ...]:
         job = self._resolve_job(job_key)
@@ -247,6 +249,20 @@ class CloudRunAdminOpsService:
                 skip_reasons=(),
                 skip_reason_error=f"スキップ理由集計に失敗しました: {exc}",
             )
+
+    def _wait_for_new_execution(self, *, job_key: str, requested_at: datetime) -> JobExecution | None:
+        deadline = time.monotonic() + _RUN_LOOKUP_TIMEOUT_SECONDS
+        threshold = requested_at - timedelta(seconds=2)
+        while time.monotonic() <= deadline:
+            executions = self.list_executions(job_key=job_key, limit=20)
+            for row in executions:
+                row_created_at = _parse_iso_datetime_or_none(row.create_time)
+                if row_created_at is None:
+                    continue
+                if row_created_at >= threshold:
+                    return row
+            time.sleep(_RUN_LOOKUP_INTERVAL_SECONDS)
+        return None
 
     def _list_skip_reasons(self, *, job_name: str, execution_name: str) -> dict[str, int]:
         filter_expr = (
@@ -411,6 +427,18 @@ def _as_iso_or_none(value: Any) -> str | None:
         return parsed.astimezone(timezone.utc).isoformat()
     except ValueError:
         return text
+
+
+def _parse_iso_datetime_or_none(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _as_non_empty_str_or_none(value: Any) -> str | None:
