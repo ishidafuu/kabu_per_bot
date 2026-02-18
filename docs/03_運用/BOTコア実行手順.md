@@ -104,6 +104,7 @@ PYTHONPATH=src python scripts/run_intelligence_job.py --discord-webhook-url <DIS
 - `AI_NOTIFICATIONS_ENABLED=true` かつ銘柄設定 `ai_enabled=true` で `【AI注目】` を送信。
 - SNS監視には `X_API_BEARER_TOKEN` が必要（未設定時は `【データ不明】` 通知）。
 - AI要約は `Vertex AI Gemini` を利用し、`VERTEX_AI_LOCATION` / `VERTEX_AI_MODEL` で変更できる。
+- IRリンク先の HTML/PDF 本文を取得し、本文テキストを要約対象として扱う。
 - `--execution-mode daily|at_21` で通知時間フィルタを指定可能。
 
 ## 8. マイグレーション

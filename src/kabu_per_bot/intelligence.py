@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from enum import Enum
 import hashlib
 import html
+from io import BytesIO
 import json
 import logging
 import re
@@ -98,10 +99,20 @@ class CompositeIntelSource:
 class IRWebsiteIntelSource:
     _HREF_PATTERN = re.compile(r"<a[^>]+href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>", flags=re.I | re.S)
 
-    def __init__(self, *, timeout_sec: float = 15.0, max_events_per_url: int = 5) -> None:
+    def __init__(
+        self,
+        *,
+        timeout_sec: float = 15.0,
+        max_events_per_url: int = 5,
+        max_content_chars: int = 3000,
+        max_pdf_pages: int = 8,
+        http_client: Any | None = None,
+    ) -> None:
         self._timeout_sec = timeout_sec
         self._max_events_per_url = max_events_per_url
-        self._client = httpx.Client(
+        self._max_content_chars = max_content_chars
+        self._max_pdf_pages = max_pdf_pages
+        self._client = http_client or httpx.Client(
             headers={
                 "User-Agent": "Mozilla/5.0 (compatible; kabu-per-bot/1.0)",
                 "Accept-Language": "ja,en-US;q=0.8,en;q=0.6",
@@ -141,7 +152,8 @@ class IRWebsiteIntelSource:
         base_url: str,
         now_iso: str,
     ) -> list[IntelEvent]:
-        events: list[IntelEvent] = []
+        candidates: list[tuple[str, str]] = []
+        seen_urls: set[str] = set()
         for href, label in self._HREF_PATTERN.findall(page):
             title = _normalize_title(label)
             if len(title) < 4:
@@ -149,6 +161,16 @@ class IRWebsiteIntelSource:
             absolute_url = urljoin(base_url, href.strip())
             if not absolute_url.startswith("http"):
                 continue
+            if absolute_url in seen_urls:
+                continue
+            seen_urls.add(absolute_url)
+            candidates.append((title, absolute_url))
+            if len(candidates) >= self._max_events_per_url:
+                break
+
+        events: list[IntelEvent] = []
+        for title, absolute_url in candidates:
+            content = self._request_event_content(ticker=ticker, url=absolute_url, fallback_text=title)
             events.append(
                 IntelEvent(
                     ticker=ticker,
@@ -157,13 +179,38 @@ class IRWebsiteIntelSource:
                     url=absolute_url,
                     published_at=now_iso,
                     source_label="IRサイト",
-                    content=title,
+                    content=content,
                 )
             )
-        unique: dict[str, IntelEvent] = {}
-        for event in events:
-            unique[event.url] = event
-        return list(unique.values())
+        return events
+
+    def _request_event_content(self, *, ticker: str, url: str, fallback_text: str) -> str:
+        try:
+            response = self._client.get(url, timeout=self._timeout_sec)
+            response.raise_for_status()
+        except Exception as exc:
+            LOGGER.warning("IR本文取得失敗: ticker=%s url=%s error=%s", ticker, url, exc)
+            return fallback_text
+
+        try:
+            content_type = str(getattr(response, "headers", {}).get("content-type", "")).lower()
+            if url.lower().endswith(".pdf") or "application/pdf" in content_type:
+                extracted = _extract_pdf_text(
+                    payload=response.content,
+                    max_pages=self._max_pdf_pages,
+                    ticker=ticker,
+                    url=url,
+                )
+            else:
+                extracted = _extract_html_text(response.text)
+        except Exception as exc:
+            LOGGER.warning("IR本文解析失敗: ticker=%s url=%s error=%s", ticker, url, exc)
+            return fallback_text
+
+        normalized = _normalize_content_text(extracted, max_chars=self._max_content_chars)
+        if len(normalized) < 20:
+            return fallback_text
+        return normalized
 
 
 class XApiIntelSource:
@@ -573,3 +620,38 @@ def _normalize_confidence(value: str, *, fallback_text: str) -> str:
     if normalized in mapping:
         return mapping[normalized]
     return _estimate_confidence(fallback_text)
+
+
+def _extract_html_text(body: str) -> str:
+    normalized = re.sub(r"<script[^>]*>.*?</script>", " ", body, flags=re.I | re.S)
+    normalized = re.sub(r"<style[^>]*>.*?</style>", " ", normalized, flags=re.I | re.S)
+    normalized = re.sub(r"<[^>]+>", " ", normalized)
+    normalized = html.unescape(normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _extract_pdf_text(*, payload: bytes, max_pages: int, ticker: str, url: str) -> str:
+    try:
+        from pypdf import PdfReader
+    except ModuleNotFoundError as exc:
+        raise IntelSourceError(
+            f"IR本文取得失敗: ticker={ticker} url={url} reason=pypdf_not_installed"
+        ) from exc
+
+    reader = PdfReader(BytesIO(payload))
+    collected: list[str] = []
+    for index, page in enumerate(reader.pages):
+        if index >= max_pages:
+            break
+        text = page.extract_text() or ""
+        text = re.sub(r"\s+", " ", text).strip()
+        if text:
+            collected.append(text)
+    return "\n".join(collected).strip()
+
+
+def _normalize_content_text(text: str, *, max_chars: int) -> str:
+    normalized = re.sub(r"\s+", " ", text).strip()
+    if len(normalized) <= max_chars:
+        return normalized
+    return normalized[:max_chars].rstrip()
