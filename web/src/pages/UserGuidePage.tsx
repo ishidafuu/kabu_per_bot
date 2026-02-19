@@ -24,8 +24,10 @@ interface HelpDocIndex {
 }
 
 const TRADER_GUIDE_ID = 'docs/04_利用ガイド/トレーダー向け_使い方手順書.md';
-const OPS_DETAIL_GUIDE_ID = 'docs/03_運用/ジョブ実行と通知抑制の詳細整理.md';
-const OPS_QUICK_GUIDE_ID = 'docs/03_運用/ジョブ実行と通知抑制_早見表.md';
+const PROJECT_OVERVIEW_DOC_ID = 'docs/04_利用ガイド/プロジェクト全体像_非エンジニア向け/01_このプロジェクトの全体像.md';
+const WEB_USAGE_DOC_ID = 'docs/04_利用ガイド/プロジェクト全体像_非エンジニア向け/06_管理画面（Web）でできること.md';
+const DAILY_NOTIFICATION_DOC_ID = 'docs/04_利用ガイド/プロジェクト全体像_非エンジニア向け/03_日次の割安判定と通知.md';
+const TRADER_DOC_PREFIX = 'docs/04_利用ガイド/';
 
 const extractSectionTitles = (markdown: string): string[] => {
   const titles: string[] = [];
@@ -66,6 +68,19 @@ const findDocById = (index: HelpDocIndex | null, id: string): HelpDocItem | null
   return null;
 };
 
+const filterTraderCategories = (index: HelpDocIndex | null): HelpDocCategory[] => {
+  if (!index) {
+    return [];
+  }
+
+  return index.categories
+    .map((category) => ({
+      ...category,
+      items: category.items.filter((item) => item.id.startsWith(TRADER_DOC_PREFIX)),
+    }))
+    .filter((category) => category.items.length > 0);
+};
+
 const getFirstDocId = (index: HelpDocIndex | null): string => {
   if (!index) {
     return '';
@@ -75,6 +90,22 @@ const getFirstDocId = (index: HelpDocIndex | null): string => {
     return preferred.id;
   }
   return index.categories[0]?.items[0]?.id ?? '';
+};
+
+const getFirstTraderDocId = (index: HelpDocIndex | null): string => {
+  const traderCategories = filterTraderCategories(index);
+  if (traderCategories.length === 0) {
+    return '';
+  }
+
+  for (const preferredId of [TRADER_GUIDE_ID, PROJECT_OVERVIEW_DOC_ID, WEB_USAGE_DOC_ID]) {
+    const preferred = findDocById({ generated_at: '', categories: traderCategories }, preferredId);
+    if (preferred) {
+      return preferred.id;
+    }
+  }
+
+  return traderCategories[0]?.items[0]?.id ?? '';
 };
 
 const formatGeneratedAt = (value: string): string => {
@@ -118,7 +149,7 @@ export const UserGuidePage = () => {
         }
 
         setIndex(payload);
-        setSelectedDocId((current) => current || getFirstDocId(payload));
+        setSelectedDocId((current) => current || getFirstTraderDocId(payload) || getFirstDocId(payload));
       } catch {
         if (cancelled) {
           return;
@@ -140,9 +171,12 @@ export const UserGuidePage = () => {
     };
   }, []);
 
+  const traderCategories = useMemo(() => filterTraderCategories(index), [index]);
   const selectedDoc = useMemo(() => findDocById(index, selectedDocId), [index, selectedDocId]);
-  const opsDetailDoc = useMemo(() => findDocById(index, OPS_DETAIL_GUIDE_ID), [index]);
-  const opsQuickDoc = useMemo(() => findDocById(index, OPS_QUICK_GUIDE_ID), [index]);
+  const traderGuideDoc = useMemo(() => findDocById(index, TRADER_GUIDE_ID), [index]);
+  const projectOverviewDoc = useMemo(() => findDocById(index, PROJECT_OVERVIEW_DOC_ID), [index]);
+  const webUsageDoc = useMemo(() => findDocById(index, WEB_USAGE_DOC_ID), [index]);
+  const dailyNotificationDoc = useMemo(() => findDocById(index, DAILY_NOTIFICATION_DOC_ID), [index]);
 
   useEffect(() => {
     if (!selectedDoc) {
@@ -205,62 +239,88 @@ export const UserGuidePage = () => {
   };
 
   return (
-    <AppLayout title="ヘルプ / ドキュメント">
-      <section className="panel guide-panel">
-        <h2>使い方ヘルプ</h2>
+    <AppLayout title="使い方ガイド" subtitle="トレーダー向けに、管理サイトで日々見るポイントを整理しています。">
+      <section className="panel guide-hero">
+        <p className="guide-hero-badge">トレーダー向け</p>
+        <h2>管理ページの使い方とプロジェクト概要</h2>
+        <p className="muted">
+          運用コマンドや技術詳細ではなく、毎日の確認順と判断に必要な情報を中心にまとめています。
+        </p>
         <p className="muted">最終同期: {generatedAt}（JST）</p>
-        <div className="help-summary-grid">
-          <div className="help-summary-card">
-            <h3>表示中ドキュメント</h3>
-            <p className="muted">{selectedDoc?.title ?? '未選択'}</p>
-            {firstSectionTitle && (
-              <button type="button" className="ghost help-jump-button" onClick={() => scrollToSection(firstSectionTitle)}>
-                最初の章へ移動
-              </button>
-            )}
+        <div className="guide-quick-grid">
+          <button
+            type="button"
+            className="guide-quick-card"
+            disabled={!traderGuideDoc}
+            onClick={() => {
+              if (traderGuideDoc) {
+                setSelectedDocId(traderGuideDoc.id);
+              }
+            }}
+          >
+            <span className="guide-quick-card-title">最短スタート</span>
+            <span className="muted">最初の3分で必要な設定と、日々の確認順を把握</span>
+          </button>
+          <button
+            type="button"
+            className="guide-quick-card"
+            disabled={!projectOverviewDoc}
+            onClick={() => {
+              if (projectOverviewDoc) {
+                setSelectedDocId(projectOverviewDoc.id);
+              }
+            }}
+          >
+            <span className="guide-quick-card-title">プロジェクト全体像</span>
+            <span className="muted">この仕組みが何を自動化し、どこまでを支援するかを確認</span>
+          </button>
+          <button
+            type="button"
+            className="guide-quick-card"
+            disabled={!webUsageDoc}
+            onClick={() => {
+              if (webUsageDoc) {
+                setSelectedDocId(webUsageDoc.id);
+              }
+            }}
+          >
+            <span className="guide-quick-card-title">管理サイトでできること</span>
+            <span className="muted">ダッシュボード、ウォッチリスト、通知ログの役割を把握</span>
+          </button>
+        </div>
+      </section>
+
+      <section className="panel guide-section">
+        <h3>日々の使い方（要点）</h3>
+        <div className="guide-steps">
+          <div className="guide-step">
+            <p className="guide-step-title">1. ダッシュボード</p>
+            <p className="muted">失敗ジョブ有無とデータ不明件数を先に確認します。</p>
           </div>
-          <div className="help-summary-card">
-            <h3>通知運用の詳細</h3>
-            <p className="muted">ジョブ実行順序と通知抑制条件を詳細に確認できます。</p>
-            {opsDetailDoc && (
-              <button
-                type="button"
-                className="ghost help-jump-button"
-                onClick={() => {
-                  setSelectedDocId(opsDetailDoc.id);
-                }}
-              >
-                詳細整理を開く
-              </button>
-            )}
+          <div className="guide-step">
+            <p className="guide-step-title">2. 通知ログ</p>
+            <p className="muted">当日の通知カテゴリと条件キーを確認します。</p>
           </div>
-          <div className="help-summary-card">
-            <h3>通知トラブルの早見</h3>
-            <p className="muted">通知が来ない時の確認順を短時間で見直せます。</p>
-            {opsQuickDoc && (
-              <button
-                type="button"
-                className="ghost help-jump-button"
-                onClick={() => {
-                  setSelectedDocId(opsQuickDoc.id);
-                }}
-              >
-                早見表を開く
-              </button>
-            )}
+          <div className="guide-step">
+            <p className="guide-step-title">3. ウォッチリスト</p>
+            <p className="muted">主要銘柄の有効状態・通知タイミング・現在値を確認します。</p>
+          </div>
+          <div className="guide-step">
+            <p className="guide-step-title">4. 必要時のみ設定変更</p>
+            <p className="muted">変更した日は履歴ページで操作記録を見直します。</p>
           </div>
         </div>
       </section>
 
       <section className="help-layout">
         <aside className="panel help-sidebar" aria-label="ガイド一覧">
-          <h3>ドキュメント一覧</h3>
-          <p className="muted">カテゴリごとに閲覧対象を切り替えできます。</p>
+          <h3>トレーダー向けガイド一覧</h3>
+          <p className="muted">技術仕様・運用コマンドはここでは表示していません。</p>
           {isIndexLoading && <p className="muted">ガイドを準備中です...</p>}
           {indexError && <p className="error-text">{indexError}</p>}
-          {!isIndexLoading && !indexError && index && (
+          {!isIndexLoading && !indexError && traderCategories.length > 0 && (
             <div className="help-links">
-              {index.categories.map((category) => (
+              {traderCategories.map((category) => (
                 <div key={category.key} className="help-category">
                   <h3>{category.label}</h3>
                   <div className="help-links">
@@ -308,7 +368,11 @@ export const UserGuidePage = () => {
           {selectedDoc && (
             <div className="help-meta-row">
               <p className="muted">表示中: {selectedDoc.title}</p>
-              <p className="muted">ソース: {selectedDoc.source_path}</p>
+              {firstSectionTitle && (
+                <button type="button" className="ghost help-jump-button fit-content" onClick={() => scrollToSection(firstSectionTitle)}>
+                  最初の章へ移動
+                </button>
+              )}
             </div>
           )}
 
@@ -318,6 +382,24 @@ export const UserGuidePage = () => {
           {!isDocLoading && !docError && markdown && (
             <div className="help-markdown">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+            </div>
+          )}
+
+          {!isDocLoading && !docError && !markdown && (
+            <div className="help-empty-state">
+              <p className="muted">左側のガイド一覧から読みたい項目を選択してください。</p>
+              <button
+                type="button"
+                className="secondary fit-content"
+                disabled={!dailyNotificationDoc}
+                onClick={() => {
+                  if (dailyNotificationDoc) {
+                    setSelectedDocId(dailyNotificationDoc.id);
+                  }
+                }}
+              >
+                日次通知の説明を開く
+              </button>
             </div>
           )}
         </article>

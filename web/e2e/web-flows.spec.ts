@@ -115,10 +115,17 @@ test('履歴画面と通知ログ画面と使い方ページが表示される',
   await expect(page.locator('tbody tr', { hasText: '6501:TSE' }).first()).toBeVisible();
   await expect(page.locator('tbody tr', { hasText: '6501:TSE' }).first()).toContainText('PSR');
 
-  await page.getByRole('link', { name: '使い方' }).click();
+  await page.getByRole('link', { name: '使い方ガイド' }).click();
   await expect(page).toHaveURL(/\/guide$/);
-  await expect(page.getByRole('heading', { name: 'ヘルプ / ドキュメント' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'kabu_per_bot 管理画面 使い方手順書' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '使い方ガイド' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '管理ページの使い方とプロジェクト概要' })).toBeVisible();
+  await expect(page.getByText('技術仕様・運用コマンドはここでは表示していません。')).toBeVisible();
+
+  await page.setViewportSize({ width: 1366, height: 2200 });
+  await page.screenshot({ path: 'test-results/guide-desktop.png', fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 2200 });
+  await page.screenshot({ path: 'test-results/guide-mobile.png', fullPage: true });
 });
 
 test('/ops で immediate_schedule 保存と手動実行ができ、通知ログ画面に遷移できる', async ({ page }) => {

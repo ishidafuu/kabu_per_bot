@@ -16,11 +16,11 @@ interface NavItem {
 
 const PRIMARY_NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', label: 'ダッシュボード' },
+  { to: '/guide', label: '使い方ガイド' },
   { to: '/watchlist', label: 'ウォッチリスト', end: true },
   { to: '/watchlist/history', label: '履歴' },
   { to: '/notifications/logs', label: '通知ログ' },
   { to: '/ops', label: '運用操作' },
-  { to: '/guide', label: '使い方' },
 ];
 
 export const AppLayout = ({ title, subtitle, children }: AppLayoutProps): ReactNode => {
