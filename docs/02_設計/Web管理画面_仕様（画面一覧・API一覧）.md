@@ -163,7 +163,7 @@
     - `notify_channel`（固定値 `DISCORD`）
     - `notify_timing`
     - `always_notify_enabled`（任意）
-    - `ai_enabled`（任意）
+    - `ai_enabled`（任意・互換用。未指定/指定値に関わらず常時有効として扱う）
     - `is_active`（任意）
   - 201: 作成成功
   - 409: 重複
@@ -177,7 +177,7 @@
     - `metric_type`（任意）
     - `notify_timing`（任意）
     - `always_notify_enabled`（任意）
-    - `ai_enabled`（任意）
+    - `ai_enabled`（任意・互換用。未指定/指定値に関わらず常時有効として扱う）
     - `is_active`（任意）
   - 200: 更新成功
   - 404: 該当なし

@@ -28,7 +28,7 @@ export const buildWatchlistPayload = (
     notify_timing: values.notify_timing,
     always_notify_enabled: values.always_notify_enabled,
     is_active: values.is_active,
-    ai_enabled: values.ai_enabled,
+    ai_enabled: true,
     reason: values.reason.trim() || undefined,
     ir_urls: parseMultilineValues(values.ir_urls_text),
     x_official_account: values.x_official_account.trim() || undefined,

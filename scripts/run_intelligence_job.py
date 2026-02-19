@@ -389,7 +389,7 @@ def _run_source_scoped_pipeline(
             intel_notification_max_age_days=runtime_settings.intel_notification_max_age_days,
             channel=channel,
             execution_mode=execution_mode,
-            ai_global_enabled=settings.ai_notifications_enabled,
+            ai_global_enabled=True,
         ),
     )
     LOGGER.info(

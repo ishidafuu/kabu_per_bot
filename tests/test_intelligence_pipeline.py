@@ -78,10 +78,16 @@ class StaticAnalyzer:
 
 
 class IntelligencePipelineTest(unittest.TestCase):
-    def _watch_item(self, *, ai_enabled: bool = True) -> WatchlistItem:
+    def _watch_item(
+        self,
+        *,
+        ai_enabled: bool = True,
+        ticker: str = "3901:TSE",
+        name: str = "富士フイルム",
+    ) -> WatchlistItem:
         return WatchlistItem(
-            ticker="3901:TSE",
-            name="富士フイルム",
+            ticker=ticker,
+            name=name,
             metric_type=MetricType.PER,
             notify_channel=NotifyChannel.DISCORD,
             notify_timing=NotifyTiming.IMMEDIATE,
@@ -263,10 +269,11 @@ class IntelligencePipelineTest(unittest.TestCase):
         )
 
         self.assertEqual(result.processed_tickers, 1)
-        self.assertEqual(result.sent_notifications, 1)
+        self.assertEqual(result.sent_notifications, 2)
         self.assertEqual(result.skipped_notifications, 0)
-        self.assertEqual(len(sender.messages), 1)
+        self.assertEqual(len(sender.messages), 2)
         self.assertIn("【SNS注目】", sender.messages[0])
+        self.assertIn("【AI注目】", sender.messages[1])
         self.assertEqual(len(seen_repo.seen), 1)
 
     def test_ir_initial_run_uses_ir_history_only(self) -> None:
@@ -390,10 +397,66 @@ class IntelligencePipelineTest(unittest.TestCase):
         )
 
         self.assertEqual(result.processed_tickers, 1)
-        self.assertEqual(result.sent_notifications, 1)
+        self.assertEqual(result.sent_notifications, 2)
         self.assertEqual(result.skipped_notifications, 0)
-        self.assertEqual(len(sender.messages), 1)
+        self.assertEqual(len(sender.messages), 2)
         self.assertIn("【IR更新】", sender.messages[0])
+        self.assertIn("【AI注目】", sender.messages[1])
+
+    def test_sends_update_then_ai_without_interleaving_other_ticker(self) -> None:
+        source = StaticSource(
+            events=[
+                IntelEvent(
+                    ticker="3901:TSE",
+                    kind=IntelKind.IR,
+                    title="決算資料を公開",
+                    url="https://example.com/ir/1",
+                    published_at="2026-02-15T00:00:00+09:00",
+                    source_label="IRサイト",
+                    content="決算資料を公開しました",
+                ),
+                IntelEvent(
+                    ticker="9504:TSE",
+                    kind=IntelKind.IR,
+                    title="決算短信を公開",
+                    url="https://example.com/ir/9504",
+                    published_at="2026-02-15T00:00:00+09:00",
+                    source_label="IRサイト",
+                    content="決算短信を公開しました",
+                ),
+            ]
+        )
+        sender = CollectSender()
+        log_repo = InMemoryLogRepo()
+        seen_repo = InMemorySeenRepo(
+            seen_tickers={"3901:TSE", "9504:TSE"},
+            seen_ticker_kinds={("3901:TSE", IntelKind.IR), ("9504:TSE", IntelKind.IR)},
+        )
+        result = run_intelligence_pipeline(
+            watchlist_items=[
+                self._watch_item(ai_enabled=False, ticker="3901:TSE", name="富士フイルム"),
+                self._watch_item(ai_enabled=False, ticker="9504:TSE", name="北海道電力"),
+            ],
+            source=source,
+            analyzer=StaticAnalyzer(),
+            seen_repo=seen_repo,
+            notification_log_repo=log_repo,
+            sender=sender,
+            config=IntelligencePipelineConfig(
+                cooldown_hours=2,
+                now_iso="2026-02-15T00:10:00+09:00",
+                intel_notification_max_age_days=14,
+                execution_mode=NotificationExecutionMode.ALL,
+                ai_global_enabled=True,
+            ),
+        )
+
+        self.assertEqual(result.processed_tickers, 2)
+        self.assertEqual(result.sent_notifications, 4)
+        self.assertIn("【IR更新】3901:TSE", sender.messages[0])
+        self.assertIn("【AI注目】3901:TSE", sender.messages[1])
+        self.assertIn("【IR更新】9504:TSE", sender.messages[2])
+        self.assertIn("【AI注目】9504:TSE", sender.messages[3])
 
 
 if __name__ == "__main__":

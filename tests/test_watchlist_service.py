@@ -164,7 +164,7 @@ class WatchlistServiceTest(unittest.TestCase):
             }
         )
         self.assertTrue(item.always_notify_enabled)
-        self.assertFalse(item.ai_enabled)
+        self.assertTrue(item.ai_enabled)
         self.assertTrue(item.is_active)
 
     def test_from_document_legacy_notify_channel_maps_to_discord(self) -> None:

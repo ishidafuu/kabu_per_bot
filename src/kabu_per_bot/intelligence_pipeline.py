@@ -55,7 +55,8 @@ class IntelligencePipelineConfig:
     intel_notification_max_age_days: int = 30
     channel: str = "DISCORD"
     execution_mode: NotificationExecutionMode = NotificationExecutionMode.ALL
-    ai_global_enabled: bool = False
+    # 互換フィールド。現行運用ではAI要約は常時試行する。
+    ai_global_enabled: bool = True
 
 
 def run_intelligence_pipeline(
@@ -184,30 +185,29 @@ def _process_ticker(
         sent += dispatched_sent
         skipped += dispatched_skipped
 
-        if config.ai_global_enabled and item.ai_enabled:
-            try:
-                insight = analyzer.analyze(item=item, event=event)
-                ai_message = format_ai_attention_message(
-                    ticker=item.ticker,
-                    company_name=item.name,
-                    event=event,
-                    insight=insight,
-                )
-                ai_sent, ai_skipped = _dispatch_with_cooldown(
-                    message=ai_message,
-                    ticker=item.ticker,
-                    is_strong=False,
-                    notification_log_repo=notification_log_repo,
-                    sender=sender,
-                    cooldown_hours=config.cooldown_hours,
-                    now_iso=config.now_iso,
-                    channel=config.channel,
-                )
-                sent += ai_sent
-                skipped += ai_skipped
-            except AiAnalyzeError as exc:
-                LOGGER.error("AI解析失敗: ticker=%s url=%s error=%s", item.ticker, event.url, exc)
-                errors += 1
+        try:
+            insight = analyzer.analyze(item=item, event=event)
+            ai_message = format_ai_attention_message(
+                ticker=item.ticker,
+                company_name=item.name,
+                event=event,
+                insight=insight,
+            )
+            ai_sent, ai_skipped = _dispatch_with_cooldown(
+                message=ai_message,
+                ticker=item.ticker,
+                is_strong=False,
+                notification_log_repo=notification_log_repo,
+                sender=sender,
+                cooldown_hours=config.cooldown_hours,
+                now_iso=config.now_iso,
+                channel=config.channel,
+            )
+            sent += ai_sent
+            skipped += ai_skipped
+        except AiAnalyzeError as exc:
+            LOGGER.error("AI解析失敗: ticker=%s url=%s error=%s", item.ticker, event.url, exc)
+            errors += 1
 
         seen_repo.mark_seen(event, seen_at=config.now_iso)
 

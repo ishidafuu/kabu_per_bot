@@ -105,7 +105,7 @@ class WatchlistCreateRequest(BaseModel):
     notify_channel: NotifyChannel
     notify_timing: NotifyTiming
     always_notify_enabled: bool = False
-    ai_enabled: bool = False
+    ai_enabled: bool = True
     is_active: bool = True
     reason: str | None = Field(default=None, max_length=200)
     ir_urls: list[str] = Field(default_factory=list, max_length=10)
@@ -153,7 +153,6 @@ class WatchlistUpdateRequest(BaseModel):
                 self.notify_channel is not None,
                 self.notify_timing is not None,
                 self.always_notify_enabled is not None,
-                self.ai_enabled is not None,
                 self.is_active is not None,
                 self.ir_urls is not None,
                 self.x_official_account is not None,

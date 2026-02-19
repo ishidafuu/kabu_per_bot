@@ -238,7 +238,7 @@ export class MockWatchlistClient implements WatchlistClient {
       x_official_account: normalizedInput.x_official_account ?? null,
       x_executive_accounts: normalizedInput.x_executive_accounts ?? [],
       is_active: normalizedInput.is_active ?? true,
-      ai_enabled: normalizedInput.ai_enabled ?? false,
+      ai_enabled: true,
     };
 
     mockStore = [created, ...mockStore];
@@ -264,6 +264,7 @@ export class MockWatchlistClient implements WatchlistClient {
       ...current,
       ...input,
       name: input.name != null ? input.name.trim() : current.name,
+      ai_enabled: true,
     };
 
     mockStore = [

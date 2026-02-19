@@ -17,7 +17,6 @@ export interface WatchlistFormValues {
   x_official_account: string;
   x_executive_accounts_text: string;
   is_active: boolean;
-  ai_enabled: boolean;
 }
 
 interface WatchlistFormProps {
@@ -44,7 +43,6 @@ const buildInitialValues = (item?: WatchlistItem): WatchlistFormValues => {
     x_official_account: item?.x_official_account ?? '',
     x_executive_accounts_text: formatExecutiveAccounts(item?.x_executive_accounts ?? []),
     is_active: item?.is_active ?? true,
-    ai_enabled: item?.ai_enabled ?? false,
   };
 };
 
@@ -235,18 +233,8 @@ export const WatchlistForm = ({
             />
             有効
           </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={values.ai_enabled}
-              onChange={(event) => {
-                updateField('ai_enabled', event.target.checked);
-              }}
-            />
-            AI通知
-          </label>
         </div>
-        <p className="muted">AI注目通知を有効化します（全体設定ON時に配信）。</p>
+        <p className="muted">AI要約通知は常時有効です（全銘柄対象）。</p>
 
         {(localError || apiErrorMessage) && (
           <p className="error-text">{localError || apiErrorMessage}</p>

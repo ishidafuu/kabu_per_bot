@@ -86,7 +86,7 @@ class WatchlistItem:
     notify_channel: NotifyChannel
     notify_timing: NotifyTiming
     always_notify_enabled: bool = False
-    ai_enabled: bool = False
+    ai_enabled: bool = True
     is_active: bool = True
     ir_urls: tuple[str, ...] = ()
     x_official_account: str | None = None
@@ -107,7 +107,8 @@ class WatchlistItem:
                 field_name="always_notify_enabled",
                 default=False,
             ),
-            ai_enabled=_coerce_bool(data.get("ai_enabled"), field_name="ai_enabled", default=False),
+            # 廃止済みの個別トグル。互換のため保持するが、常時有効として扱う。
+            ai_enabled=True,
             is_active=_coerce_bool(data.get("is_active"), field_name="is_active", default=True),
             ir_urls=_parse_ir_urls(data.get("ir_urls")),
             x_official_account=_normalize_optional_x_handle(data.get("x_official_account")),
@@ -269,7 +270,7 @@ class WatchlistService:
         notify_channel: NotifyChannel | str,
         notify_timing: NotifyTiming | str,
         always_notify_enabled: bool = False,
-        ai_enabled: bool = False,
+        ai_enabled: bool = True,
         is_active: bool = True,
         ir_urls: list[str] | tuple[str, ...] | None = None,
         x_official_account: str | None = None,
@@ -287,7 +288,7 @@ class WatchlistService:
             notify_channel=NotifyChannel(self._enum_input(notify_channel)),
             notify_timing=NotifyTiming(self._enum_input(notify_timing)),
             always_notify_enabled=bool(always_notify_enabled),
-            ai_enabled=bool(ai_enabled),
+            ai_enabled=True,
             is_active=bool(is_active),
             ir_urls=_normalize_ir_urls(ir_urls),
             x_official_account=_normalize_optional_x_handle(x_official_account),
@@ -374,7 +375,7 @@ class WatchlistService:
             always_notify_enabled=(
                 existing.always_notify_enabled if always_notify_enabled is None else bool(always_notify_enabled)
             ),
-            ai_enabled=existing.ai_enabled if ai_enabled is None else bool(ai_enabled),
+            ai_enabled=True,
             is_active=existing.is_active if is_active is None else bool(is_active),
             ir_urls=existing.ir_urls if ir_urls is None else _normalize_ir_urls(ir_urls),
             x_official_account=(

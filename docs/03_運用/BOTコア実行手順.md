@@ -162,7 +162,7 @@ PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source ir_only --d
 PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source grok_only --respect-grok-schedule --discord-webhook-url-sns <DISCORD_WEBHOOK_URL_INTELLIGENCE_SNS>
 ```
 
-- `AI_NOTIFICATIONS_ENABLED=true` かつ銘柄設定 `ai_enabled=true` で `【AI注目】` を送信。
+- `【AI注目】` はウォッチリスト銘柄に対して常時送信を試行（AI失敗時は `IR更新` / `SNS注目` のみ継続）。
 - SNS監視（Grok）には `GROK_API_KEY` が必要（未設定時は `【データ不明】` 通知）。
 - モデルは `GROK_MODEL_FAST` を優先し、抽出失敗時は `GROK_MODEL_REASONING` へフォールバック。
 - `--intel-source ir_only|grok_only|all` でIR/Grokの実行範囲を分離できる。
