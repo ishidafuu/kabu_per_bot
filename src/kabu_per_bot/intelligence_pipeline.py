@@ -292,7 +292,8 @@ def _is_event_recent(*, event: IntelEvent, now_iso: str, max_age_days: int) -> b
     now = _parse_iso_datetime(now_iso)
     published_at = _parse_iso_datetime_or_none(event.published_at)
     if published_at is None:
-        return False
+        # 公開日が取得できないイベントは取りこぼし防止のため通知対象とする。
+        return True
     threshold = now - timedelta(days=max_age_days)
     return published_at >= threshold
 

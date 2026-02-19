@@ -235,6 +235,45 @@ class IntelligencePipelineTest(unittest.TestCase):
         self.assertEqual(len(sender.messages), 0)
         self.assertEqual(len(seen_repo.seen), 1)
 
+    def test_event_without_published_at_is_sent_after_initial_run(self) -> None:
+        source = StaticSource(
+            events=[
+                IntelEvent(
+                    ticker="3901:TSE",
+                    kind=IntelKind.IR,
+                    title="公開日不明のIR",
+                    url="https://example.com/ir/undated",
+                    published_at="",
+                    source_label="IRサイト",
+                    content="本文",
+                )
+            ]
+        )
+        sender = CollectSender()
+        log_repo = InMemoryLogRepo()
+        seen_repo = InMemorySeenRepo(seen_tickers={"3901:TSE"})
+        result = run_intelligence_pipeline(
+            watchlist_items=[self._watch_item(ai_enabled=False)],
+            source=source,
+            analyzer=StaticAnalyzer(),
+            seen_repo=seen_repo,
+            notification_log_repo=log_repo,
+            sender=sender,
+            config=IntelligencePipelineConfig(
+                cooldown_hours=2,
+                now_iso="2026-02-15T00:10:00+09:00",
+                intel_notification_max_age_days=14,
+                execution_mode=NotificationExecutionMode.ALL,
+                ai_global_enabled=True,
+            ),
+        )
+
+        self.assertEqual(result.processed_tickers, 1)
+        self.assertEqual(result.sent_notifications, 1)
+        self.assertEqual(result.skipped_notifications, 0)
+        self.assertEqual(len(sender.messages), 1)
+        self.assertIn("【IR更新】", sender.messages[0])
+
 
 if __name__ == "__main__":
     unittest.main()
