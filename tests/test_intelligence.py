@@ -498,16 +498,20 @@ class IntelligenceTest(unittest.TestCase):
             [
                 FakeGrokResponse(
                     payload={
-                        "choices": [
+                        "output": [
                             {
-                                "message": {
-                                    "content": (
-                                        '{"posts":[{"url":"https://x.com/fuji/status/1",'
-                                        '"published_at":"2026-02-15T09:30:00+09:00",'
-                                        '"account":"@fuji_ir","source_label":"公式",'
-                                        '"summary":"新製品の受注進捗を開示"}]}'
-                                    )
-                                }
+                                "type": "message",
+                                "content": [
+                                    {
+                                        "type": "output_text",
+                                        "text": (
+                                            '{"posts":[{"url":"https://x.com/fuji/status/1",'
+                                            '"published_at":"2026-02-15T09:30:00+09:00",'
+                                            '"account":"@fuji_ir","source_label":"公式",'
+                                            '"summary":"新製品の受注進捗を開示"}]}'
+                                        ),
+                                    }
+                                ],
                             }
                         ]
                     }
@@ -538,6 +542,16 @@ class IntelligenceTest(unittest.TestCase):
         self.assertEqual(events[0].url, "https://x.com/fuji/status/1")
         self.assertEqual(events[0].title, "@fuji_ir")
         self.assertEqual(events[0].source_label, "公式")
+        self.assertEqual(
+            events[0].published_at,
+            "2026-02-15T00:30:00+00:00",
+        )
+        self.assertTrue(client.calls[0]["url"].endswith("/responses"))
+        self.assertEqual(client.calls[0]["json"]["tools"], [{"type": "x_search"}])
+        self.assertEqual(client.calls[0]["json"]["tool_choice"], "required")
+        self.assertIn("text", client.calls[0]["json"])
+        self.assertEqual(client.calls[0]["json"]["text"]["format"]["type"], "json_schema")
+        self.assertIn("input", client.calls[0]["json"])
 
     def test_grok_prompt_source_raises_when_api_key_missing(self) -> None:
         item = self._watch_item()
@@ -553,7 +567,17 @@ class IntelligenceTest(unittest.TestCase):
     def test_grok_prompt_source_returns_empty_when_first_model_has_no_posts(self) -> None:
         client = FakeGrokClient(
             [
-                FakeGrokResponse(payload={"choices": [{"message": {"content": '{"posts":[]}'}}]}),
+                FakeGrokResponse(
+                    payload={
+                        "output": [
+                            {
+                                "type": "message",
+                                "content": [{"type": "output_text", "text": '{"posts":[]}'}
+                                ],
+                            }
+                        ]
+                    }
+                ),
             ]
         )
         source = GrokPromptIntelSource(
@@ -573,19 +597,32 @@ class IntelligenceTest(unittest.TestCase):
     def test_grok_prompt_source_fallbacks_when_first_model_json_invalid(self) -> None:
         client = FakeGrokClient(
             [
-                FakeGrokResponse(payload={"choices": [{"message": {"content": "not-json"}}]}),
                 FakeGrokResponse(
                     payload={
-                        "choices": [
+                        "output": [
                             {
-                                "message": {
-                                    "content": (
-                                        '{"posts":[{"url":"https://x.com/fuji/status/3",'
-                                        '"published_at":"2026-02-15T12:30:00+09:00",'
-                                        '"account":"@fuji_ir","source_label":"公式",'
-                                        '"summary":"工場稼働率の改善を投稿"}]}'
-                                    )
-                                }
+                                "type": "message",
+                                "content": [{"type": "output_text", "text": "not-json"}],
+                            }
+                        ]
+                    }
+                ),
+                FakeGrokResponse(
+                    payload={
+                        "output": [
+                            {
+                                "type": "message",
+                                "content": [
+                                    {
+                                        "type": "output_text",
+                                        "text": (
+                                            '{"posts":[{"url":"https://x.com/fuji/status/3",'
+                                            '"published_at":"2026-02-15T12:30:00+09:00",'
+                                            '"account":"@fuji_ir","source_label":"公式",'
+                                            '"summary":"工場稼働率の改善を投稿"}]}'
+                                        ),
+                                    }
+                                ],
                             }
                         ]
                     }

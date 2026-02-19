@@ -425,9 +425,18 @@ class GrokPromptIntelSource:
         return []
 
     def _call_chat(self, *, model: str, item: WatchlistItem, now_iso: str) -> str:
+        return self._call_responses_with_x_search(model=model, item=item, now_iso=now_iso)
+
+    def _call_responses_with_x_search(self, *, model: str, item: WatchlistItem, now_iso: str) -> str:
+        prompt = _build_grok_prompt(
+            item=item,
+            now_iso=now_iso,
+            max_events=self._max_events_per_ticker,
+            template=self._prompt_template,
+        )
         payload = {
             "model": model,
-            "messages": [
+            "input": [
                 {
                     "role": "system",
                     "content": (
@@ -437,24 +446,29 @@ class GrokPromptIntelSource:
                 },
                 {
                     "role": "user",
-                    "content": _build_grok_prompt(
-                        item=item,
-                        now_iso=now_iso,
-                        max_events=self._max_events_per_ticker,
-                        template=self._prompt_template,
-                    ),
+                    "content": prompt,
                 },
             ],
+            "tools": [{"type": "x_search"}],
+            "tool_choice": "required",
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": "grok_sns_posts",
+                    "schema": _grok_posts_json_schema(),
+                    "strict": True,
+                }
+            },
             "temperature": 0.1,
         }
-        endpoint = f"{self._api_base_url}/chat/completions"
+        endpoint = f"{self._api_base_url}/responses"
         try:
             response = self._client.post(endpoint, json=payload, timeout=self._timeout_sec)
             response.raise_for_status()
             body = response.json()
         except Exception as exc:
             raise IntelSourceError(f"SNS取得失敗: ticker={item.ticker} model={model} reason={exc}") from exc
-        return _extract_chat_completion_text(body, ticker=item.ticker)
+        return _extract_grok_output_text(body, ticker=item.ticker)
 
     def _parse_events(self, *, item: WatchlistItem, now_iso: str, content: str) -> list[IntelEvent]:
         parsed = _parse_grok_posts_json(content=content, ticker=item.ticker)
@@ -615,6 +629,63 @@ def _build_grok_prompt(*, item: WatchlistItem, now_iso: str, max_events: int, te
     )
 
 
+def _grok_posts_json_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "posts": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string"},
+                        "published_at": {"type": "string"},
+                        "account": {"type": "string"},
+                        "source_label": {"type": "string"},
+                        "summary": {"type": "string"},
+                    },
+                    "required": ["url", "published_at", "account", "source_label", "summary"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["posts"],
+        "additionalProperties": False,
+    }
+
+
+def _extract_grok_output_text(payload: dict[str, Any], *, ticker: str) -> str:
+    text = _extract_responses_output_text(payload)
+    if text:
+        return text
+    return _extract_chat_completion_text(payload, ticker=ticker)
+
+
+def _extract_responses_output_text(payload: dict[str, Any]) -> str:
+    output = payload.get("output")
+    if not isinstance(output, list):
+        return ""
+    texts: list[str] = []
+    for row in output:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("type", "")).strip() != "message":
+            continue
+        content = row.get("content")
+        if not isinstance(content, list):
+            continue
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            part_type = str(part.get("type", "")).strip()
+            if part_type not in {"output_text", "text"}:
+                continue
+            text_value = str(part.get("text", "")).strip()
+            if text_value:
+                texts.append(text_value)
+    return "\n".join(texts).strip()
+
+
 def _extract_chat_completion_text(payload: dict[str, Any], *, ticker: str) -> str:
     choices = payload.get("choices")
     if not isinstance(choices, list) or not choices:
@@ -715,6 +786,9 @@ def _normalize_published_at(*, value: Any, fallback_iso: str) -> str:
     try:
         parsed = datetime.fromisoformat(text)
     except ValueError:
+        parsed_header = _parse_http_datetime_iso8601(text)
+        if parsed_header:
+            return parsed_header
         return fallback_iso
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
