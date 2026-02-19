@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
+from typing import Callable
 from zoneinfo import ZoneInfo
 
 from kabu_per_bot.discord_notifier import DiscordNotifier
@@ -160,6 +161,19 @@ def _channel_for_scope(scope: str) -> str:
         return DISCORD_INTELLIGENCE_IR_CHANNEL
     if scope == "grok_only":
         return DISCORD_INTELLIGENCE_SNS_CHANNEL
+    raise ValueError(f"unsupported scope: {scope}")
+
+
+def _scope_may_emit(*, scope: str, runtime_settings, now_iso: str | None) -> bool:
+    if scope == "ir_only":
+        return True
+    if scope == "grok_only":
+        if not runtime_settings.grok_sns_settings.enabled:
+            return False
+        return _is_scheduled_grok_time(
+            now_iso=now_iso,
+            scheduled_time=runtime_settings.grok_sns_settings.scheduled_time,
+        )
     raise ValueError(f"unsupported scope: {scope}")
 
 
@@ -346,7 +360,7 @@ def _run_source_scoped_pipeline(
     analyzer,
     seen_repo,
     notification_log_repo,
-    sender,
+    sender_factory: Callable[[str], object],
     channel: str,
     execution_mode: NotificationExecutionMode,
 ) -> PipelineResult:
@@ -360,6 +374,7 @@ def _run_source_scoped_pipeline(
     if not source.sources:
         LOGGER.info("IR/SNSパイプラインをスキップ: scope=%s reason=sourceなし", scope)
         return PipelineResult()
+    sender = sender_factory(scope)
 
     result = run_intelligence_pipeline(
         watchlist_items=watchlist_items,
@@ -411,7 +426,10 @@ def main() -> int:
             print(json.dumps(PipelineResult().__dict__, ensure_ascii=False))
             return 0
     scopes = ("ir_only", "grok_only") if args.intel_source == "all" else (args.intel_source,)
-    scope_senders = {scope: _resolve_scope_sender(args, scope=scope) for scope in scopes}
+    required_scopes = [
+        scope for scope in scopes if _scope_may_emit(scope=scope, runtime_settings=runtime_settings, now_iso=now_iso)
+    ]
+    scope_senders = {scope: _resolve_scope_sender(args, scope=scope) for scope in required_scopes}
 
     watchlist_repo = FirestoreWatchlistRepository(client)
     log_repo = FirestoreNotificationLogRepository(client)
@@ -437,7 +455,8 @@ def main() -> int:
                 analyzer=analyzer,
                 seen_repo=seen_repo,
                 notification_log_repo=log_repo,
-                sender=scope_senders[scope],
+                sender_factory=lambda target_scope: scope_senders.get(target_scope)
+                or _resolve_scope_sender(args, scope=target_scope),
                 channel=channel,
                 execution_mode=execution_mode,
             )

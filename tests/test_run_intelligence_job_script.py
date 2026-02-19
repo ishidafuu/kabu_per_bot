@@ -257,6 +257,54 @@ class RunIntelligenceJobScriptTest(TestCase):
             with self.assertRaises(ValueError):
                 run_intelligence_job.main()
 
+    def test_main_all_scope_does_not_require_sns_webhook_when_grok_disabled(self) -> None:
+        args = run_intelligence_job.argparse.Namespace(
+            now_iso="2026-02-19T07:00:00+00:00",
+            execution_mode="all",
+            intel_source="all",
+            respect_grok_schedule=False,
+            discord_webhook_url="",
+            discord_webhook_url_ir="https://example.com/ir",
+            discord_webhook_url_sns="",
+            stdout=False,
+        )
+        settings = AppSettings(
+            app_env="test",
+            timezone="Asia/Tokyo",
+            window_1w_days=5,
+            window_3m_days=63,
+            window_1y_days=252,
+            cooldown_hours=2,
+            firestore_project_id="",
+            ai_notifications_enabled=True,
+            x_api_bearer_token="token",
+        )
+        runtime_settings = RuntimeSettings(
+            cooldown_hours=2,
+            immediate_schedule=ImmediateSchedule.default(),
+            source="firestore",
+            grok_sns_settings=GrokSnsSettings(
+                enabled=False,
+                scheduled_time="16:00",
+                per_ticker_cooldown_hours=24,
+                prompt_template="対象 {ticker}",
+            ),
+        )
+        with (
+            patch.object(run_intelligence_job, "parse_args", return_value=args),
+            patch.object(run_intelligence_job, "load_settings", return_value=settings),
+            patch.object(run_intelligence_job, "_create_firestore_client", return_value=object()),
+            patch.object(run_intelligence_job, "_resolve_runtime_config", return_value=runtime_settings),
+            patch.object(run_intelligence_job, "FirestoreWatchlistRepository", return_value=DummyWatchlistRepo()),
+            patch.object(run_intelligence_job, "FirestoreNotificationLogRepository", return_value=DummyLogRepo()),
+            patch.object(run_intelligence_job, "FirestoreIntelSeenRepository", return_value=DummySeenRepo()),
+            patch.object(run_intelligence_job, "run_intelligence_pipeline", return_value=PipelineResult()) as mocked_pipeline,
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            code = run_intelligence_job.main()
+        self.assertEqual(code, 0)
+        self.assertEqual(mocked_pipeline.call_count, 1)
+
     def test_build_intel_source_includes_grok_when_enabled(self) -> None:
         settings = AppSettings(
             app_env="test",

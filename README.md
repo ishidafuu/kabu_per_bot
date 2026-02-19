@@ -146,6 +146,7 @@ PYTHONPATH=src python scripts/run_daily_job.py --stdout --no-notification-log
 - 増分バックフィルJobは `J-Quants APIキー` の Secret（既定: `jquants-api-key`）が利用可能な場合のみ作成されます。
 - Grok Jobは `GROK_API_KEY` の Secret（既定: `grok-api-key`）が利用可能な場合のみ作成されます。
 - `scripts/setup_scheduler.sh` 実行時に `JQUANTS_API_KEY`（環境変数または `.env`）があると、Secretへ最新バージョンとして登録されます。
+- `scripts/setup_scheduler.sh` で `INTELLIGENCE_IR_SECRET_NAME` / `INTELLIGENCE_SNS_SECRET_NAME` を指定すると、IR/SNS のWebhook Secretを分離できます。
 
 日次ジョブで通知が送信されるのは、以下のいずれかに該当した場合のみです。
 
