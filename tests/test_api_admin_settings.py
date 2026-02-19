@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from kabu_per_bot.api.app import create_app
 from kabu_per_bot.api.errors import UnauthorizedError
+from kabu_per_bot.grok_billing import GrokPrepaidBalance
 from kabu_per_bot.grok_sns_settings import GrokSnsSettings
 from kabu_per_bot.immediate_schedule import ImmediateSchedule
 from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
@@ -100,6 +101,7 @@ class AdminSettingsApiTest(unittest.TestCase):
         self.assertEqual(body["cooldown_hours"], 2)
         self.assertTrue(body["immediate_schedule"]["enabled"])
         self.assertFalse(body["grok_sns"]["enabled"])
+        self.assertFalse(body["grok_balance"]["configured"])
         self.assertEqual(body["grok_sns"]["scheduled_time"], "21:10")
         self.assertEqual(body["source"], "env_default")
         self.assertIsNone(body["updated_at"])
@@ -145,9 +147,43 @@ class AdminSettingsApiTest(unittest.TestCase):
         self.assertFalse(body["immediate_schedule"]["enabled"])
         self.assertEqual(body["immediate_schedule"]["open_window_start"], "09:30")
         self.assertTrue(body["grok_sns"]["enabled"])
+        self.assertFalse(body["grok_balance"]["configured"])
         self.assertEqual(body["grok_sns"]["scheduled_time"], "20:40")
         self.assertEqual(body["source"], "firestore")
         self.assertEqual(body["updated_by"], "admin-user")
+
+    def test_get_global_settings_includes_grok_balance_when_available(self) -> None:
+        app = create_app(
+            global_settings_repository=FakeGlobalSettingsRepository(),
+            token_verifier=FakeTokenVerifier(),
+        )
+        client = TestClient(app)
+
+        with (
+            patch(
+                "kabu_per_bot.api.routes.admin_settings.load_settings",
+                return_value=_app_settings(cooldown_hours=2),
+            ),
+            patch(
+                "kabu_per_bot.api.routes.admin_settings.fetch_prepaid_balance",
+                return_value=GrokPrepaidBalance(
+                    configured=True,
+                    available=True,
+                    amount=12.34,
+                    currency="USD",
+                    fetched_at="2026-02-19T08:00:00+00:00",
+                    error=None,
+                ),
+            ),
+        ):
+            response = client.get("/api/v1/admin/settings/global", headers=_auth_header("admin-token"))
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertTrue(body["grok_balance"]["configured"])
+        self.assertTrue(body["grok_balance"]["available"])
+        self.assertEqual(body["grok_balance"]["amount"], 12.34)
+        self.assertEqual(body["grok_balance"]["currency"], "USD")
 
     def test_patch_global_settings_updates_cooldown_hours(self) -> None:
         repository = FakeGlobalSettingsRepository()

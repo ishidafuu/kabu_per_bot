@@ -83,6 +83,24 @@ const formatTime = (value?: string | null): string => {
   return new Date(value).toLocaleString('ja-JP', { hour12: false });
 };
 
+const formatGrokBalance = (settings: AdminGlobalSettings | null): string => {
+  if (settings == null) {
+    return '読込中...';
+  }
+  const balance = settings.grok_balance;
+  if (!balance.configured) {
+    return '未設定（GROK_MANAGEMENT_API_KEY / GROK_MANAGEMENT_TEAM_ID）';
+  }
+  if (!balance.available || balance.amount == null) {
+    return `取得失敗${balance.error ? `: ${balance.error}` : ''}`;
+  }
+  const amountText = balance.amount.toLocaleString('ja-JP', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
+  });
+  return `${amountText}${balance.currency ? ` ${balance.currency}` : ''}`;
+};
+
 const isVisibleJobKey = (key: AdminJobKey): key is VisibleJobKey => {
   return key !== 'backfill';
 };
@@ -138,9 +156,10 @@ export const OpsPage = () => {
     setOpsError('');
     setOpsForbidden(false);
     try {
+      const settingsResponse = await client.getAdminGlobalSettings();
+      applyGlobalSettings(settingsResponse);
       if (activeSection === 'settings') {
-        const settingsResponse = await client.getAdminGlobalSettings();
-        applyGlobalSettings(settingsResponse);
+        setOpsSummary(null);
       } else if (activeSection === 'manual') {
         const summaryResponse = await client.getAdminOpsSummary({
           includeRecentExecutions: false,
@@ -366,6 +385,10 @@ export const OpsPage = () => {
             </button>
           )}
         </div>
+        <p className="muted">
+          Grok残高: {formatGrokBalance(globalSettings)}
+          {globalSettings?.grok_balance.fetched_at ? `（${formatTime(globalSettings.grok_balance.fetched_at)} 取得）` : ''}
+        </p>
       </section>
 
       {opsForbidden && (

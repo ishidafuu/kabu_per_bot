@@ -62,6 +62,7 @@ export interface AdminGlobalSettings {
   cooldown_hours: number;
   immediate_schedule: AdminImmediateSchedule;
   grok_sns: AdminGrokSnsSettings;
+  grok_balance: AdminGrokBalance;
   source: 'env_default' | 'firestore';
   updated_at?: string | null;
   updated_by?: string | null;
@@ -72,6 +73,15 @@ export interface AdminGrokSnsSettings {
   scheduled_time: string;
   per_ticker_cooldown_hours: number;
   prompt_template: string;
+}
+
+export interface AdminGrokBalance {
+  configured: boolean;
+  available: boolean;
+  amount?: number | null;
+  currency?: string | null;
+  fetched_at?: string | null;
+  error?: string | null;
 }
 
 export interface AdminGlobalSettingsUpdatePayload {

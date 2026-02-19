@@ -308,10 +308,20 @@ class AdminGrokSnsSettingsUpdateRequest(BaseModel):
         )
 
 
+class AdminGrokBalanceResponse(BaseModel):
+    configured: bool
+    available: bool
+    amount: float | None = None
+    currency: str | None = None
+    fetched_at: str | None = None
+    error: str | None = None
+
+
 class AdminGlobalSettingsResponse(BaseModel):
     cooldown_hours: int = Field(ge=1)
     immediate_schedule: AdminImmediateScheduleResponse
     grok_sns: AdminGrokSnsSettingsResponse
+    grok_balance: AdminGrokBalanceResponse
     source: str
     updated_at: str | None = None
     updated_by: str | None = None

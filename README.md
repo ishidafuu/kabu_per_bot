@@ -53,6 +53,8 @@ uvicorn kabu_per_bot.api.app:app --reload
 - `OPS_EARNINGS_TOMORROW_JOB_NAME`（既定: `kabu-earnings-tomorrow`）
 - `DISCORD_WEBHOOK_URL`（Discord疎通テストAPIで使用）
 - `GROK_API_KEY`（SNS取得で使用）
+- `GROK_MANAGEMENT_API_KEY` / `GROK_MANAGEMENT_TEAM_ID`（運用画面のGrok残高表示で使用）
+- `GROK_MANAGEMENT_API_BASE_URL`（既定: `https://management-api.x.ai`）
 - `GROK_MODEL_FAST` / `GROK_MODEL_REASONING`（SNS取得モデル）
 - `GROK_SNS_ENABLED` / `GROK_SNS_SCHEDULED_TIME` / `GROK_SNS_PER_TICKER_COOLDOWN_HOURS` / `GROK_SNS_PROMPT_TEMPLATE`（SNS取得運用設定）
 - `WATCHLIST_REGISTRATION_BACKFILL_ENABLED`（既定: 無効。`true` の場合のみウォッチリスト登録直後バックフィルを実行）

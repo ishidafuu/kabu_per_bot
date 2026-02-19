@@ -55,6 +55,14 @@ let mockGlobalSettings: AdminGlobalSettings = {
     prompt_template:
       '以下の銘柄に関連する直近のSNS投稿を要約してください。重要度が高い話題を優先し、投稿者・時刻・URLを必ず含めてください。',
   },
+  grok_balance: {
+    configured: false,
+    available: false,
+    amount: null,
+    currency: null,
+    fetched_at: null,
+    error: 'GROK_MANAGEMENT_API_KEY または GROK_MANAGEMENT_TEAM_ID が未設定です。',
+  },
   source: 'env_default',
   updated_at: null,
   updated_by: null,
@@ -159,6 +167,7 @@ export class MockDashboardClient implements DashboardClient {
             ...payload.grok_sns,
           }
         : mockGlobalSettings.grok_sns,
+      grok_balance: mockGlobalSettings.grok_balance,
       source: 'firestore',
       updated_at: new Date().toISOString(),
       updated_by: 'mock-admin',

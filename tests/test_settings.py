@@ -22,6 +22,9 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.x_api_bearer_token, "")
         self.assertEqual(settings.grok_api_key, "")
         self.assertEqual(settings.grok_api_base_url, "https://api.x.ai/v1")
+        self.assertEqual(settings.grok_management_api_key, "")
+        self.assertEqual(settings.grok_management_team_id, "")
+        self.assertEqual(settings.grok_management_api_base_url, "https://management-api.x.ai")
         self.assertEqual(settings.grok_model_fast, "grok-4-1-fast-non-reasoning")
         self.assertEqual(settings.grok_model_reasoning, "grok-4-1-fast-reasoning")
         self.assertEqual(settings.vertex_ai_location, "global")
@@ -45,6 +48,9 @@ class LoadSettingsTest(unittest.TestCase):
                 "X_API_BEARER_TOKEN": "token-123",
                 "GROK_API_KEY": "grok-key-123",
                 "GROK_API_BASE_URL": "https://api.x.ai/v1",
+                "GROK_MANAGEMENT_API_KEY": "mgmt-key-123",
+                "GROK_MANAGEMENT_TEAM_ID": "team-abc",
+                "GROK_MANAGEMENT_API_BASE_URL": "https://management-api.x.ai",
                 "GROK_MODEL_FAST": "grok-4-1-fast-non-reasoning",
                 "GROK_MODEL_REASONING": "grok-4-1-fast-reasoning",
                 "VERTEX_AI_LOCATION": "asia-northeast1",
@@ -68,6 +74,9 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.x_api_bearer_token, "token-123")
         self.assertEqual(settings.grok_api_key, "grok-key-123")
         self.assertEqual(settings.grok_api_base_url, "https://api.x.ai/v1")
+        self.assertEqual(settings.grok_management_api_key, "mgmt-key-123")
+        self.assertEqual(settings.grok_management_team_id, "team-abc")
+        self.assertEqual(settings.grok_management_api_base_url, "https://management-api.x.ai")
         self.assertEqual(settings.grok_model_fast, "grok-4-1-fast-non-reasoning")
         self.assertEqual(settings.grok_model_reasoning, "grok-4-1-fast-reasoning")
         self.assertEqual(settings.vertex_ai_location, "asia-northeast1")

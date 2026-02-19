@@ -13,11 +13,13 @@ from kabu_per_bot.api.dependencies import (
 from kabu_per_bot.api.errors import InternalServerError
 from kabu_per_bot.api.openapi import error_responses
 from kabu_per_bot.api.schemas import (
+    AdminGrokBalanceResponse,
     AdminGlobalSettingsResponse,
     AdminGrokSnsSettingsResponse,
     AdminGlobalSettingsUpdateRequest,
     AdminImmediateScheduleResponse,
 )
+from kabu_per_bot.grok_billing import fetch_prepaid_balance
 from kabu_per_bot.grok_sns_settings import GrokSnsSettings
 from kabu_per_bot.immediate_schedule import ImmediateSchedule
 from kabu_per_bot.runtime_settings import resolve_runtime_settings
@@ -75,6 +77,11 @@ def update_admin_global_settings(
 
 def _build_global_settings_response(*, repository: GlobalSettingsRepository) -> AdminGlobalSettingsResponse:
     app_settings = load_settings()
+    grok_balance = fetch_prepaid_balance(
+        api_key=app_settings.grok_management_api_key,
+        team_id=app_settings.grok_management_team_id,
+        base_url=app_settings.grok_management_api_base_url,
+    )
     global_settings = repository.get_global_settings()
     runtime_settings = resolve_runtime_settings(
         default_cooldown_hours=app_settings.cooldown_hours,
@@ -90,6 +97,14 @@ def _build_global_settings_response(*, repository: GlobalSettingsRepository) -> 
         cooldown_hours=runtime_settings.cooldown_hours,
         immediate_schedule=AdminImmediateScheduleResponse.from_domain(runtime_settings.immediate_schedule),
         grok_sns=AdminGrokSnsSettingsResponse.from_domain(runtime_settings.grok_sns_settings),
+        grok_balance=AdminGrokBalanceResponse(
+            configured=grok_balance.configured,
+            available=grok_balance.available,
+            amount=grok_balance.amount,
+            currency=grok_balance.currency,
+            fetched_at=grok_balance.fetched_at,
+            error=grok_balance.error,
+        ),
         source=runtime_settings.source,
         updated_at=runtime_settings.updated_at,
         updated_by=runtime_settings.updated_by,

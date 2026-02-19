@@ -40,6 +40,9 @@ class AppSettings:
     x_api_bearer_token: str
     grok_api_key: str = ""
     grok_api_base_url: str = "https://api.x.ai/v1"
+    grok_management_api_key: str = ""
+    grok_management_team_id: str = ""
+    grok_management_api_base_url: str = "https://management-api.x.ai"
     grok_model_fast: str = "grok-4-1-fast-non-reasoning"
     grok_model_reasoning: str = "grok-4-1-fast-reasoning"
     vertex_ai_location: str = "global"
@@ -158,6 +161,9 @@ def load_settings(
         x_api_bearer_token=merged.get("X_API_BEARER_TOKEN", "").strip(),
         grok_api_key=merged.get("GROK_API_KEY", "").strip(),
         grok_api_base_url=_get_str(merged, "GROK_API_BASE_URL", "https://api.x.ai/v1"),
+        grok_management_api_key=merged.get("GROK_MANAGEMENT_API_KEY", "").strip(),
+        grok_management_team_id=merged.get("GROK_MANAGEMENT_TEAM_ID", "").strip(),
+        grok_management_api_base_url=_get_str(merged, "GROK_MANAGEMENT_API_BASE_URL", "https://management-api.x.ai"),
         grok_model_fast=_get_str(merged, "GROK_MODEL_FAST", "grok-4-1-fast-non-reasoning"),
         grok_model_reasoning=_get_str(merged, "GROK_MODEL_REASONING", "grok-4-1-fast-reasoning"),
         vertex_ai_location=_get_str(merged, "VERTEX_AI_LOCATION", "global"),
