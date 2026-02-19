@@ -23,6 +23,10 @@ interface HelpDocIndex {
   categories: HelpDocCategory[];
 }
 
+const TRADER_GUIDE_ID = 'docs/04_利用ガイド/トレーダー向け_使い方手順書.md';
+const OPS_DETAIL_GUIDE_ID = 'docs/03_運用/ジョブ実行と通知抑制の詳細整理.md';
+const OPS_QUICK_GUIDE_ID = 'docs/03_運用/ジョブ実行と通知抑制_早見表.md';
+
 const extractSectionTitles = (markdown: string): string[] => {
   const titles: string[] = [];
   const lines = markdown.split('\n');
@@ -66,8 +70,7 @@ const getFirstDocId = (index: HelpDocIndex | null): string => {
   if (!index) {
     return '';
   }
-  const preferredId = 'docs/04_利用ガイド/トレーダー向け_使い方手順書.md';
-  const preferred = findDocById(index, preferredId);
+  const preferred = findDocById(index, TRADER_GUIDE_ID);
   if (preferred) {
     return preferred.id;
   }
@@ -138,6 +141,8 @@ export const UserGuidePage = () => {
   }, []);
 
   const selectedDoc = useMemo(() => findDocById(index, selectedDocId), [index, selectedDocId]);
+  const opsDetailDoc = useMemo(() => findDocById(index, OPS_DETAIL_GUIDE_ID), [index]);
+  const opsQuickDoc = useMemo(() => findDocById(index, OPS_QUICK_GUIDE_ID), [index]);
 
   useEffect(() => {
     if (!selectedDoc) {
@@ -185,6 +190,7 @@ export const UserGuidePage = () => {
 
   const generatedAt = index ? formatGeneratedAt(index.generated_at) : '-';
   const sectionTitles = useMemo(() => extractSectionTitles(markdown), [markdown]);
+  const firstSectionTitle = sectionTitles[0] ?? '';
 
   const scrollToSection = (title: string): void => {
     const headings = Array.from(document.querySelectorAll<HTMLElement>('.help-markdown h2'));
@@ -205,49 +211,95 @@ export const UserGuidePage = () => {
         <p className="muted">最終同期: {generatedAt}（JST）</p>
         <div className="help-summary-grid">
           <div className="help-summary-card">
-            <h3>最短で始める</h3>
-            <p className="muted">「3分で始める」を上から順に実施すれば初期設定が完了します。</p>
-            <button type="button" className="ghost help-jump-button" onClick={() => scrollToSection('3分で始める')}>
-              3分で始めるへ移動
-            </button>
+            <h3>表示中ドキュメント</h3>
+            <p className="muted">{selectedDoc?.title ?? '未選択'}</p>
+            {firstSectionTitle && (
+              <button type="button" className="ghost help-jump-button" onClick={() => scrollToSection(firstSectionTitle)}>
+                最初の章へ移動
+              </button>
+            )}
           </div>
           <div className="help-summary-card">
-            <h3>銘柄設定を見直す</h3>
-            <p className="muted">ticker形式・通知時間・常時通知の設定ルールを確認できます。</p>
-            <button type="button" className="ghost help-jump-button" onClick={() => scrollToSection('入力ルール')}>
-              入力ルールへ移動
-            </button>
+            <h3>通知運用の詳細</h3>
+            <p className="muted">ジョブ実行順序と通知抑制条件を詳細に確認できます。</p>
+            {opsDetailDoc && (
+              <button
+                type="button"
+                className="ghost help-jump-button"
+                onClick={() => {
+                  setSelectedDocId(opsDetailDoc.id);
+                }}
+              >
+                詳細整理を開く
+              </button>
+            )}
           </div>
           <div className="help-summary-card">
-            <h3>通知トラブル確認</h3>
-            <p className="muted">通知が来ないときの確認ポイントをすぐに見られます。</p>
-            <button type="button" className="ghost help-jump-button" onClick={() => scrollToSection('よくあるトラブル')}>
-              よくあるトラブルへ移動
-            </button>
+            <h3>通知トラブルの早見</h3>
+            <p className="muted">通知が来ない時の確認順を短時間で見直せます。</p>
+            {opsQuickDoc && (
+              <button
+                type="button"
+                className="ghost help-jump-button"
+                onClick={() => {
+                  setSelectedDocId(opsQuickDoc.id);
+                }}
+              >
+                早見表を開く
+              </button>
+            )}
           </div>
         </div>
       </section>
 
       <section className="help-layout">
-        <aside className="panel help-toc" aria-label="ガイド目次">
-          <h3>目次</h3>
-          <p className="muted">必要な項目だけ素早く確認できます。</p>
+        <aside className="panel help-sidebar" aria-label="ガイド一覧">
+          <h3>ドキュメント一覧</h3>
+          <p className="muted">カテゴリごとに閲覧対象を切り替えできます。</p>
           {isIndexLoading && <p className="muted">ガイドを準備中です...</p>}
           {indexError && <p className="error-text">{indexError}</p>}
-          {!isIndexLoading && !indexError && sectionTitles.length > 0 && (
-            <div className="help-toc-links">
-              {sectionTitles.map((title) => (
-                <button
-                  key={title}
-                  type="button"
-                  className="help-toc-link"
-                  onClick={() => {
-                    scrollToSection(title);
-                  }}
-                >
-                  {title}
-                </button>
+          {!isIndexLoading && !indexError && index && (
+            <div className="help-links">
+              {index.categories.map((category) => (
+                <div key={category.key} className="help-category">
+                  <h3>{category.label}</h3>
+                  <div className="help-links">
+                    {category.items.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={`help-link ${selectedDocId === item.id ? 'active' : ''}`}
+                        onClick={() => {
+                          setSelectedDocId(item.id);
+                        }}
+                      >
+                        <span>{item.title}</span>
+                        {item.summary && <small>{item.summary}</small>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
+            </div>
+          )}
+
+          {!isIndexLoading && !indexError && sectionTitles.length > 0 && (
+            <div className="help-category">
+              <h3>表示中ドキュメントの目次</h3>
+              <div className="help-toc-links">
+                {sectionTitles.map((title) => (
+                  <button
+                    key={title}
+                    type="button"
+                    className="help-toc-link"
+                    onClick={() => {
+                      scrollToSection(title);
+                    }}
+                  >
+                    {title}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </aside>
@@ -255,8 +307,8 @@ export const UserGuidePage = () => {
         <article className="panel help-content" aria-live="polite">
           {selectedDoc && (
             <div className="help-meta-row">
-              <p className="muted">表示中: トレーダー向けガイド</p>
-              <p className="muted">最初に「3分で始める」だけ読めば基本操作は完了です。</p>
+              <p className="muted">表示中: {selectedDoc.title}</p>
+              <p className="muted">ソース: {selectedDoc.source_path}</p>
             </div>
           )}
 
