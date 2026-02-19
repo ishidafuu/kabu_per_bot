@@ -6,6 +6,7 @@ from unittest.mock import patch
 from kabu_per_bot.intelligence import (
     AiAnalyzeError,
     CompositeIntelSource,
+    GrokPromptIntelSource,
     HeuristicAiAnalyzer,
     IntelEvent,
     IntelKind,
@@ -75,6 +76,32 @@ class FakeWebClient:
         if route is None:
             raise RuntimeError(f"route not found: {url}")
         return route
+
+
+class FakeGrokResponse:
+    def __init__(self, *, payload: dict, status_code: int = 200) -> None:
+        self._payload = payload
+        self.status_code = status_code
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise RuntimeError(f"http error: status={self.status_code}")
+
+    def json(self) -> dict:
+        return self._payload
+
+
+class FakeGrokClient:
+    def __init__(self, responses: list[FakeGrokResponse]) -> None:
+        self._responses = responses
+        self.calls: list[dict] = []
+
+    def post(self, url: str, *, json: dict, timeout: float):
+        del timeout
+        self.calls.append({"url": url, "json": json})
+        if not self._responses:
+            raise RuntimeError("response not configured")
+        return self._responses.pop(0)
 
 
 class IntelligenceTest(unittest.TestCase):
@@ -442,6 +469,100 @@ class IntelligenceTest(unittest.TestCase):
 
         with self.assertRaises(IntelSourceError):
             source.fetch_events(item, now_iso="2026-02-15T00:00:00+09:00")
+
+    def test_grok_prompt_source_parses_posts_json(self) -> None:
+        client = FakeGrokClient(
+            [
+                FakeGrokResponse(
+                    payload={
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": (
+                                        '{"posts":[{"url":"https://x.com/fuji/status/1",'
+                                        '"published_at":"2026-02-15T09:30:00+09:00",'
+                                        '"account":"@fuji_ir","source_label":"公式",'
+                                        '"summary":"新製品の受注進捗を開示"}]}'
+                                    )
+                                }
+                            }
+                        ]
+                    }
+                )
+            ]
+        )
+        item = WatchlistItem(
+            ticker="3901:TSE",
+            name="富士フイルム",
+            metric_type=MetricType.PER,
+            notify_channel=NotifyChannel.DISCORD,
+            notify_timing=NotifyTiming.IMMEDIATE,
+            ai_enabled=True,
+            x_official_account="fuji_ir",
+        )
+        source = GrokPromptIntelSource(
+            api_key="dummy-key",
+            model="grok-4-1-fast-non-reasoning",
+            reasoning_model="grok-4-1",
+            prompt_template="対象 {ticker} {company_name}",
+            http_client=client,
+        )
+
+        events = source.fetch_events(item, now_iso="2026-02-15T00:00:00+00:00")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].kind, IntelKind.SNS)
+        self.assertEqual(events[0].url, "https://x.com/fuji/status/1")
+        self.assertEqual(events[0].title, "@fuji_ir")
+        self.assertEqual(events[0].source_label, "公式")
+
+    def test_grok_prompt_source_raises_when_api_key_missing(self) -> None:
+        item = self._watch_item()
+        source = GrokPromptIntelSource(
+            api_key="",
+            model="grok-4-1-fast-non-reasoning",
+            reasoning_model="grok-4-1",
+            prompt_template="対象 {ticker}",
+        )
+        with self.assertRaises(IntelSourceError):
+            source.fetch_events(item, now_iso="2026-02-15T00:00:00+00:00")
+
+    def test_grok_prompt_source_fallbacks_to_reasoning_model(self) -> None:
+        client = FakeGrokClient(
+            [
+                FakeGrokResponse(payload={"choices": [{"message": {"content": '{"posts":[]}'}}]}),
+                FakeGrokResponse(
+                    payload={
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": (
+                                        '{"posts":[{"url":"https://x.com/fuji/status/2",'
+                                        '"published_at":"2026-02-15T12:00:00+09:00",'
+                                        '"account":"@fuji_ceo","source_label":"役員",'
+                                        '"summary":"設備投資の進捗を投稿"}]}'
+                                    )
+                                }
+                            }
+                        ]
+                    }
+                ),
+            ]
+        )
+        source = GrokPromptIntelSource(
+            api_key="dummy-key",
+            model="grok-4-1-fast-non-reasoning",
+            reasoning_model="grok-4-1",
+            prompt_template="対象 {ticker}",
+            http_client=client,
+        )
+
+        events = source.fetch_events(self._watch_item(), now_iso="2026-02-15T00:00:00+00:00")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].url, "https://x.com/fuji/status/2")
+        self.assertEqual(client.calls[0]["json"]["model"], "grok-4-1-fast-non-reasoning")
+        self.assertEqual(client.calls[1]["json"]["model"], "grok-4-1")
 
 
 if __name__ == "__main__":

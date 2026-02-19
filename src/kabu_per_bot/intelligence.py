@@ -343,6 +343,97 @@ class XApiIntelSource:
         return normalized
 
 
+class GrokPromptIntelSource:
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        reasoning_model: str | None = None,
+        prompt_template: str,
+        api_base_url: str = "https://api.x.ai/v1",
+        timeout_sec: float = 30.0,
+        max_events_per_ticker: int = 5,
+        http_client: Any | None = None,
+    ) -> None:
+        self._api_key = api_key.strip()
+        self._model = model.strip()
+        self._reasoning_model = (reasoning_model or "").strip()
+        self._prompt_template = prompt_template.strip()
+        self._api_base_url = api_base_url.rstrip("/")
+        self._timeout_sec = timeout_sec
+        self._max_events_per_ticker = max_events_per_ticker
+        self._client = http_client or httpx.Client(
+            headers={
+                "Authorization": f"Bearer {self._api_key}" if self._api_key else "",
+                "Content-Type": "application/json",
+                "User-Agent": "kabu-per-bot/1.0",
+            }
+        )
+
+    def fetch_events(self, item: WatchlistItem, *, now_iso: str) -> list[IntelEvent]:
+        if not self._api_key:
+            raise IntelSourceError("SNS取得失敗: GROK_API_KEY が未設定です")
+        if not self._model:
+            raise IntelSourceError("SNS取得失敗: GROK_MODEL_FAST が未設定です")
+
+        # 1st: non-reasoning model for cost efficiency
+        content = self._call_chat(model=self._model, item=item, now_iso=now_iso)
+        events = self._parse_events(item=item, now_iso=now_iso, content=content)
+        if events:
+            return events
+
+        # 2nd: reasoning model as fallback when parse or extraction failed
+        if self._reasoning_model and self._reasoning_model != self._model:
+            content = self._call_chat(model=self._reasoning_model, item=item, now_iso=now_iso)
+            events = self._parse_events(item=item, now_iso=now_iso, content=content)
+            if events:
+                return events
+
+        raise IntelSourceError(f"SNS取得失敗: ticker={item.ticker} reason=no_valid_posts")
+
+    def _call_chat(self, *, model: str, item: WatchlistItem, now_iso: str) -> str:
+        payload = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "あなたは日本株のSNS監視アシスタントです。"
+                        "必ずJSONのみを返してください。推測や架空情報は禁止です。"
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": _build_grok_prompt(
+                        item=item,
+                        now_iso=now_iso,
+                        max_events=self._max_events_per_ticker,
+                        template=self._prompt_template,
+                    ),
+                },
+            ],
+            "temperature": 0.1,
+        }
+        endpoint = f"{self._api_base_url}/chat/completions"
+        try:
+            response = self._client.post(endpoint, json=payload, timeout=self._timeout_sec)
+            response.raise_for_status()
+            body = response.json()
+        except Exception as exc:
+            raise IntelSourceError(f"SNS取得失敗: ticker={item.ticker} model={model} reason={exc}") from exc
+        return _extract_chat_completion_text(body, ticker=item.ticker)
+
+    def _parse_events(self, *, item: WatchlistItem, now_iso: str, content: str) -> list[IntelEvent]:
+        parsed = _parse_grok_posts_json(content=content, ticker=item.ticker)
+        return _build_sns_events_from_grok(
+            item=item,
+            parsed=parsed,
+            now_iso=now_iso,
+            max_events=self._max_events_per_ticker,
+        )
+
+
 class HeuristicAiAnalyzer:
     _POSITIVE_KEYWORDS = ("増収", "増益", "上方修正", "受注", "好調", "成長", "過去最高")
     _NEGATIVE_KEYWORDS = ("減収", "減益", "下方修正", "赤字", "訴訟", "不正", "遅延")
@@ -457,6 +548,145 @@ def _collect_x_handles(item: WatchlistItem) -> list[tuple[str, str]]:
             label = f"役員({executive.role})"
         handles.append((executive.handle, label))
     return handles
+
+
+def _build_grok_prompt(*, item: WatchlistItem, now_iso: str, max_events: int, template: str) -> str:
+    handles = _collect_x_handles(item)
+    official_handle = item.x_official_account or ""
+    executive_handles = ", ".join([f"@{handle}" for handle, _ in handles if handle != official_handle])
+    raw_template = template.strip()
+    if not raw_template:
+        raw_template = (
+            "以下の銘柄に関連する直近SNS投稿を抽出し、重要度順に要約してください。"
+            "投稿者・投稿時刻・URLを必ず付けてください。"
+        )
+    rendered = (
+        raw_template.replace("{ticker}", item.ticker)
+        .replace("{company_name}", item.name)
+        .replace("{x_official_account}", official_handle or "(未設定)")
+        .replace("{x_executive_accounts}", executive_handles or "(未設定)")
+        .replace("{now_iso}", now_iso)
+        .replace("{max_posts}", str(max_events))
+    )
+    return "\n".join(
+        [
+            rendered,
+            "",
+            f"対象銘柄: {item.ticker} {item.name}",
+            f"公式アカウント: {official_handle or '(未設定)'}",
+            f"役員アカウント: {executive_handles or '(未設定)'}",
+            f"最大件数: {max_events}",
+            "出力形式(JSONのみ):",
+            '{"posts":[{"url":"https://x.com/...","published_at":"ISO8601","account":"@user","source_label":"公式|役員|その他","summary":"120文字以内"}]}',
+            "投稿が見つからない場合も posts を空配列で返してください。",
+        ]
+    )
+
+
+def _extract_chat_completion_text(payload: dict[str, Any], *, ticker: str) -> str:
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise IntelSourceError(f"SNS取得失敗: ticker={ticker} reason=chat_choices_missing")
+    first = choices[0]
+    if not isinstance(first, dict):
+        raise IntelSourceError(f"SNS取得失敗: ticker={ticker} reason=chat_choice_invalid")
+    message = first.get("message")
+    if not isinstance(message, dict):
+        raise IntelSourceError(f"SNS取得失敗: ticker={ticker} reason=chat_message_missing")
+    content = message.get("content")
+    if isinstance(content, str):
+        text = content.strip()
+        if text:
+            return text
+    if isinstance(content, list):
+        texts: list[str] = []
+        for row in content:
+            if isinstance(row, dict):
+                text_value = str(row.get("text", "")).strip()
+                if text_value:
+                    texts.append(text_value)
+        merged = "\n".join(texts).strip()
+        if merged:
+            return merged
+    raise IntelSourceError(f"SNS取得失敗: ticker={ticker} reason=chat_content_empty")
+
+
+def _parse_grok_posts_json(*, content: str, ticker: str) -> dict[str, Any]:
+    normalized = content.strip()
+    if normalized.startswith("```"):
+        normalized = re.sub(r"^```(?:json)?\s*", "", normalized, flags=re.I)
+        normalized = re.sub(r"\s*```$", "", normalized).strip()
+    start = normalized.find("{")
+    end = normalized.rfind("}")
+    if start < 0 or end <= start:
+        raise IntelSourceError(f"SNS取得失敗: ticker={ticker} reason=json_extract_failed")
+    candidate = normalized[start : end + 1]
+    try:
+        parsed = json.loads(candidate)
+    except json.JSONDecodeError as exc:
+        raise IntelSourceError(f"SNS取得失敗: ticker={ticker} reason=json_decode_failed:{exc}") from exc
+    if not isinstance(parsed, dict):
+        raise IntelSourceError(f"SNS取得失敗: ticker={ticker} reason=json_root_not_object")
+    return parsed
+
+
+def _build_sns_events_from_grok(
+    *,
+    item: WatchlistItem,
+    parsed: dict[str, Any],
+    now_iso: str,
+    max_events: int,
+) -> list[IntelEvent]:
+    rows = parsed.get("posts")
+    if not isinstance(rows, list):
+        return []
+
+    events: list[IntelEvent] = []
+    seen_urls: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        url = str(row.get("url", "")).strip()
+        if not url.startswith("http"):
+            continue
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+        published_at = _normalize_published_at(value=row.get("published_at"), fallback_iso=now_iso)
+        account = str(row.get("account", "")).strip() or "Grok SNS"
+        source_label = str(row.get("source_label", "")).strip() or "Grok"
+        summary = str(row.get("summary", "")).strip()
+        if not summary:
+            summary = account
+        events.append(
+            IntelEvent(
+                ticker=item.ticker,
+                kind=IntelKind.SNS,
+                title=account,
+                url=url,
+                published_at=published_at,
+                source_label=source_label,
+                content=summary,
+            )
+        )
+        if len(events) >= max_events:
+            break
+    return events
+
+
+def _normalize_published_at(*, value: Any, fallback_iso: str) -> str:
+    if value is None:
+        return fallback_iso
+    text = str(value).strip()
+    if not text:
+        return fallback_iso
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return fallback_iso
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat()
 
 
 def _normalize_title(value: str) -> str:

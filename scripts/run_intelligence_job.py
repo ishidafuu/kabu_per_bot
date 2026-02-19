@@ -8,10 +8,11 @@ import os
 from datetime import datetime, timezone
 
 from kabu_per_bot.discord_notifier import DiscordNotifier
-from kabu_per_bot.intelligence import CompositeIntelSource, IRWebsiteIntelSource, VertexGeminiAiAnalyzer, XApiIntelSource
+from kabu_per_bot.grok_sns_settings import GrokSnsSettings
+from kabu_per_bot.intelligence import CompositeIntelSource, GrokPromptIntelSource, IRWebsiteIntelSource, VertexGeminiAiAnalyzer
 from kabu_per_bot.intelligence_pipeline import IntelligencePipelineConfig, run_intelligence_pipeline
 from kabu_per_bot.pipeline import NotificationExecutionMode
-from kabu_per_bot.runtime_settings import resolve_runtime_settings
+from kabu_per_bot.runtime_settings import GlobalRuntimeSettings, resolve_runtime_settings
 from kabu_per_bot.settings import load_settings
 from kabu_per_bot.storage.firestore_global_settings_repository import FirestoreGlobalSettingsRepository
 from kabu_per_bot.storage.firestore_intel_seen_repository import FirestoreIntelSeenRepository
@@ -89,11 +90,22 @@ def _resolve_execution_mode(raw: str) -> NotificationExecutionMode:
     return mapping[raw]
 
 
-def _resolve_runtime_cooldown_hours(*, settings, client) -> int:
+def _default_grok_sns_settings(*, settings) -> GrokSnsSettings:
+    return GrokSnsSettings(
+        enabled=settings.grok_sns_enabled,
+        scheduled_time=settings.grok_sns_scheduled_time,
+        per_ticker_cooldown_hours=settings.grok_sns_per_ticker_cooldown_hours,
+        prompt_template=settings.grok_sns_prompt_template,
+    )
+
+
+def _resolve_runtime_config(*, settings, client):
+    default_grok_sns_settings = _default_grok_sns_settings(settings=settings)
     try:
         repository = FirestoreGlobalSettingsRepository(client)
         runtime_settings = resolve_runtime_settings(
             default_cooldown_hours=settings.cooldown_hours,
+            default_grok_sns_settings=default_grok_sns_settings,
             global_settings=repository.get_global_settings(),
         )
         LOGGER.info(
@@ -101,10 +113,37 @@ def _resolve_runtime_cooldown_hours(*, settings, client) -> int:
             runtime_settings.cooldown_hours,
             runtime_settings.source,
         )
-        return runtime_settings.cooldown_hours
+        LOGGER.info(
+            "Grok SNS設定: enabled=%s schedule=%s cooldown=%s時間",
+            runtime_settings.grok_sns_settings.enabled,
+            runtime_settings.grok_sns_settings.scheduled_time,
+            runtime_settings.grok_sns_settings.per_ticker_cooldown_hours,
+        )
+        return runtime_settings
     except Exception as exc:
         LOGGER.warning("全体設定の取得に失敗したため環境変数設定を使用: %s", exc)
-        return settings.cooldown_hours
+        return resolve_runtime_settings(
+            default_cooldown_hours=settings.cooldown_hours,
+            default_grok_sns_settings=default_grok_sns_settings,
+            global_settings=GlobalRuntimeSettings(),
+        )
+
+
+def _build_intel_source(*, settings, runtime_settings) -> CompositeIntelSource:
+    sources = [IRWebsiteIntelSource()]
+    if runtime_settings.grok_sns_settings.enabled:
+        sources.append(
+            GrokPromptIntelSource(
+                api_key=settings.grok_api_key,
+                api_base_url=settings.grok_api_base_url,
+                model=settings.grok_model_fast,
+                reasoning_model=settings.grok_model_reasoning,
+                prompt_template=runtime_settings.grok_sns_settings.prompt_template,
+            )
+        )
+    else:
+        LOGGER.info("Grok SNS取得は無効です（global settings）。")
+    return CompositeIntelSource(tuple(sources))
 
 
 def main() -> int:
@@ -114,16 +153,11 @@ def main() -> int:
     sender = _resolve_sender(args)
     now_iso = _resolve_now_utc_iso(now_iso=args.now_iso)
     client = _create_firestore_client(project_id=settings.firestore_project_id)
-    cooldown_hours = _resolve_runtime_cooldown_hours(settings=settings, client=client)
+    runtime_settings = _resolve_runtime_config(settings=settings, client=client)
     watchlist_repo = FirestoreWatchlistRepository(client)
     log_repo = FirestoreNotificationLogRepository(client)
     seen_repo = FirestoreIntelSeenRepository(client)
-    source = CompositeIntelSource(
-        (
-            IRWebsiteIntelSource(),
-            XApiIntelSource(bearer_token=settings.x_api_bearer_token),
-        )
-    )
+    source = _build_intel_source(settings=settings, runtime_settings=runtime_settings)
     result = run_intelligence_pipeline(
         watchlist_items=watchlist_repo.list_all(),
         source=source,
@@ -136,7 +170,7 @@ def main() -> int:
         notification_log_repo=log_repo,
         sender=sender,
         config=IntelligencePipelineConfig(
-            cooldown_hours=cooldown_hours,
+            cooldown_hours=runtime_settings.cooldown_hours,
             now_iso=now_iso,
             execution_mode=_resolve_execution_mode(args.execution_mode),
             ai_global_enabled=settings.ai_notifications_enabled,

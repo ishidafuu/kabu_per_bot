@@ -7,8 +7,10 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import scripts.run_intelligence_job as run_intelligence_job
+from kabu_per_bot.grok_sns_settings import GrokSnsSettings
+from kabu_per_bot.immediate_schedule import ImmediateSchedule
 from kabu_per_bot.pipeline import PipelineResult
-from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
+from kabu_per_bot.runtime_settings import GlobalRuntimeSettings, RuntimeSettings
 from kabu_per_bot.settings import AppSettings
 
 
@@ -110,6 +112,73 @@ class RunIntelligenceJobScriptTest(TestCase):
         self.assertEqual(code, 0)
         config = mocked_pipeline.call_args.kwargs["config"]
         self.assertEqual(config.cooldown_hours, 7)
+
+    def test_build_intel_source_includes_grok_when_enabled(self) -> None:
+        settings = AppSettings(
+            app_env="test",
+            timezone="Asia/Tokyo",
+            window_1w_days=5,
+            window_3m_days=63,
+            window_1y_days=252,
+            cooldown_hours=2,
+            firestore_project_id="",
+            ai_notifications_enabled=True,
+            x_api_bearer_token="",
+            grok_api_key="dummy-key",
+            grok_model_fast="grok-4-1-fast-non-reasoning",
+            grok_model_reasoning="grok-4-1",
+        )
+        runtime_settings = RuntimeSettings(
+            cooldown_hours=2,
+            immediate_schedule=ImmediateSchedule.default(),
+            source="firestore",
+            grok_sns_settings=GrokSnsSettings(
+                enabled=True,
+                scheduled_time="21:10",
+                per_ticker_cooldown_hours=24,
+                prompt_template="対象 {ticker}",
+            ),
+        )
+
+        with (
+            patch.object(run_intelligence_job, "IRWebsiteIntelSource", return_value="ir-source"),
+            patch.object(run_intelligence_job, "GrokPromptIntelSource", return_value="grok-source"),
+        ):
+            source = run_intelligence_job._build_intel_source(settings=settings, runtime_settings=runtime_settings)
+
+        self.assertEqual(source.sources, ("ir-source", "grok-source"))
+
+    def test_build_intel_source_skips_grok_when_disabled(self) -> None:
+        settings = AppSettings(
+            app_env="test",
+            timezone="Asia/Tokyo",
+            window_1w_days=5,
+            window_3m_days=63,
+            window_1y_days=252,
+            cooldown_hours=2,
+            firestore_project_id="",
+            ai_notifications_enabled=True,
+            x_api_bearer_token="",
+        )
+        runtime_settings = RuntimeSettings(
+            cooldown_hours=2,
+            immediate_schedule=ImmediateSchedule.default(),
+            source="firestore",
+            grok_sns_settings=GrokSnsSettings(
+                enabled=False,
+                scheduled_time="21:10",
+                per_ticker_cooldown_hours=24,
+                prompt_template="対象 {ticker}",
+            ),
+        )
+
+        with (
+            patch.object(run_intelligence_job, "IRWebsiteIntelSource", return_value="ir-source"),
+            patch.object(run_intelligence_job, "GrokPromptIntelSource", return_value="grok-source"),
+        ):
+            source = run_intelligence_job._build_intel_source(settings=settings, runtime_settings=runtime_settings)
+
+        self.assertEqual(source.sources, ("ir-source",))
 
 
 if __name__ == "__main__":
