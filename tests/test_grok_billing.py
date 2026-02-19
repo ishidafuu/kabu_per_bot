@@ -87,6 +87,28 @@ class GrokBillingTest(unittest.TestCase):
         self.assertEqual(result.amount, 4.5)
         self.assertEqual(result.currency, "USD")
 
+    def test_parses_total_val_field(self) -> None:
+        client = _FakeClient(
+            _FakeResponse(
+                status_code=200,
+                payload={
+                    "changes": [],
+                    "total": {
+                        "val": "-500",
+                    },
+                },
+            )
+        )
+
+        result = fetch_prepaid_balance(
+            api_key="mgmt-key",
+            team_id="team-id",
+            http_client=client,  # type: ignore[arg-type]
+        )
+
+        self.assertTrue(result.available)
+        self.assertEqual(result.amount, -500.0)
+
     def test_returns_error_for_http_status_failure(self) -> None:
         client = _FakeClient(
             _FakeResponse(

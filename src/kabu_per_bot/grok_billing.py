@@ -105,6 +105,8 @@ def _extract_amount_currency(payload: Any) -> tuple[float | None, str | None]:
         ("prepaid_balance", "value"),
         ("remaining_balance", "amount"),
         ("remaining_balance", "value"),
+        ("total", "val"),
+        ("total",),
         ("available_credits",),
         ("remaining_credits",),
         ("balance", "amount"),
