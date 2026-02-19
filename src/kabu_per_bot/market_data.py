@@ -169,47 +169,6 @@ class _HttpMarketDataSource:
                 pass
 
 
-class ShikihoMarketDataSource(_HttpMarketDataSource):
-    def __init__(self, *, http_client: httpx.Client | None = None, timeout_sec: float = 15.0) -> None:
-        super().__init__("四季報online", http_client=http_client, timeout_sec=timeout_sec)
-
-    def fetch_snapshot(self, ticker: str) -> MarketDataSnapshot:
-        normalized_ticker = normalize_ticker(ticker)
-        code = _ticker_code(normalized_ticker)
-        url = f"https://shikiho.toyokeizai.net/stocks/{code}"
-        page = self._request_text(url=url, ticker=normalized_ticker)
-
-        if "このブラウザではご利用いただけません" in page or "Cookieをオンにしてください" in page:
-            raise MarketDataFetchError(
-                source=self.source_name,
-                ticker=normalized_ticker,
-                reason="サイト側でブラウザ要件によりデータ取得不可（JavaScript/Cookie制限）",
-            )
-
-        close_price = _try_parse_number(page, _PRICE_PATTERNS, label="close_price")
-        eps_forecast = _try_parse_number(page, _EPS_PATTERNS, label="eps_forecast")
-        sales_forecast = _try_parse_number(page, _SALES_PATTERNS, label="sales_forecast")
-        earnings_date = _try_parse_date(page, _EARNINGS_DATE_PATTERNS, label="earnings_date")
-
-        errors = _required_field_errors(
-            close_price=close_price,
-            eps_forecast=eps_forecast,
-            sales_forecast=sales_forecast,
-            earnings_date=earnings_date,
-        )
-        if errors:
-            raise MarketDataFetchError(source=self.source_name, ticker=normalized_ticker, reason="; ".join(errors))
-
-        return MarketDataSnapshot.create(
-            ticker=normalized_ticker,
-            close_price=close_price,
-            eps_forecast=eps_forecast,
-            sales_forecast=sales_forecast,
-            earnings_date=earnings_date,
-            source=self.source_name,
-        )
-
-
 class KabutanMarketDataSource(_HttpMarketDataSource):
     def __init__(self, *, http_client: httpx.Client | None = None, timeout_sec: float = 15.0) -> None:
         super().__init__("株探", http_client=http_client, timeout_sec=timeout_sec)
@@ -678,25 +637,6 @@ def _parse_date_text(value: str) -> str:
         return date(year, month, day).isoformat()
 
     raise ValueError(f"unsupported date format: {value}")
-
-
-_PRICE_PATTERNS = [
-    r"終値[^\d-]{0,40}(-?\d[\d,]*(?:\.\d+)?)",
-]
-
-_EPS_PATTERNS = [
-    r"(?:予想\s*EPS|EPS\s*予想|EPS)[^\d-]{0,40}(-?\d[\d,]*(?:\.\d+)?)",
-    r"修正\s*1株益[^\d-]{0,40}(-?\d[\d,]*(?:\.\d+)?)",
-]
-
-_SALES_PATTERNS = [
-    r"売上高(?:予想)?[^\d-]{0,40}(-?\d[\d,]*(?:\.\d+)?)",
-    r"営業収益[^\d-]{0,40}(-?\d[\d,]*(?:\.\d+)?)",
-]
-
-_EARNINGS_DATE_PATTERNS = [
-    r"(?:決算発表日|発表日|決算日)[^\d]{0,40}(\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{2}/\d{1,2}/\d{1,2}|\d{4}年\d{1,2}月\d{1,2}日)",
-]
 
 
 def _extract_kabutan_forecast_fields(finance_page: str) -> tuple[float | None, float | None, str | None]:

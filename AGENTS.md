@@ -39,7 +39,9 @@
 - 通知フォーマットは要件定義書の規定を崩さない。
 - 通知チャネルは `Discord` を使用する。
 - データソースは交換可能なインターフェースで実装し、優先順は以下。
-  - 四季報online → 株探 → Yahoo!ファイナンス
+  - （`JQUANTS_API_KEY` 設定時）J-Quants v2 → 株探 → Yahoo!ファイナンス
+  - （未設定時）株探 → Yahoo!ファイナンス
+  - 四季報onlineはサイト側のJavaScript/Cookie要件により日次取得経路から除外する
 - SNS取得（第2段階）は `X API` を標準とする。
 - AI要約（第2段階）は `Vertex AI Gemini` を標準とし、Grokは比較PoCで必要性が確認された場合のみ検討する。
 
