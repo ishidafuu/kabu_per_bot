@@ -6,7 +6,7 @@ from hashlib import sha1
 import logging
 from typing import Protocol
 
-from kabu_per_bot.intelligence import AiAnalyzer, AiAnalyzeError, IntelEvent, IntelSource, IntelSourceError
+from kabu_per_bot.intelligence import AiAnalyzer, AiAnalyzeError, IntelEvent, IntelKind, IntelSource, IntelSourceError
 from kabu_per_bot.notification import (
     NotificationMessage,
     format_ai_attention_message,
@@ -137,8 +137,8 @@ def _process_ticker(
         if seen_repo.exists(event.fingerprint):
             continue
 
-        if is_initial_run:
-            LOGGER.info("IR/SNS初回既読化: ticker=%s url=%s", item.ticker, event.url)
+        if is_initial_run and event.kind is IntelKind.IR:
+            LOGGER.info("IR初回既読化: ticker=%s url=%s", item.ticker, event.url)
             seen_repo.mark_seen(event, seen_at=config.now_iso)
             skipped += 1
             continue

@@ -134,7 +134,7 @@ PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source grok_only -
 - `GROK_SNS_PER_TICKER_COOLDOWN_HOURS` の間は、同一銘柄の `SNS注目` 通知が直近にある場合は再取得をスキップする。
 - AI要約は `Vertex AI Gemini` を利用し、`VERTEX_AI_LOCATION` / `VERTEX_AI_MODEL` で変更できる。
 - IRリンク先の HTML/PDF 本文を取得し、本文テキストを要約対象として扱う。
-- IR/SNS通知は銘柄ごとの初回実行時に既読化のみを行い、通知は送信しない。
+- IR通知は銘柄ごとの初回実行時に既読化のみを行い、通知は送信しない（Grok SNSは初回から通知対象）。
 - IR/SNS通知対象期間は `INTEL_NOTIFICATION_MAX_AGE_DAYS`（既定30日）または管理画面 `/ops` の全体設定 `intel_notification_max_age_days` で変更できる。
 - `--execution-mode daily|at_21` で通知時間フィルタを指定可能。
 

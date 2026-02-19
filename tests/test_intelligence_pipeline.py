@@ -196,6 +196,46 @@ class IntelligencePipelineTest(unittest.TestCase):
         self.assertEqual(len(sender.messages), 0)
         self.assertEqual(len(seen_repo.seen), 1)
 
+    def test_initial_run_sns_event_is_sent(self) -> None:
+        source = StaticSource(
+            events=[
+                IntelEvent(
+                    ticker="3901:TSE",
+                    kind=IntelKind.SNS,
+                    title="@fujifilm_ir",
+                    url="https://x.com/fujifilm_ir/status/1",
+                    published_at="2026-02-15T00:05:00+09:00",
+                    source_label="公式",
+                    content="新製品の受注が好調です",
+                )
+            ]
+        )
+        sender = CollectSender()
+        log_repo = InMemoryLogRepo()
+        seen_repo = InMemorySeenRepo()
+        result = run_intelligence_pipeline(
+            watchlist_items=[self._watch_item(ai_enabled=False)],
+            source=source,
+            analyzer=StaticAnalyzer(),
+            seen_repo=seen_repo,
+            notification_log_repo=log_repo,
+            sender=sender,
+            config=IntelligencePipelineConfig(
+                cooldown_hours=2,
+                now_iso="2026-02-15T00:10:00+09:00",
+                intel_notification_max_age_days=14,
+                execution_mode=NotificationExecutionMode.ALL,
+                ai_global_enabled=True,
+            ),
+        )
+
+        self.assertEqual(result.processed_tickers, 1)
+        self.assertEqual(result.sent_notifications, 1)
+        self.assertEqual(result.skipped_notifications, 0)
+        self.assertEqual(len(sender.messages), 1)
+        self.assertIn("【SNS注目】", sender.messages[0])
+        self.assertEqual(len(seen_repo.seen), 1)
+
     def test_old_event_is_marked_seen_and_skipped_when_out_of_range(self) -> None:
         source = StaticSource(
             events=[
