@@ -83,9 +83,9 @@ const formatTime = (value?: string | null): string => {
   return new Date(value).toLocaleString('ja-JP', { hour12: false });
 };
 
-const formatGrokBalance = (settings: AdminGlobalSettings | null): string => {
+const formatGrokBalance = (settings: AdminGlobalSettings | null, isLoading: boolean): string => {
   if (settings == null) {
-    return '読込中...';
+    return isLoading ? '読込中...' : '未取得';
   }
   const balance = settings.grok_balance;
   if (!balance.configured) {
@@ -156,30 +156,40 @@ export const OpsPage = () => {
     setOpsError('');
     setOpsForbidden(false);
     try {
-      const settingsResponse = await client.getAdminGlobalSettings();
-      applyGlobalSettings(settingsResponse);
       if (activeSection === 'settings') {
+        const settingsResponse = await client.getAdminGlobalSettings();
+        applyGlobalSettings(settingsResponse);
         setOpsSummary(null);
-      } else if (activeSection === 'manual') {
-        const summaryResponse = await client.getAdminOpsSummary({
-          includeRecentExecutions: false,
-          includeSkipReasons: false,
-        });
-        setOpsSummary(summaryResponse);
-      } else if (activeSection === 'skip') {
-        const summaryResponse = await client.getAdminOpsSummary({
-          limitPerJob: 1,
-          includeRecentExecutions: false,
-          includeSkipReasons: true,
-        });
-        setOpsSummary(summaryResponse);
       } else {
-        const summaryResponse = await client.getAdminOpsSummary({
-          limitPerJob: HISTORY_LIMIT_PER_JOB,
-          includeRecentExecutions: true,
-          includeSkipReasons: false,
-        });
-        setOpsSummary(summaryResponse);
+        let summaryPromise: Promise<AdminOpsSummary>;
+        if (activeSection === 'manual') {
+          summaryPromise = client.getAdminOpsSummary({
+            includeRecentExecutions: false,
+            includeSkipReasons: false,
+          });
+        } else if (activeSection === 'skip') {
+          summaryPromise = client.getAdminOpsSummary({
+            limitPerJob: 1,
+            includeRecentExecutions: false,
+            includeSkipReasons: true,
+          });
+        } else {
+          summaryPromise = client.getAdminOpsSummary({
+            limitPerJob: HISTORY_LIMIT_PER_JOB,
+            includeRecentExecutions: true,
+            includeSkipReasons: false,
+          });
+        }
+        const [settingsResult, summaryResult] = await Promise.allSettled([client.getAdminGlobalSettings(), summaryPromise]);
+        if (settingsResult.status === 'fulfilled') {
+          applyGlobalSettings(settingsResult.value);
+        } else if (globalSettings == null) {
+          setOpsError(`全体設定の取得に失敗しました: ${toUserMessage(settingsResult.reason)}`);
+        }
+        if (summaryResult.status === 'rejected') {
+          throw summaryResult.reason;
+        }
+        setOpsSummary(summaryResult.value);
       }
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) {
@@ -192,7 +202,7 @@ export const OpsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [activeSection, applyGlobalSettings, client]);
+  }, [activeSection, applyGlobalSettings, client, globalSettings]);
 
   useEffect(() => {
     void refreshOps();
@@ -386,7 +396,7 @@ export const OpsPage = () => {
           )}
         </div>
         <p className="muted">
-          Grok残高: {formatGrokBalance(globalSettings)}
+          Grok残高: {formatGrokBalance(globalSettings, isLoading)}
           {globalSettings?.grok_balance.fetched_at ? `（${formatTime(globalSettings.grok_balance.fetched_at)} 取得）` : ''}
         </p>
       </section>
