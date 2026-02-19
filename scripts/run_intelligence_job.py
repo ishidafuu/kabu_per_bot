@@ -242,7 +242,6 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args()
     settings = load_settings()
-    sender = _resolve_sender(args)
     now_iso = _resolve_now_utc_iso(now_iso=args.now_iso)
     client = _create_firestore_client(project_id=settings.firestore_project_id)
     runtime_settings = _resolve_runtime_config(settings=settings, client=client)
@@ -250,6 +249,7 @@ def main() -> int:
         if not _should_run_by_grok_schedule(now_iso=now_iso, runtime_settings=runtime_settings):
             print(json.dumps(PipelineResult().__dict__, ensure_ascii=False))
             return 0
+    sender = _resolve_sender(args)
 
     watchlist_repo = FirestoreWatchlistRepository(client)
     log_repo = FirestoreNotificationLogRepository(client)
