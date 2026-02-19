@@ -148,6 +148,34 @@ button:disabled {
   gap: 10px;
 }
 
+.dashboard-hero {
+  margin-bottom: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+  border-color: #bfdbfe;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.95) 0%, rgba(236, 253, 245, 0.9) 100%);
+}
+
+.dashboard-hero-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.dashboard-badge {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  color: #075985;
+  background: rgba(186, 230, 253, 0.66);
+}
+
 .page-nav {
   margin-bottom: 14px;
   padding: 10px 12px;
@@ -188,6 +216,43 @@ button:disabled {
   gap: 8px;
 }
 
+.watchlist-toolbar {
+  margin-bottom: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+  border-color: #bfdbfe;
+  background: linear-gradient(130deg, rgba(255, 255, 255, 0.92) 0%, rgba(239, 246, 255, 0.9) 100%);
+}
+
+.watchlist-toolbar-header {
+  display: grid;
+  gap: 4px;
+}
+
+.watchlist-meta-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.watchlist-meta-item {
+  border: 1px solid #d2deec;
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  display: grid;
+  gap: 4px;
+}
+
+.watchlist-meta-item strong {
+  font-size: 1.1rem;
+}
+
+.watchlist-notice-panel {
+  margin-bottom: 12px;
+}
+
 .search-row.compact {
   grid-template-columns: 1fr auto;
 }
@@ -203,6 +268,7 @@ button:disabled {
 .table-panel {
   padding: 0;
   overflow: hidden;
+  border-color: #d2deec;
 }
 
 .table-wrapper {
@@ -227,6 +293,14 @@ td {
   font-size: 0.92rem;
   vertical-align: middle;
   white-space: nowrap;
+}
+
+tbody tr:nth-child(even) {
+  background: rgba(248, 250, 252, 0.74);
+}
+
+tbody tr:hover {
+  background: rgba(236, 253, 245, 0.55);
 }
 
 .ops-job-table td {
@@ -399,6 +473,10 @@ th {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
+}
+
+.dashboard-kpi-grid {
+  margin-top: 0;
 }
 
 .guide-hero {
@@ -693,6 +771,8 @@ th {
 
 .kpi-card {
   padding: 14px;
+  border-color: #cde2f5;
+  background: rgba(255, 255, 255, 0.93);
 }
 
 .kpi-label {
@@ -704,6 +784,16 @@ th {
   margin-top: 8px;
   font-size: 1.75rem;
   font-weight: 700;
+}
+
+.dashboard-checklist {
+  margin-top: 12px;
+  padding: 16px;
+  border-color: #d1fae5;
+}
+
+.dashboard-checklist h3 {
+  margin: 0;
 }
 
 .status-ok {
@@ -737,6 +827,14 @@ th {
 
   .search-row {
     grid-template-columns: 1fr;
+  }
+
+  .watchlist-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-hero-row {
+    align-items: stretch;
   }
 
   .check-field,

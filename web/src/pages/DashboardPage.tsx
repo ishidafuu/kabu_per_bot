@@ -38,19 +38,21 @@ export const DashboardPage = () => {
   }, [fetchSummary]);
 
   return (
-    <AppLayout title="ダッシュボード">
-      <section className="panel controls-panel">
-        <div className="meta-row">
-          <span>運用主要KPI</span>
+    <AppLayout title="ダッシュボード" subtitle="毎日の最初に見る数値を、トレーダー向けに整理しています。">
+      <section className="panel dashboard-hero">
+        <div className="dashboard-hero-row">
+          <p className="dashboard-badge">本日の運用サマリ</p>
+          <button
+            type="button"
+            className="secondary fit-content"
+            disabled={isLoading}
+            onClick={() => void fetchSummary()}
+          >
+            {isLoading ? '読込中...' : '再読み込み'}
+          </button>
         </div>
-        <button
-          type="button"
-          className="secondary fit-content"
-          disabled={isLoading}
-          onClick={() => void fetchSummary()}
-        >
-          {isLoading ? '読込中...' : '再読み込み'}
-        </button>
+        <h2>今日の確認ポイント</h2>
+        <p className="muted">1. 失敗ジョブ有無 2. データ不明件数 3. 当日通知件数 の順で確認すると、異常を早く検知できます。</p>
         <p className="muted">ジョブ実行やDiscord疎通テストは「運用操作」ページに集約しています。</p>
       </section>
 
@@ -67,7 +69,7 @@ export const DashboardPage = () => {
       )}
 
       {summary && (
-        <section className="kpi-grid">
+        <section className="kpi-grid dashboard-kpi-grid">
           <article className="panel kpi-card">
             <p className="kpi-label">監視銘柄数</p>
             <p className="kpi-value">{summary.watchlist_count}</p>
@@ -88,6 +90,15 @@ export const DashboardPage = () => {
           </article>
         </section>
       )}
+
+      <section className="panel dashboard-checklist">
+        <h3>運用メモ</h3>
+        <ul className="guide-list">
+          <li>「失敗ジョブ有無」が `あり` の日は、先に通知ログで当日配信を確認します。</li>
+          <li>「データ不明件数」が増えた日は、ウォッチリストの `現在値` 列もあわせて確認します。</li>
+          <li>銘柄設定を変更した日は、履歴ページで操作記録を確認します。</li>
+        </ul>
+      </section>
     </AppLayout>
   );
 };

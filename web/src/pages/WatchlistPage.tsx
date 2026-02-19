@@ -174,8 +174,12 @@ export const WatchlistPage = () => {
   };
 
   return (
-    <AppLayout title="ウォッチリスト管理">
-      <section className="panel controls-panel">
+    <AppLayout title="ウォッチリスト管理" subtitle="監視銘柄の登録・見直しをこの画面でまとめて行えます。">
+      <section className="panel watchlist-toolbar">
+        <div className="watchlist-toolbar-header">
+          <p className="dashboard-badge">銘柄設定</p>
+          <p className="muted">ticker または会社名で検索し、必要時に編集・削除を実行します。</p>
+        </div>
         <div className="search-row">
           <input
             type="search"
@@ -199,17 +203,33 @@ export const WatchlistPage = () => {
           </button>
         </div>
 
-        <div className="meta-row">
-          <span>総件数: {total}</span>
-          <span>ページ: {getPageLabel(offset, limit)}</span>
-          <span>表示件数: {limit}</span>
+        <div className="watchlist-meta-grid">
+          <div className="watchlist-meta-item">
+            <span className="muted">総件数</span>
+            <strong>{total}</strong>
+          </div>
+          <div className="watchlist-meta-item">
+            <span className="muted">ページ</span>
+            <strong>{getPageLabel(offset, limit)}</strong>
+          </div>
+          <div className="watchlist-meta-item">
+            <span className="muted">表示件数</span>
+            <strong>{limit}</strong>
+          </div>
         </div>
       </section>
 
-      {noticeMessage && <p className="notice-text">{noticeMessage}</p>}
-      {loadError && <p className="error-text">{loadError}</p>}
+      {(noticeMessage || loadError) && (
+        <section className="panel state-panel watchlist-notice-panel">
+          {noticeMessage && <p className="notice-text">{noticeMessage}</p>}
+          {loadError && <p className="error-text">{loadError}</p>}
+        </section>
+      )}
 
       <section className="panel table-panel">
+        <div className="panel-header">
+          <h2>監視銘柄一覧</h2>
+        </div>
         <div className="table-wrapper">
           <table>
             <thead>

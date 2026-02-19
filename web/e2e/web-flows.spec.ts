@@ -11,7 +11,7 @@ const loginWithMock = async (page: Page, destinationPath = '/dashboard'): Promis
 };
 
 const readTotalCount = async (page: Page): Promise<number> => {
-  const text = await page.getByText(/^総件数:/).first().textContent();
+  const text = await page.locator('.watchlist-meta-item', { hasText: '総件数' }).first().textContent();
   const matched = text?.match(/\d+/);
   if (!matched) {
     throw new Error(`総件数の取得に失敗しました: ${text ?? '(empty)'}`);
@@ -27,11 +27,17 @@ test('ログイン後にダッシュボード主要KPIが表示される', async
 
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole('heading', { name: 'ダッシュボード' })).toBeVisible();
-  await expect(page.getByText('監視銘柄数')).toBeVisible();
-  await expect(page.getByText('当日通知件数')).toBeVisible();
-  await expect(page.getByText('データ不明件数')).toBeVisible();
-  await expect(page.getByText('失敗ジョブ有無')).toBeVisible();
+  await expect(page.locator('.kpi-label', { hasText: '監視銘柄数' })).toBeVisible();
+  await expect(page.locator('.kpi-label', { hasText: '当日通知件数' })).toBeVisible();
+  await expect(page.locator('.kpi-label', { hasText: 'データ不明件数' })).toBeVisible();
+  await expect(page.locator('.kpi-label', { hasText: '失敗ジョブ有無' })).toBeVisible();
   await expect(page.locator('.kpi-card .kpi-value')).toHaveCount(4);
+
+  await page.setViewportSize({ width: 1366, height: 2200 });
+  await page.screenshot({ path: 'test-results/dashboard-desktop.png', fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 2200 });
+  await page.screenshot({ path: 'test-results/dashboard-mobile.png', fullPage: true });
 });
 
 test('ウォッチリスト一覧で作成・編集・削除できる', async ({ page }) => {
@@ -43,6 +49,14 @@ test('ウォッチリスト一覧で作成・編集・削除できる', async ({
 
   await expect(page.getByRole('heading', { name: 'ウォッチリスト管理' })).toBeVisible();
   await expect.poll(() => page.locator('tbody tr').count(), { timeout: 20_000 }).toBeGreaterThan(0);
+
+  await page.setViewportSize({ width: 1366, height: 2200 });
+  await page.screenshot({ path: 'test-results/watchlist-desktop.png', fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 2200 });
+  await page.screenshot({ path: 'test-results/watchlist-mobile.png', fullPage: true });
+
+  await page.setViewportSize({ width: 1280, height: 720 });
   const beforeTotal = await readTotalCount(page);
   if (beforeTotal === 0) {
     await expect(page.locator('tbody tr .empty-cell')).toHaveCount(1);
