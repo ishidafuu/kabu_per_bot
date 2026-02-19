@@ -116,3 +116,31 @@ test('履歴画面と通知ログ画面と使い方ページが表示される',
   await expect(page.getByRole('heading', { name: 'ヘルプ / ドキュメント' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'kabu_per_bot 管理画面 使い方手順書' })).toBeVisible();
 });
+
+test('/ops で immediate_schedule 保存と手動実行ができ、通知ログ画面に遷移できる', async ({ page }) => {
+  await loginWithMock(page, '/ops');
+
+  await expect(page.getByRole('heading', { name: '運用操作（管理者）' })).toBeVisible();
+
+  await page.getByLabel('クールダウン（時間）').fill('2');
+  await page.getByLabel('寄り付き帯 開始（HH:MM）').fill('09:00');
+  await page.getByLabel('寄り付き帯 終了（HH:MM）').fill('10:00');
+  await page.getByLabel('寄り付き帯 間隔（分）').fill('15');
+  await page.getByLabel('引け帯 開始（HH:MM）').fill('14:30');
+  await page.getByLabel('引け帯 終了（HH:MM）').fill('15:30');
+  await page.getByLabel('引け帯 間隔（分）').fill('10');
+  await page.getByRole('button', { name: '設定を保存' }).click();
+
+  await expect(page.getByText('全体設定を更新しました（クールダウン: 2時間）。')).toBeVisible();
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.locator('tr', { hasText: '寄り付き帯ジョブ（IMMEDIATE）' }).getByRole('button', { name: '実行' }).click();
+  await expect(page.getByText(/実行を受け付けました:/)).toBeVisible();
+
+  await page.getByRole('link', { name: '通知ログ' }).click();
+  await expect(page).toHaveURL(/\/notifications\/logs$/);
+  await expect(page.getByRole('heading', { name: '通知ログ' })).toBeVisible();
+  await expect(page.locator('tbody tr .empty-cell')).toHaveCount(0);
+  const logRows = page.locator('tbody tr');
+  expect(await logRows.count()).toBeGreaterThan(0);
+});

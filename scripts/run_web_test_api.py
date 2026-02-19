@@ -7,8 +7,11 @@ from typing import Any
 
 import uvicorn
 
+from kabu_per_bot.admin_ops import AdminOpsJob, AdminOpsSummary, BackfillRunRequest, JobExecution
 from kabu_per_bot.api.app import create_app
 from kabu_per_bot.api.errors import UnauthorizedError
+from kabu_per_bot.immediate_schedule import ImmediateSchedule
+from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
 from kabu_per_bot.signal import NotificationLogEntry
 from kabu_per_bot.storage.firestore_schema import normalize_ticker
 from kabu_per_bot.watchlist import (
@@ -143,10 +146,95 @@ class InMemoryNotificationLogRepository:
         return self.failed_job_value
 
 
+@dataclass
+class InMemoryGlobalSettingsRepository:
+    settings: GlobalRuntimeSettings = field(
+        default_factory=lambda: GlobalRuntimeSettings(
+            cooldown_hours=2,
+            immediate_schedule=ImmediateSchedule.default(),
+            updated_at=None,
+            updated_by=None,
+        )
+    )
+
+    def get_global_settings(self) -> GlobalRuntimeSettings:
+        return self.settings
+
+    def upsert_global_settings(
+        self,
+        *,
+        cooldown_hours: int | None = None,
+        immediate_schedule: ImmediateSchedule | None = None,
+        updated_at: str,
+        updated_by: str | None,
+    ) -> None:
+        self.settings = GlobalRuntimeSettings(
+            cooldown_hours=(self.settings.cooldown_hours if cooldown_hours is None else cooldown_hours),
+            immediate_schedule=(self.settings.immediate_schedule if immediate_schedule is None else immediate_schedule),
+            updated_at=updated_at,
+            updated_by=updated_by,
+        )
+
+
+@dataclass
+class InMemoryAdminOpsService:
+    executions: list[JobExecution] = field(default_factory=list)
+
+    def list_jobs(self) -> tuple[AdminOpsJob, ...]:
+        return (
+            AdminOpsJob(key="immediate_open", label="寄り付き帯ジョブ（IMMEDIATE）", job_name="kabu-immediate-open"),
+            AdminOpsJob(key="immediate_close", label="引け帯ジョブ（IMMEDIATE）", job_name="kabu-immediate-close"),
+            AdminOpsJob(key="daily", label="日次ジョブ（IMMEDIATE）", job_name="kabu-daily"),
+            AdminOpsJob(key="daily_at21", label="21:05ジョブ（AT_21）", job_name="kabu-daily-at21"),
+            AdminOpsJob(key="earnings_weekly", label="今週決算ジョブ", job_name="kabu-earnings-weekly"),
+            AdminOpsJob(key="earnings_tomorrow", label="明日決算ジョブ", job_name="kabu-earnings-tomorrow"),
+            AdminOpsJob(key="backfill", label="バックフィルジョブ", job_name="kabu-backfill"),
+        )
+
+    def list_executions(self, *, job_key: str, limit: int = 20) -> tuple[JobExecution, ...]:
+        values = [row for row in self.executions if row.job_key == job_key]
+        return tuple(values[:limit])
+
+    def run_job(self, *, job_key: str, backfill: BackfillRunRequest | None = None) -> JobExecution:
+        _ = backfill
+        now_iso = datetime.now(timezone.utc).isoformat()
+        job = next((row for row in self.list_jobs() if row.key == job_key), None)
+        if job is None or not job.job_name:
+            raise ValueError(f"unsupported job_key: {job_key}")
+        execution = JobExecution(
+            job_key=job.key,
+            job_label=job.label,
+            job_name=job.job_name,
+            execution_name=f"{job.job_name}-e2e-{len(self.executions) + 1}",
+            status="SUCCEEDED",
+            create_time=now_iso,
+            start_time=now_iso,
+            completion_time=now_iso,
+            message="e2e execution completed",
+            log_uri=None,
+            skip_reasons=(),
+            skip_reason_error=None,
+        )
+        self.executions.insert(0, execution)
+        return execution
+
+    def get_summary(self, *, limit_per_job: int = 5) -> AdminOpsSummary:
+        _ = limit_per_job
+        return AdminOpsSummary(
+            jobs=self.list_jobs(),
+            recent_executions=tuple(self.executions[:20]),
+            latest_skip_reasons=tuple(self.executions[:5]),
+        )
+
+    def send_discord_test(self, *, requested_uid: str) -> str:
+        _ = requested_uid
+        return datetime.now(timezone.utc).isoformat()
+
+
 class WebE2ETokenVerifier:
-    def verify(self, token: str) -> dict[str, str]:
+    def verify(self, token: str) -> dict[str, object]:
         if token in {"mock-token", "valid-token"}:
-            return {"uid": "web-e2e-user"}
+            return {"uid": "web-e2e-user", "admin": True}
         raise UnauthorizedError("認証に失敗しました。")
 
 
@@ -374,6 +462,8 @@ def create_web_e2e_app() -> Any:
 
     history_repo = InMemoryWatchlistHistoryRepository(_seed_watchlist_history())
     notification_repo = InMemoryNotificationLogRepository(_seed_notification_logs(), failed_job_value=False)
+    admin_ops_service = InMemoryAdminOpsService()
+    global_settings_repo = InMemoryGlobalSettingsRepository()
     watchlist_service = WatchlistService(
         watchlist_repo,
         max_items=100,
@@ -383,6 +473,8 @@ def create_web_e2e_app() -> Any:
         watchlist_service=watchlist_service,
         watchlist_history_repository=history_repo,
         notification_log_repository=notification_repo,
+        admin_ops_service=admin_ops_service,
+        global_settings_repository=global_settings_repo,
         token_verifier=WebE2ETokenVerifier(),
     )
 
