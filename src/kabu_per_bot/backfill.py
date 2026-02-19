@@ -54,6 +54,7 @@ def build_daily_metrics_from_jquants_v2(
             close_price=bar.close_price,
             eps_forecast=eps_forecast,
             sales_forecast=sales_forecast,
+            market_cap=bar.market_cap,
             source="J-Quants v2",
             earnings_date=None,
             fetched_at=fetched_at,
@@ -73,6 +74,7 @@ def build_daily_metrics_from_jquants_v2(
 class _ParsedBar:
     trade_date: date
     close_price: float | None
+    market_cap: float | None
 
 
 def _parse_bars(rows: list[dict[str, Any]]) -> list[_ParsedBar]:
@@ -80,7 +82,17 @@ def _parse_bars(rows: list[dict[str, Any]]) -> list[_ParsedBar]:
     for row in rows:
         trade_date = _parse_trade_date(row.get("Date"))
         close_price = _as_float(row.get("C"))
-        parsed.append(_ParsedBar(trade_date=trade_date, close_price=close_price))
+        market_cap = _first_available_float(
+            row,
+            keys=("MarketCapitalization", "MarketCap", "market_cap", "marketCapitalization"),
+        )
+        parsed.append(
+            _ParsedBar(
+                trade_date=trade_date,
+                close_price=close_price,
+                market_cap=market_cap,
+            )
+        )
     parsed.sort(key=lambda item: item.trade_date)
     return parsed
 
@@ -152,3 +164,11 @@ def _as_float(value: Any) -> float | None:
     if text in {"-", "null", "None"}:
         return None
     return float(text.replace(",", ""))
+
+
+def _first_available_float(row: dict[str, Any], *, keys: tuple[str, ...]) -> float | None:
+    for key in keys:
+        value = _as_float(row.get(key))
+        if value is not None and value > 0:
+            return value
+    return None

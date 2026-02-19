@@ -7,6 +7,33 @@ from kabu_per_bot.watchlist import MetricType
 
 
 class BackfillTest(unittest.TestCase):
+    def test_build_daily_metrics_psr_uses_market_cap_from_bars(self) -> None:
+        bars = [
+            {"Date": "2026-02-18", "Code": "3984", "C": "110", "MarketCapitalization": "120000"},
+            {"Date": "2026-02-19", "Code": "3984", "C": "120", "MarketCapitalization": "132000"},
+        ]
+        fin_summary = [
+            {
+                "DiscDate": "2026-02-17",
+                "DiscTime": "08:00:00",
+                "Code": "3984",
+                "FEPS": "11",
+                "FSales": "220",
+            },
+        ]
+
+        rows = build_daily_metrics_from_jquants_v2(
+            ticker="3984:TSE",
+            metric_type=MetricType.PSR,
+            bars_daily_rows=bars,
+            fin_summary_rows=fin_summary,
+            fetched_at="2026-02-20T00:00:00+00:00",
+        )
+
+        self.assertEqual([row.trade_date for row in rows], ["2026-02-18", "2026-02-19"])
+        self.assertAlmostEqual(rows[0].psr_value or 0.0, 120000.0 / 220.0)
+        self.assertAlmostEqual(rows[1].psr_value or 0.0, 132000.0 / 220.0)
+
     def test_build_daily_metrics_applies_latest_forecast_by_disclosed_date(self) -> None:
         bars = [
             {"Date": "2026-02-17", "Code": "3984", "C": "100"},
