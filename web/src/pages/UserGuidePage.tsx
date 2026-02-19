@@ -53,6 +53,22 @@ const extractSectionTitles = (markdown: string): string[] => {
   return titles;
 };
 
+const extractUpdatedAtFromMarkdown = (markdown: string): string => {
+  const lines = markdown.split('\n');
+  for (const line of lines) {
+    const matched = line.match(/^\s*最終更新[:：]\s*(.+)$/);
+    if (matched?.[1]) {
+      return matched[1].trim();
+    }
+  }
+  return '';
+};
+
+const extractUpdatedAtFromSummary = (summary: string): string => {
+  const matched = summary.match(/最終更新[:：]\s*(.+)$/);
+  return matched?.[1]?.trim() ?? '';
+};
+
 const findDocById = (index: HelpDocIndex | null, id: string): HelpDocItem | null => {
   if (!index || !id) {
     return null;
@@ -225,6 +241,17 @@ export const UserGuidePage = () => {
   const generatedAt = index ? formatGeneratedAt(index.generated_at) : '-';
   const sectionTitles = useMemo(() => extractSectionTitles(markdown), [markdown]);
   const firstSectionTitle = sectionTitles[0] ?? '';
+  const selectedDocUpdatedAt = useMemo(() => {
+    const fromMarkdown = extractUpdatedAtFromMarkdown(markdown);
+    if (fromMarkdown) {
+      return fromMarkdown;
+    }
+    const fromSummary = extractUpdatedAtFromSummary(selectedDoc?.summary ?? '');
+    if (fromSummary) {
+      return fromSummary;
+    }
+    return `未記載（同期: ${generatedAt}）`;
+  }, [generatedAt, markdown, selectedDoc?.summary]);
 
   const scrollToSection = (title: string): void => {
     const headings = Array.from(document.querySelectorAll<HTMLElement>('.help-markdown h2'));
@@ -368,6 +395,7 @@ export const UserGuidePage = () => {
           {selectedDoc && (
             <div className="help-meta-row">
               <p className="muted">表示中: {selectedDoc.title}</p>
+              <p className="muted">更新日時: {selectedDocUpdatedAt}</p>
               {firstSectionTitle && (
                 <button type="button" className="ghost help-jump-button fit-content" onClick={() => scrollToSection(firstSectionTitle)}>
                   最初の章へ移動
