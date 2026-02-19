@@ -5,6 +5,15 @@
   padding: 24px 16px 40px;
 }
 
+.route-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  font-weight: 600;
+}
+
 .page-shell.centered {
   min-height: 100vh;
   display: flex;

@@ -1,24 +1,41 @@
+import { Suspense, lazy } from 'react';
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
-import { DashboardPage } from './pages/DashboardPage';
-import { LoginPage } from './pages/LoginPage';
-import { NotificationLogsPage } from './pages/NotificationLogsPage';
-import { OpsPage } from './pages/OpsPage';
-import { UserGuidePage } from './pages/UserGuidePage';
-import { WatchlistPage } from './pages/WatchlistPage';
-import { WatchlistHistoryPage } from './pages/WatchlistHistoryPage';
 import './styles/app.css';
+
+const LoginPage = lazy(async () => ({ default: (await import('./pages/LoginPage')).LoginPage }));
+const DashboardPage = lazy(async () => ({ default: (await import('./pages/DashboardPage')).DashboardPage }));
+const WatchlistPage = lazy(async () => ({ default: (await import('./pages/WatchlistPage')).WatchlistPage }));
+const WatchlistHistoryPage = lazy(async () => ({
+  default: (await import('./pages/WatchlistHistoryPage')).WatchlistHistoryPage,
+}));
+const NotificationLogsPage = lazy(async () => ({
+  default: (await import('./pages/NotificationLogsPage')).NotificationLogsPage,
+}));
+const UserGuidePage = lazy(async () => ({ default: (await import('./pages/UserGuidePage')).UserGuidePage }));
+const OpsPage = lazy(async () => ({ default: (await import('./pages/OpsPage')).OpsPage }));
+
+const routeFallback = <div className="route-loading">読み込み中...</div>;
 
 function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/login"
+          element={
+            <Suspense fallback={routeFallback}>
+              <LoginPage />
+            </Suspense>
+          }
+        />
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <DashboardPage />
+              <Suspense fallback={routeFallback}>
+                <DashboardPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -26,7 +43,9 @@ function App() {
           path="/watchlist"
           element={
             <ProtectedRoute>
-              <WatchlistPage />
+              <Suspense fallback={routeFallback}>
+                <WatchlistPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -34,7 +53,9 @@ function App() {
           path="/watchlist/history"
           element={
             <ProtectedRoute>
-              <WatchlistHistoryPage />
+              <Suspense fallback={routeFallback}>
+                <WatchlistHistoryPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -42,7 +63,9 @@ function App() {
           path="/notifications/logs"
           element={
             <ProtectedRoute>
-              <NotificationLogsPage />
+              <Suspense fallback={routeFallback}>
+                <NotificationLogsPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -50,7 +73,9 @@ function App() {
           path="/guide"
           element={
             <ProtectedRoute>
-              <UserGuidePage />
+              <Suspense fallback={routeFallback}>
+                <UserGuidePage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -58,7 +83,9 @@ function App() {
           path="/ops"
           element={
             <ProtectedRoute>
-              <OpsPage />
+              <Suspense fallback={routeFallback}>
+                <OpsPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
