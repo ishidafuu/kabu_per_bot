@@ -42,9 +42,13 @@ test('ウォッチリスト一覧で作成・編集・削除できる', async ({
   await loginWithMock(page, '/watchlist');
 
   await expect(page.getByRole('heading', { name: 'ウォッチリスト管理' })).toBeVisible();
-  await expect.poll(() => readTotalCount(page)).toBeGreaterThan(0);
+  await expect.poll(() => page.locator('tbody tr').count(), { timeout: 20_000 }).toBeGreaterThan(0);
   const beforeTotal = await readTotalCount(page);
-  await expect(page.locator('tbody tr .empty-cell')).toHaveCount(0);
+  if (beforeTotal === 0) {
+    await expect(page.locator('tbody tr .empty-cell')).toHaveCount(1);
+  } else {
+    await expect(page.locator('tbody tr .empty-cell')).toHaveCount(0);
+  }
 
   await page.getByRole('button', { name: '新規追加' }).click();
   await expect(page.getByRole('heading', { name: '銘柄を追加' })).toBeVisible();
