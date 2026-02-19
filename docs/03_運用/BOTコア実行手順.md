@@ -134,13 +134,13 @@ gcloud scheduler jobs list --location=asia-northeast1 --project=<GCP_PROJECT_ID>
 ## 5. Discord疎通
 
 ```bash
-PYTHONPATH=src python scripts/send_discord_test_notification.py --webhook-url <DISCORD_WEBHOOK_URL_OPS>
+PYTHONPATH=src python scripts/send_discord_test_notification.py --webhook-url <DISCORD_WEBHOOK_URL>
 ```
 
 または:
 
 ```bash
-export DISCORD_WEBHOOK_URL_OPS=<DISCORD_WEBHOOK_URL_OPS>
+export DISCORD_WEBHOOK_URL=<DISCORD_WEBHOOK_URL>
 PYTHONPATH=src python scripts/send_discord_test_notification.py
 ```
 
@@ -182,7 +182,6 @@ Webhook分割（任意）:
 - IR: `DISCORD_WEBHOOK_URL_INTELLIGENCE_IR`
 - SNS/AI: `DISCORD_WEBHOOK_URL_INTELLIGENCE_SNS`
 - IR/SNS共通fallback: `DISCORD_WEBHOOK_URL_INTELLIGENCE`
-- 疎通テスト/運用操作: `DISCORD_WEBHOOK_URL_OPS`
 - いずれも未設定時は `DISCORD_WEBHOOK_URL` をフォールバック利用
 
 ## 8. マイグレーション

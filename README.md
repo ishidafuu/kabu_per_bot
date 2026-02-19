@@ -63,7 +63,6 @@ uvicorn kabu_per_bot.api.app:app --reload
 - `DISCORD_WEBHOOK_URL_INTELLIGENCE`（IR/SNS共通fallback。未設定時は `DISCORD_WEBHOOK_URL` を使用）
 - `DISCORD_WEBHOOK_URL_INTELLIGENCE_IR`（IR通知専用。未設定時は `DISCORD_WEBHOOK_URL_INTELLIGENCE` を使用）
 - `DISCORD_WEBHOOK_URL_INTELLIGENCE_SNS`（SNS/AI通知専用。未設定時は `DISCORD_WEBHOOK_URL_INTELLIGENCE` を使用）
-- `DISCORD_WEBHOOK_URL_OPS`（管理画面疎通テスト/テスト送信専用。未設定時は `DISCORD_WEBHOOK_URL` を使用）
 - `GROK_API_KEY`（SNS取得で使用）
 - `GROK_MANAGEMENT_API_KEY` / `GROK_MANAGEMENT_TEAM_ID`（運用画面のGrok残高表示で使用）
 - `GROK_MANAGEMENT_API_BASE_URL`（既定: `https://management-api.x.ai`）
@@ -230,10 +229,10 @@ E2E_API_PYTHON=../.venv/bin/python npm run test:e2e:api
 ## Discord疎通テスト
 
 ```bash
-PYTHONPATH=src python scripts/send_discord_test_notification.py --webhook-url <DISCORD_WEBHOOK_URL_OPS>
+PYTHONPATH=src python scripts/send_discord_test_notification.py --webhook-url <DISCORD_WEBHOOK_URL>
 ```
 
-`--webhook-url` 未指定時は `DISCORD_WEBHOOK_URL_OPS`（fallback: `DISCORD_WEBHOOK_URL`）を利用します。
+`--webhook-url` 未指定時は `DISCORD_WEBHOOK_URL` を利用します。
 
 ## ドキュメント運用
 

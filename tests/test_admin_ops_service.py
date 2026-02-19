@@ -78,23 +78,7 @@ class AdminOpsServiceTest(unittest.TestCase):
         self.assertEqual(summary.latest_skip_reasons[0].status, "FAILED")
         self.assertIn("実行履歴取得失敗", summary.latest_skip_reasons[0].skip_reason_error or "")
 
-    def test_send_discord_test_prefers_ops_webhook(self) -> None:
-        service = object.__new__(CloudRunAdminOpsService)
-        with (
-            patch.dict(
-                "os.environ",
-                {
-                    "DISCORD_WEBHOOK_URL_OPS": "https://example.com/ops",
-                    "DISCORD_WEBHOOK_URL": "https://example.com/default",
-                },
-                clear=True,
-            ),
-            patch("kabu_per_bot.admin_ops.DiscordNotifier") as mocked_notifier,
-        ):
-            service.send_discord_test(requested_uid="admin-user")
-        self.assertEqual(mocked_notifier.call_args.args[0], "https://example.com/ops")
-
-    def test_send_discord_test_fallbacks_default_webhook(self) -> None:
+    def test_send_discord_test_uses_default_webhook(self) -> None:
         service = object.__new__(CloudRunAdminOpsService)
         with (
             patch.dict(
