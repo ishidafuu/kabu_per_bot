@@ -17,7 +17,7 @@ interface JobGuide {
 const HISTORY_LIMIT_PER_JOB = 20;
 
 const OPS_SECTIONS: ReadonlyArray<{ key: OpsSectionKey; label: string }> = [
-  { key: 'settings', label: '全体設定' },
+  { key: 'settings', label: '通知・Grok設定' },
   { key: 'manual', label: '手動実行' },
   { key: 'skip', label: 'スキップ集計' },
   { key: 'history', label: '実行履歴' },
@@ -425,16 +425,6 @@ export const OpsPage = () => {
               {runningJobKey === 'discord_test' ? '送信中...' : 'Discord疎通テスト'}
             </button>
           )}
-          {activeSection === 'manual' && (
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => void resetGrokCooldown()}
-              disabled={runningJobKey !== null || opsForbidden}
-            >
-              {runningJobKey === 'grok_cooldown_reset' ? 'リセット中...' : 'Grokクールダウン全解除'}
-            </button>
-          )}
         </div>
         <p className="muted">
           Grok残高: {formatGrokBalance(globalSettings, isLoading)}
@@ -604,6 +594,19 @@ export const OpsPage = () => {
               rows={6}
             />
           </label>
+          <div className="settings-inline">
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void resetGrokCooldown()}
+              disabled={opsForbidden || isLoading || isSavingGlobalSettings || runningJobKey !== null}
+            >
+              {runningJobKey === 'grok_cooldown_reset' ? 'リセット中...' : 'Grokクールダウン全解除'}
+            </button>
+          </div>
+          <p className="muted">
+            Grokの再取得確認が必要な場合に使用します。`SNS注目` の通知ログを削除し、次回定時で再取得可能にします。
+          </p>
           <div className="settings-inline">
             <button
               type="button"
