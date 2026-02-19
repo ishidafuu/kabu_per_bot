@@ -146,14 +146,21 @@ def format_intel_update_message(
 ) -> NotificationMessage:
     normalized_ticker = normalize_ticker(ticker)
     category = "IR更新" if event.kind is IntelKind.IR else "SNS注目"
-    body = "\n".join(
+    lines = [
+        f"【{category}】{normalized_ticker} {company_name}",
+        f"📝 {event.title}",
+    ]
+    if event.kind is IntelKind.SNS:
+        summary = _trim_text(event.content, max_chars=140)
+        if summary:
+            lines.append(f"💬 要約: {summary}")
+    lines.extend(
         [
-            f"【{category}】{normalized_ticker} {company_name}",
-            f"📝 {event.title}",
             f"🔗 URL: {event.url}",
             f"🏷️ 種別: {event.source_label}",
         ]
     )
+    body = "\n".join(lines)
     return NotificationMessage(
         ticker=normalized_ticker,
         category=category,
@@ -193,6 +200,15 @@ def _fmt(value: float | None) -> str:
     if value is None:
         return "N/A"
     return f"{value:.2f}"
+
+
+def _trim_text(value: str, *, max_chars: int) -> str:
+    normalized = " ".join(str(value).split()).strip()
+    if not normalized:
+        return ""
+    if len(normalized) <= max_chars:
+        return normalized
+    return normalized[: max_chars - 1].rstrip() + "…"
 
 
 def _status_level(state: SignalState) -> tuple[str, str]:

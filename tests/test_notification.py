@@ -142,7 +142,27 @@ class NotificationFormatterTest(unittest.TestCase):
         self.assertIn("📝 ", message.body)
         self.assertIn("URL: https://example.com/ir.pdf", message.body)
         self.assertIn("🏷️ 種別: IRサイト", message.body)
+        self.assertNotIn("💬 要約:", message.body)
         self.assertEqual(message.category, "IR更新")
+
+    def test_intel_update_message_format_for_sns_includes_summary(self) -> None:
+        message = format_intel_update_message(
+            ticker="3901:TSE",
+            company_name="富士フイルム",
+            event=IntelEvent(
+                ticker="3901:TSE",
+                kind=IntelKind.SNS,
+                title="@fujifilm_ir",
+                url="https://x.com/fujifilm_ir/status/1",
+                published_at="2026-02-15T12:00:00+09:00",
+                source_label="公式",
+                content="新製品の受注状況と今後の供給見通しを投稿",
+            ),
+        )
+        self.assertIn("【SNS注目】", message.body)
+        self.assertIn("💬 要約: 新製品の受注状況と今後の供給見通しを投稿", message.body)
+        self.assertIn("URL: https://x.com/fujifilm_ir/status/1", message.body)
+        self.assertEqual(message.category, "SNS注目")
 
     def test_ai_attention_message_format(self) -> None:
         message = format_ai_attention_message(
