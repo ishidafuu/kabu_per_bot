@@ -144,39 +144,51 @@ class CloudRunAdminOpsService:
             return ()
         return tuple(self._parse_execution(job=job, data=row, include_skip_reasons=False) for row in rows)
 
-    def get_summary(self, *, limit_per_job: int = 5) -> AdminOpsSummary:
+    def get_summary(
+        self,
+        *,
+        limit_per_job: int = 5,
+        include_recent_executions: bool = True,
+        include_skip_reasons: bool = True,
+    ) -> AdminOpsSummary:
         recent: list[JobExecution] = []
         latest_skip_rows: list[JobExecution] = []
         for job in self._jobs:
             if not job.configured:
                 continue
+            if not include_recent_executions and not include_skip_reasons:
+                continue
             try:
                 executions = list(self.list_executions(job_key=job.key, limit=limit_per_job))
             except Exception as exc:
-                recent.append(
-                    JobExecution(
-                        job_key=job.key,
-                        job_label=job.label,
-                        job_name=job.job_name or "",
-                        execution_name="",
-                        status="FAILED",
-                        create_time=datetime.now(timezone.utc).isoformat(),
-                        start_time=None,
-                        completion_time=None,
-                        message=f"実行履歴取得失敗: {exc}",
-                        log_uri=None,
-                        skip_reasons=(),
-                        skip_reason_error=None,
+                if include_recent_executions:
+                    recent.append(
+                        JobExecution(
+                            job_key=job.key,
+                            job_label=job.label,
+                            job_name=job.job_name or "",
+                            execution_name="",
+                            status="FAILED",
+                            create_time=datetime.now(timezone.utc).isoformat(),
+                            start_time=None,
+                            completion_time=None,
+                            message=f"実行履歴取得失敗: {exc}",
+                            log_uri=None,
+                            skip_reasons=(),
+                            skip_reason_error=None,
+                        )
                     )
-                )
                 continue
-            recent.extend(executions)
-            if job.key in _DAILY_JOB_KEYS and executions:
+            if include_recent_executions:
+                recent.extend(executions)
+            if include_skip_reasons and job.key in _DAILY_JOB_KEYS and executions:
                 latest = executions[0]
                 latest_skip_rows.append(self._attach_skip_reasons(job=job, execution=latest))
 
-        recent.sort(key=lambda row: _sortable_iso(row.create_time), reverse=True)
-        latest_skip_rows.sort(key=lambda row: _sortable_iso(row.create_time), reverse=True)
+        if include_recent_executions:
+            recent.sort(key=lambda row: _sortable_iso(row.create_time), reverse=True)
+        if include_skip_reasons:
+            latest_skip_rows.sort(key=lambda row: _sortable_iso(row.create_time), reverse=True)
         return AdminOpsSummary(
             jobs=self._jobs,
             recent_executions=tuple(recent),

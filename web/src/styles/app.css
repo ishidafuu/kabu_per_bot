@@ -236,6 +236,18 @@ th {
   gap: 8px;
 }
 
+.ops-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ops-subnav-button.active {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #f8fafc;
+}
+
 .settings-inline {
   display: flex;
   flex-wrap: wrap;

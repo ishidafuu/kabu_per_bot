@@ -42,10 +42,17 @@ router = APIRouter(
     responses=error_responses(401, 403, 500),
 )
 def get_admin_ops_summary(
+    limit_per_job: int = Query(default=5, ge=1, le=50),
+    include_recent_executions: bool = Query(default=True),
+    include_skip_reasons: bool = Query(default=True),
     service: AdminOpsReader = Depends(get_admin_ops_service),
 ) -> AdminOpsSummaryResponse:
     try:
-        summary = service.get_summary(limit_per_job=5)
+        summary = service.get_summary(
+            limit_per_job=limit_per_job,
+            include_recent_executions=include_recent_executions,
+            include_skip_reasons=include_skip_reasons,
+        )
     except Exception as exc:
         raise InternalServerError(f"管理運用サマリーの取得に失敗しました: {exc}") from exc
     return AdminOpsSummaryResponse(

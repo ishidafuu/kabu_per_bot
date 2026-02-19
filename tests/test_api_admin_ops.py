@@ -49,6 +49,7 @@ class FakeAdminOpsService:
     raise_conflict: bool = False
     last_backfill: BackfillRunRequest | None = None
     discord_sent_at: str = "2026-02-18T13:05:00+00:00"
+    summary_call_args: tuple[int, bool, bool] | None = None
 
     def list_jobs(self) -> tuple[AdminOpsJob, ...]:
         return (
@@ -75,12 +76,18 @@ class FakeAdminOpsService:
             self.last_backfill = backfill
         return self.execution
 
-    def get_summary(self, *, limit_per_job: int = 5) -> AdminOpsSummary:
-        _ = limit_per_job
+    def get_summary(
+        self,
+        *,
+        limit_per_job: int = 5,
+        include_recent_executions: bool = True,
+        include_skip_reasons: bool = True,
+    ) -> AdminOpsSummary:
+        self.summary_call_args = (limit_per_job, include_recent_executions, include_skip_reasons)
         return AdminOpsSummary(
             jobs=self.list_jobs(),
-            recent_executions=(self.execution,),
-            latest_skip_reasons=(self.execution,),
+            recent_executions=(self.execution,) if include_recent_executions else (),
+            latest_skip_reasons=(self.execution,) if include_skip_reasons else (),
         )
 
     def send_discord_test(self, *, requested_uid: str) -> str:
@@ -119,6 +126,25 @@ class AdminOpsApiTest(unittest.TestCase):
         self.assertEqual(len(body["jobs"]), 2)
         self.assertEqual(body["recent_executions"][0]["execution_name"], "kabu-daily-abcde")
         self.assertEqual(body["latest_skip_reasons"][0]["skip_reasons"][0]["reason"], "2時間クールダウン中")
+
+    def test_admin_ops_summary_can_skip_heavy_sections(self) -> None:
+        service = FakeAdminOpsService()
+        app = create_app(
+            admin_ops_service=service,
+            token_verifier=FakeTokenVerifier(),
+        )
+        client = TestClient(app)
+
+        response = client.get(
+            "/api/v1/admin/ops/summary?limit_per_job=3&include_recent_executions=false&include_skip_reasons=false",
+            headers=_auth_header("admin-token"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["recent_executions"], [])
+        self.assertEqual(body["latest_skip_reasons"], [])
+        self.assertEqual(service.summary_call_args, (3, False, False))
 
     def test_admin_run_job_conflict_returns_409(self) -> None:
         app = create_app(

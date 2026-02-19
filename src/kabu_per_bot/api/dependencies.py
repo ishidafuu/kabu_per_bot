@@ -123,7 +123,13 @@ class AdminOpsReader(Protocol):
     def run_job(self, *, job_key: str, backfill: BackfillRunRequest | None = None) -> JobExecution:
         """Run selected job and return latest execution."""
 
-    def get_summary(self, *, limit_per_job: int = 5) -> AdminOpsSummary:
+    def get_summary(
+        self,
+        *,
+        limit_per_job: int = 5,
+        include_recent_executions: bool = True,
+        include_skip_reasons: bool = True,
+    ) -> AdminOpsSummary:
         """Get admin operation summary."""
 
     def send_discord_test(self, *, requested_uid: str) -> str:

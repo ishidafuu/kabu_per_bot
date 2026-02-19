@@ -47,6 +47,11 @@
 ### 3.3 運用操作画面（管理者）
 
 - 管理者向け運用パネル:
+  - 表示メニューを分割し、必要な情報のみ読み込む（初期表示は軽量化）
+    - 全体設定
+    - 手動実行
+    - スキップ理由集計
+    - 実行履歴（ページ分割）
   - 全体設定（クールダウン時間 + IMMEDIATE時間帯設定）の参照・更新
     - `cooldown_hours`
     - `immediate_schedule.enabled`
@@ -209,6 +214,10 @@
 
 1. `GET /admin/ops/summary`
   - 目的: 運用パネル表示に必要なジョブ設定・実行履歴・最新スキップ理由を取得
+  - クエリ:
+    - `limit_per_job`（任意: 1〜50, デフォルト5）
+    - `include_recent_executions`（任意: true/false, デフォルトtrue）
+    - `include_skip_reasons`（任意: true/false, デフォルトtrue）
   - 200レスポンス:
     - `jobs[]`
     - `recent_executions[]`

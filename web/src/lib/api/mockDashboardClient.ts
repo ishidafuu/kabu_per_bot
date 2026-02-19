@@ -4,12 +4,13 @@ import type {
   AdminJobKey,
   AdminOpsExecution,
   AdminOpsSummary,
+  AdminOpsJob,
   BackfillRunPayload,
   DashboardSummary,
   RunAdminJobResponse,
 } from '../../types/dashboard';
 import { getMockWatchlistCount } from './mockWatchlistClient';
-import type { DashboardClient } from './dashboardClient';
+import type { DashboardClient, GetAdminOpsSummaryParams } from './dashboardClient';
 
 const wait = (ms: number): Promise<void> =>
   new Promise((resolve) => {
@@ -24,7 +25,7 @@ const seedSummary: DashboardSummary = {
 };
 
 let mockExecutionSeq = 1;
-const mockJobs: AdminOpsSummary['jobs'] = [
+const mockJobs: AdminOpsJob[] = [
   { key: 'immediate_open', label: '寄り付き帯ジョブ（IMMEDIATE）', job_name: 'kabu-immediate-open', configured: true },
   { key: 'immediate_close', label: '引け帯ジョブ（IMMEDIATE）', job_name: 'kabu-immediate-close', configured: true },
   { key: 'daily', label: '日次ジョブ（IMMEDIATE）', job_name: 'kabu-daily', configured: true },
@@ -96,20 +97,27 @@ export class MockDashboardClient implements DashboardClient {
     };
   }
 
-  async getAdminOpsSummary(): Promise<AdminOpsSummary> {
+  async getAdminOpsSummary(params: GetAdminOpsSummaryParams = {}): Promise<AdminOpsSummary> {
+    const includeRecentExecutions = params.includeRecentExecutions ?? true;
+    const includeSkipReasons = params.includeSkipReasons ?? true;
+    const limitPerJob = params.limitPerJob ?? 5;
+    const recentLimit = Math.max(limitPerJob, 1) * mockJobs.filter((row) => row.configured).length;
+
     await wait(80);
     return {
       jobs: mockJobs,
-      recent_executions: mockRecentExecutions,
-      latest_skip_reasons: mockRecentExecutions
-        .filter(
-          (row) =>
-            row.job_key === 'immediate_open' ||
-            row.job_key === 'immediate_close' ||
-            row.job_key === 'daily' ||
-            row.job_key === 'daily_at21',
-        )
-        .slice(0, 2),
+      recent_executions: includeRecentExecutions ? mockRecentExecutions.slice(0, recentLimit) : [],
+      latest_skip_reasons: includeSkipReasons
+        ? mockRecentExecutions
+            .filter(
+              (row) =>
+                row.job_key === 'immediate_open' ||
+                row.job_key === 'immediate_close' ||
+                row.job_key === 'daily' ||
+                row.job_key === 'daily_at21',
+            )
+            .slice(0, 2)
+        : [],
     };
   }
 

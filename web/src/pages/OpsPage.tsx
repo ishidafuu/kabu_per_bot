@@ -2,20 +2,26 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
 import { createDashboardClient } from '../lib/api';
+import { appConfig } from '../lib/config';
 import { ApiError, toUserMessage } from '../lib/api/errors';
-import type {
-  AdminGlobalSettings,
-  AdminJobKey,
-  AdminOpsExecution,
-  AdminOpsSummary,
-} from '../types/dashboard';
+import type { AdminGlobalSettings, AdminJobKey, AdminOpsExecution, AdminOpsSummary } from '../types/dashboard';
 
 type VisibleJobKey = Exclude<AdminJobKey, 'backfill'>;
+type OpsSectionKey = 'settings' | 'manual' | 'skip' | 'history';
 
 interface JobGuide {
   summary: string;
   schedule: string;
 }
+
+const HISTORY_LIMIT_PER_JOB = 20;
+
+const OPS_SECTIONS: ReadonlyArray<{ key: OpsSectionKey; label: string }> = [
+  { key: 'settings', label: '全体設定' },
+  { key: 'manual', label: '手動実行' },
+  { key: 'skip', label: 'スキップ集計' },
+  { key: 'history', label: '実行履歴' },
+];
 
 const JOB_GUIDES: Record<VisibleJobKey, JobGuide> = {
   immediate_open: {
@@ -81,9 +87,14 @@ const isVisibleJobKey = (key: AdminJobKey): key is VisibleJobKey => {
   return key !== 'backfill';
 };
 
+const getHistoryPageLabel = (index: number): number => {
+  return index + 1;
+};
+
 export const OpsPage = () => {
   const { getIdToken } = useAuth();
   const client = useMemo(() => createDashboardClient({ getToken: getIdToken }), [getIdToken]);
+  const [activeSection, setActiveSection] = useState<OpsSectionKey>('settings');
   const [opsSummary, setOpsSummary] = useState<AdminOpsSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [opsError, setOpsError] = useState('');
@@ -104,30 +115,53 @@ export const OpsPage = () => {
   const [grokCooldownHoursInput, setGrokCooldownHoursInput] = useState('24');
   const [grokPromptTemplateInput, setGrokPromptTemplateInput] = useState('');
   const [isSavingGlobalSettings, setIsSavingGlobalSettings] = useState(false);
+  const [historyPageIndex, setHistoryPageIndex] = useState(0);
+
+  const applyGlobalSettings = useCallback((value: AdminGlobalSettings): void => {
+    setGlobalSettings(value);
+    setCooldownHoursInput(String(value.cooldown_hours));
+    setScheduleEnabledInput(value.immediate_schedule.enabled);
+    setOpenWindowStartInput(value.immediate_schedule.open_window_start);
+    setOpenWindowEndInput(value.immediate_schedule.open_window_end);
+    setOpenWindowIntervalInput(String(value.immediate_schedule.open_window_interval_min));
+    setCloseWindowStartInput(value.immediate_schedule.close_window_start);
+    setCloseWindowEndInput(value.immediate_schedule.close_window_end);
+    setCloseWindowIntervalInput(String(value.immediate_schedule.close_window_interval_min));
+    setGrokSnsEnabledInput(value.grok_sns.enabled);
+    setGrokScheduledTimeInput(value.grok_sns.scheduled_time);
+    setGrokCooldownHoursInput(String(value.grok_sns.per_ticker_cooldown_hours));
+    setGrokPromptTemplateInput(value.grok_sns.prompt_template);
+  }, []);
 
   const refreshOps = useCallback(async (): Promise<void> => {
     setIsLoading(true);
     setOpsError('');
     setOpsForbidden(false);
     try {
-      const [opsSummaryResponse, globalSettingsResponse] = await Promise.all([
-        client.getAdminOpsSummary(),
-        client.getAdminGlobalSettings(),
-      ]);
-      setOpsSummary(opsSummaryResponse);
-      setGlobalSettings(globalSettingsResponse);
-      setCooldownHoursInput(String(globalSettingsResponse.cooldown_hours));
-      setScheduleEnabledInput(globalSettingsResponse.immediate_schedule.enabled);
-      setOpenWindowStartInput(globalSettingsResponse.immediate_schedule.open_window_start);
-      setOpenWindowEndInput(globalSettingsResponse.immediate_schedule.open_window_end);
-      setOpenWindowIntervalInput(String(globalSettingsResponse.immediate_schedule.open_window_interval_min));
-      setCloseWindowStartInput(globalSettingsResponse.immediate_schedule.close_window_start);
-      setCloseWindowEndInput(globalSettingsResponse.immediate_schedule.close_window_end);
-      setCloseWindowIntervalInput(String(globalSettingsResponse.immediate_schedule.close_window_interval_min));
-      setGrokSnsEnabledInput(globalSettingsResponse.grok_sns.enabled);
-      setGrokScheduledTimeInput(globalSettingsResponse.grok_sns.scheduled_time);
-      setGrokCooldownHoursInput(String(globalSettingsResponse.grok_sns.per_ticker_cooldown_hours));
-      setGrokPromptTemplateInput(globalSettingsResponse.grok_sns.prompt_template);
+      if (activeSection === 'settings') {
+        const settingsResponse = await client.getAdminGlobalSettings();
+        applyGlobalSettings(settingsResponse);
+      } else if (activeSection === 'manual') {
+        const summaryResponse = await client.getAdminOpsSummary({
+          includeRecentExecutions: false,
+          includeSkipReasons: false,
+        });
+        setOpsSummary(summaryResponse);
+      } else if (activeSection === 'skip') {
+        const summaryResponse = await client.getAdminOpsSummary({
+          limitPerJob: 1,
+          includeRecentExecutions: false,
+          includeSkipReasons: true,
+        });
+        setOpsSummary(summaryResponse);
+      } else {
+        const summaryResponse = await client.getAdminOpsSummary({
+          limitPerJob: HISTORY_LIMIT_PER_JOB,
+          includeRecentExecutions: true,
+          includeSkipReasons: false,
+        });
+        setOpsSummary(summaryResponse);
+      }
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) {
         setOpsForbidden(true);
@@ -139,7 +173,7 @@ export const OpsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [client]);
+  }, [activeSection, applyGlobalSettings, client]);
 
   useEffect(() => {
     void refreshOps();
@@ -258,19 +292,7 @@ export const OpsPage = () => {
           prompt_template: grokPromptTemplateInput.trim(),
         },
       });
-      setGlobalSettings(response);
-      setCooldownHoursInput(String(response.cooldown_hours));
-      setScheduleEnabledInput(response.immediate_schedule.enabled);
-      setOpenWindowStartInput(response.immediate_schedule.open_window_start);
-      setOpenWindowEndInput(response.immediate_schedule.open_window_end);
-      setOpenWindowIntervalInput(String(response.immediate_schedule.open_window_interval_min));
-      setCloseWindowStartInput(response.immediate_schedule.close_window_start);
-      setCloseWindowEndInput(response.immediate_schedule.close_window_end);
-      setCloseWindowIntervalInput(String(response.immediate_schedule.close_window_interval_min));
-      setGrokSnsEnabledInput(response.grok_sns.enabled);
-      setGrokScheduledTimeInput(response.grok_sns.scheduled_time);
-      setGrokCooldownHoursInput(String(response.grok_sns.per_ticker_cooldown_hours));
-      setGrokPromptTemplateInput(response.grok_sns.prompt_template);
+      applyGlobalSettings(response);
       setOpNotice(`全体設定を更新しました（クールダウン: ${response.cooldown_hours}時間）。`);
     } catch (error) {
       setOpsError(toUserMessage(error));
@@ -278,6 +300,7 @@ export const OpsPage = () => {
       setIsSavingGlobalSettings(false);
     }
   }, [
+    applyGlobalSettings,
     client,
     closeWindowEndInput,
     closeWindowIntervalInput,
@@ -297,216 +320,249 @@ export const OpsPage = () => {
     opsSummary?.jobs.filter((row): row is typeof row & { key: VisibleJobKey } => isVisibleJobKey(row.key)) ?? [];
   const recentExecutions: AdminOpsExecution[] = opsSummary?.recent_executions ?? [];
   const latestSkipRows: AdminOpsExecution[] = opsSummary?.latest_skip_reasons ?? [];
+  const historyPageSize = appConfig.pageSize;
+  const historyPageCount = Math.max(Math.ceil(recentExecutions.length / historyPageSize), 1);
+  const normalizedHistoryPage = Math.min(historyPageIndex, historyPageCount - 1);
+  const historyOffset = normalizedHistoryPage * historyPageSize;
+  const pagedRecentExecutions = recentExecutions.slice(historyOffset, historyOffset + historyPageSize);
+  const canGoHistoryPrev = normalizedHistoryPage > 0;
+  const canGoHistoryNext = normalizedHistoryPage + 1 < historyPageCount;
 
   return (
     <AppLayout title="運用操作（管理者）">
       <section className="panel controls-panel">
         <div className="meta-row">
-          <span>全体設定（通知）</span>
+          <span>運用メニュー</span>
         </div>
-        <p className="muted">
-          同一条件通知のクールダウン時間を設定します。通常→強への昇格通知はクールダウン内でも即時通知されます。
-        </p>
-        <p className="muted">
-          あわせてIMMEDIATEの寄り付き帯/引け帯の実行時間帯と間隔（分）を設定できます。タイムゾーンはJST固定です。
-        </p>
-        <p className="muted">
-          GrokによるSNS取得の定時時刻・再取得間隔・プロンプトテンプレートもここで設定できます。
-        </p>
-        <div className="settings-inline">
-          <label className="inline-field">
-            クールダウン（時間）
-            <input
-              type="number"
-              min={1}
-              step={1}
-              value={cooldownHoursInput}
-              onChange={(event) => setCooldownHoursInput(event.target.value)}
-              disabled={opsForbidden || isSavingGlobalSettings}
-            />
-          </label>
-          <label className="inline-checkbox">
-            <input
-              type="checkbox"
-              checked={scheduleEnabledInput}
-              onChange={(event) => setScheduleEnabledInput(event.target.checked)}
-              disabled={opsForbidden || isSavingGlobalSettings}
-            />
-            IMMEDIATE帯設定を有効化
-          </label>
+        <div className="ops-subnav">
+          {OPS_SECTIONS.map((section) => (
+            <button
+              key={section.key}
+              type="button"
+              className={`ghost ops-subnav-button${activeSection === section.key ? ' active' : ''}`}
+              onClick={() => {
+                setActiveSection(section.key);
+                setHistoryPageIndex(0);
+              }}
+              disabled={isLoading}
+            >
+              {section.label}
+            </button>
+          ))}
         </div>
-        <div className="settings-inline">
-          <label className="inline-field">
-            寄り付き帯 開始（HH:MM）
-            <input
-              type="text"
-              value={openWindowStartInput}
-              onChange={(event) => setOpenWindowStartInput(event.target.value)}
-              disabled={opsForbidden || isSavingGlobalSettings}
-            />
-          </label>
-          <label className="inline-field">
-            寄り付き帯 終了（HH:MM）
-            <input
-              type="text"
-              value={openWindowEndInput}
-              onChange={(event) => setOpenWindowEndInput(event.target.value)}
-              disabled={opsForbidden || isSavingGlobalSettings}
-            />
-          </label>
-          <label className="inline-field">
-            寄り付き帯 間隔（分）
-            <input
-              type="number"
-              min={1}
-              max={60}
-              step={1}
-              value={openWindowIntervalInput}
-              onChange={(event) => setOpenWindowIntervalInput(event.target.value)}
-              disabled={opsForbidden || isSavingGlobalSettings}
-            />
-          </label>
-        </div>
-        <div className="settings-inline">
-          <label className="inline-checkbox">
-            <input
-              type="checkbox"
-              checked={grokSnsEnabledInput}
-              onChange={(event) => setGrokSnsEnabledInput(event.target.checked)}
-              disabled={opsForbidden || isSavingGlobalSettings}
-            />
-            Grok SNS取得を有効化
-          </label>
-          <label className="inline-field">
-            Grok定時取得（HH:MM JST）
-            <input
-              type="text"
-              value={grokScheduledTimeInput}
-              onChange={(event) => setGrokScheduledTimeInput(event.target.value)}
-              disabled={opsForbidden || isSavingGlobalSettings}
-            />
-          </label>
-          <label className="inline-field">
-            1銘柄ごとの再取得間隔（時間）
-            <input
-              type="number"
-              min={1}
-              max={168}
-              step={1}
-              value={grokCooldownHoursInput}
-              onChange={(event) => setGrokCooldownHoursInput(event.target.value)}
-              disabled={opsForbidden || isSavingGlobalSettings}
-            />
-          </label>
-        </div>
-        <label>
-          Grokへ渡すプロンプトテンプレート
-          <textarea
-            value={grokPromptTemplateInput}
-            onChange={(event) => setGrokPromptTemplateInput(event.target.value)}
-            disabled={opsForbidden || isSavingGlobalSettings}
-            rows={6}
-          />
-        </label>
-        <div className="settings-inline">
-          <label className="inline-field">
-            引け帯 開始（HH:MM）
-            <input
-              type="text"
-              value={closeWindowStartInput}
-              onChange={(event) => setCloseWindowStartInput(event.target.value)}
-              disabled={opsForbidden || isSavingGlobalSettings}
-            />
-          </label>
-          <label className="inline-field">
-            引け帯 終了（HH:MM）
-            <input
-              type="text"
-              value={closeWindowEndInput}
-              onChange={(event) => setCloseWindowEndInput(event.target.value)}
-              disabled={opsForbidden || isSavingGlobalSettings}
-            />
-          </label>
-          <label className="inline-field">
-            引け帯 間隔（分）
-            <input
-              type="number"
-              min={1}
-              max={60}
-              step={1}
-              value={closeWindowIntervalInput}
-              onChange={(event) => setCloseWindowIntervalInput(event.target.value)}
-              disabled={opsForbidden || isSavingGlobalSettings}
-            />
-          </label>
-          <button
-            type="button"
-            className="primary"
-            onClick={() => void saveGlobalSettings()}
-            disabled={opsForbidden || isSavingGlobalSettings}
-          >
-            {isSavingGlobalSettings ? '保存中...' : '設定を保存'}
-          </button>
-        </div>
-        <p className="muted">
-          現在値: {globalSettings ? `${globalSettings.cooldown_hours}時間` : '-'} / 反映元:{' '}
-          {globalSettings?.source === 'firestore' ? '管理画面設定' : '環境変数デフォルト'}
-        </p>
-        {globalSettings && (
-          <p className="muted">
-            IMMEDIATE帯: {globalSettings.immediate_schedule.enabled ? '有効' : '無効'} / 寄り付き{' '}
-            {globalSettings.immediate_schedule.open_window_start}-
-            {globalSettings.immediate_schedule.open_window_end} ({globalSettings.immediate_schedule.open_window_interval_min}
-            分) / 引け {globalSettings.immediate_schedule.close_window_start}-
-            {globalSettings.immediate_schedule.close_window_end} ({globalSettings.immediate_schedule.close_window_interval_min}
-            分)
-          </p>
-        )}
-        {globalSettings && (
-          <p className="muted">
-            Grok SNS: {globalSettings.grok_sns.enabled ? '有効' : '無効'} / 定時 {globalSettings.grok_sns.scheduled_time}{' '}
-            / 再取得間隔 {globalSettings.grok_sns.per_ticker_cooldown_hours}時間
-          </p>
-        )}
-        {globalSettings?.updated_at && (
-          <p className="muted">
-            最終更新: {formatTime(globalSettings.updated_at)}（{globalSettings.updated_by ?? 'unknown'}）
-          </p>
-        )}
-      </section>
-
-      <section className="panel controls-panel">
-        <div className="meta-row">
-          <span>手動実行メニュー</span>
-        </div>
-        <p className="muted">
-          定期実行の代替や障害時の再実行を行う画面です。通常運用では定期実行に任せ、必要時のみ手動実行してください。
-        </p>
+        <p className="muted">表示中メニューのみ読み込むため、初期表示の負荷を抑えています。</p>
         <div className="inline-actions">
           <button type="button" className="secondary" onClick={() => void refreshOps()} disabled={isLoading}>
-            {isLoading ? '読込中...' : '運用情報を更新'}
+            {isLoading ? '読込中...' : '表示中メニューを更新'}
           </button>
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => void sendDiscordTest()}
-            disabled={runningJobKey !== null || opsForbidden}
-          >
-            {runningJobKey === 'discord_test' ? '送信中...' : 'Discord疎通テスト'}
-          </button>
+          {activeSection === 'manual' && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void sendDiscordTest()}
+              disabled={runningJobKey !== null || opsForbidden}
+            >
+              {runningJobKey === 'discord_test' ? '送信中...' : 'Discord疎通テスト'}
+            </button>
+          )}
         </div>
-        {opsForbidden && (
+      </section>
+
+      {opsForbidden && (
+        <section className="panel controls-panel">
           <p className="error-text">
             管理者権限がないため表示できません。API側の `API_ADMIN_UIDS` か Firebase カスタムクレーム `admin=true`
             を確認してください。
           </p>
-        )}
-        {opsError && <p className="error-text">{opsError}</p>}
-        {opNotice && <p className="notice-text">{opNotice}</p>}
-      </section>
+        </section>
+      )}
+      {opsError && <p className="error-text">{opsError}</p>}
+      {opNotice && <p className="notice-text">{opNotice}</p>}
 
-      {!opsForbidden && (
+      {!opsForbidden && activeSection === 'settings' && (
+        <section className="panel controls-panel">
+          <div className="meta-row">
+            <span>全体設定（通知）</span>
+          </div>
+          <p className="muted">
+            同一条件通知のクールダウン時間を設定します。通常→強への昇格通知はクールダウン内でも即時通知されます。
+          </p>
+          <p className="muted">
+            あわせてIMMEDIATEの寄り付き帯/引け帯の実行時間帯と間隔（分）を設定できます。タイムゾーンはJST固定です。
+          </p>
+          <p className="muted">GrokによるSNS取得の定時時刻・再取得間隔・プロンプトテンプレートもここで設定できます。</p>
+          <div className="settings-inline">
+            <label className="inline-field">
+              クールダウン（時間）
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={cooldownHoursInput}
+                onChange={(event) => setCooldownHoursInput(event.target.value)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+            </label>
+            <label className="inline-checkbox">
+              <input
+                type="checkbox"
+                checked={scheduleEnabledInput}
+                onChange={(event) => setScheduleEnabledInput(event.target.checked)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+              IMMEDIATE帯設定を有効化
+            </label>
+          </div>
+          <div className="settings-inline">
+            <label className="inline-field">
+              寄り付き帯 開始（HH:MM）
+              <input
+                type="text"
+                value={openWindowStartInput}
+                onChange={(event) => setOpenWindowStartInput(event.target.value)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+            </label>
+            <label className="inline-field">
+              寄り付き帯 終了（HH:MM）
+              <input
+                type="text"
+                value={openWindowEndInput}
+                onChange={(event) => setOpenWindowEndInput(event.target.value)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+            </label>
+            <label className="inline-field">
+              寄り付き帯 間隔（分）
+              <input
+                type="number"
+                min={1}
+                max={60}
+                step={1}
+                value={openWindowIntervalInput}
+                onChange={(event) => setOpenWindowIntervalInput(event.target.value)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+            </label>
+          </div>
+          <div className="settings-inline">
+            <label className="inline-checkbox">
+              <input
+                type="checkbox"
+                checked={grokSnsEnabledInput}
+                onChange={(event) => setGrokSnsEnabledInput(event.target.checked)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+              Grok SNS取得を有効化
+            </label>
+            <label className="inline-field">
+              Grok定時取得（HH:MM JST）
+              <input
+                type="text"
+                value={grokScheduledTimeInput}
+                onChange={(event) => setGrokScheduledTimeInput(event.target.value)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+            </label>
+            <label className="inline-field">
+              1銘柄ごとの再取得間隔（時間）
+              <input
+                type="number"
+                min={1}
+                max={168}
+                step={1}
+                value={grokCooldownHoursInput}
+                onChange={(event) => setGrokCooldownHoursInput(event.target.value)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+            </label>
+          </div>
+          <label>
+            Grokへ渡すプロンプトテンプレート
+            <textarea
+              value={grokPromptTemplateInput}
+              onChange={(event) => setGrokPromptTemplateInput(event.target.value)}
+              disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              rows={6}
+            />
+          </label>
+          <div className="settings-inline">
+            <label className="inline-field">
+              引け帯 開始（HH:MM）
+              <input
+                type="text"
+                value={closeWindowStartInput}
+                onChange={(event) => setCloseWindowStartInput(event.target.value)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+            </label>
+            <label className="inline-field">
+              引け帯 終了（HH:MM）
+              <input
+                type="text"
+                value={closeWindowEndInput}
+                onChange={(event) => setCloseWindowEndInput(event.target.value)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+            </label>
+            <label className="inline-field">
+              引け帯 間隔（分）
+              <input
+                type="number"
+                min={1}
+                max={60}
+                step={1}
+                value={closeWindowIntervalInput}
+                onChange={(event) => setCloseWindowIntervalInput(event.target.value)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+            </label>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => void saveGlobalSettings()}
+              disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+            >
+              {isSavingGlobalSettings ? '保存中...' : '設定を保存'}
+            </button>
+          </div>
+          <p className="muted">
+            現在値: {globalSettings ? `${globalSettings.cooldown_hours}時間` : '-'} / 反映元:{' '}
+            {globalSettings?.source === 'firestore' ? '管理画面設定' : '環境変数デフォルト'}
+          </p>
+          {globalSettings && (
+            <p className="muted">
+              IMMEDIATE帯: {globalSettings.immediate_schedule.enabled ? '有効' : '無効'} / 寄り付き{' '}
+              {globalSettings.immediate_schedule.open_window_start}-{globalSettings.immediate_schedule.open_window_end} (
+              {globalSettings.immediate_schedule.open_window_interval_min}分) / 引け{' '}
+              {globalSettings.immediate_schedule.close_window_start}-{globalSettings.immediate_schedule.close_window_end} (
+              {globalSettings.immediate_schedule.close_window_interval_min}分)
+            </p>
+          )}
+          {globalSettings && (
+            <p className="muted">
+              Grok SNS: {globalSettings.grok_sns.enabled ? '有効' : '無効'} / 定時 {globalSettings.grok_sns.scheduled_time} /
+              再取得間隔 {globalSettings.grok_sns.per_ticker_cooldown_hours}時間
+            </p>
+          )}
+          {globalSettings?.updated_at && (
+            <p className="muted">
+              最終更新: {formatTime(globalSettings.updated_at)}（{globalSettings.updated_by ?? 'unknown'}）
+            </p>
+          )}
+        </section>
+      )}
+
+      {!opsForbidden && activeSection === 'manual' && (
         <>
+          <section className="panel controls-panel">
+            <div className="meta-row">
+              <span>手動実行メニュー</span>
+            </div>
+            <p className="muted">
+              定期実行の代替や障害時の再実行を行う画面です。通常運用では定期実行に任せ、必要時のみ手動実行してください。
+            </p>
+          </section>
           <section className="panel table-panel">
             <header className="panel-header">
               <h2>ジョブ説明と実行</h2>
@@ -523,7 +579,14 @@ export const OpsPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {jobRows.length === 0 && (
+                  {isLoading && jobRows.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="empty-cell">
+                        読み込み中...
+                      </td>
+                    </tr>
+                  )}
+                  {!isLoading && jobRows.length === 0 && (
                     <tr>
                       <td colSpan={5} className="empty-cell">
                         実行対象ジョブがありません。
@@ -542,7 +605,7 @@ export const OpsPage = () => {
                           <button
                             type="button"
                             className="primary"
-                            disabled={!row.configured || runningJobKey !== null}
+                            disabled={!row.configured || runningJobKey !== null || isLoading}
                             onClick={() => void runJob(row.key, row.label)}
                           >
                             {runningJobKey === row.key ? '実行中...' : '実行'}
@@ -555,42 +618,54 @@ export const OpsPage = () => {
               </table>
             </div>
           </section>
+        </>
+      )}
 
+      {!opsForbidden && activeSection === 'skip' && (
+        <section className="panel controls-panel">
+          <div className="meta-row">
+            <span>最新スキップ理由集計（日次・IMMEDIATE系）</span>
+          </div>
+          <p className="muted">Cloud Logging解析は重いため、このタブを開いた時のみ取得します。</p>
+          {isLoading && latestSkipRows.length === 0 && <p className="muted">読み込み中...</p>}
+          {!isLoading && latestSkipRows.length === 0 ? (
+            <p className="muted">集計対象の実行履歴がありません。</p>
+          ) : (
+            <div className="skip-reason-grid">
+              {latestSkipRows.map((row) => (
+                <article key={`${row.job_key}-${row.execution_name}`} className="panel skip-reason-card">
+                  <p className="kpi-label">{row.job_label}</p>
+                  <p className="muted">execution: {row.execution_name}</p>
+                  {row.skip_reason_error && <p className="error-text">{row.skip_reason_error}</p>}
+                  {!row.skip_reason_error && row.skip_reasons.length === 0 && (
+                    <p className="muted">スキップなし、またはログ未反映です。</p>
+                  )}
+                  {!row.skip_reason_error && row.skip_reasons.length > 0 && (
+                    <ul className="guide-list">
+                      {row.skip_reasons.map((reasonRow) => (
+                        <li key={reasonRow.reason}>
+                          {reasonRow.reason}: {reasonRow.count}件
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {!opsForbidden && activeSection === 'history' && (
+        <>
           <section className="panel controls-panel">
             <div className="meta-row">
-              <span>最新スキップ理由集計（日次・IMMEDIATE系）</span>
+              <span>実行履歴（ページ分割表示）</span>
+              <span>表示件数: {historyPageSize}</span>
+              <span>ページ: {getHistoryPageLabel(normalizedHistoryPage)}</span>
             </div>
-            {latestSkipRows.length === 0 ? (
-              <p className="muted">集計対象の実行履歴がありません。</p>
-            ) : (
-              <div className="skip-reason-grid">
-                {latestSkipRows.map((row) => (
-                  <article key={`${row.job_key}-${row.execution_name}`} className="panel skip-reason-card">
-                    <p className="kpi-label">{row.job_label}</p>
-                    <p className="muted">execution: {row.execution_name}</p>
-                    {row.skip_reason_error && <p className="error-text">{row.skip_reason_error}</p>}
-                    {!row.skip_reason_error && row.skip_reasons.length === 0 && (
-                      <p className="muted">スキップなし、またはログ未反映です。</p>
-                    )}
-                    {!row.skip_reason_error && row.skip_reasons.length > 0 && (
-                      <ul className="guide-list">
-                        {row.skip_reasons.map((reasonRow) => (
-                          <li key={reasonRow.reason}>
-                            {reasonRow.reason}: {reasonRow.count}件
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </article>
-                ))}
-              </div>
-            )}
           </section>
-
           <section className="panel table-panel">
-            <header className="panel-header">
-              <h2>実行履歴（最新）</h2>
-            </header>
             <div className="table-wrapper">
               <table>
                 <thead>
@@ -605,14 +680,21 @@ export const OpsPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentExecutions.length === 0 && (
+                  {isLoading && pagedRecentExecutions.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="empty-cell">
+                        読み込み中...
+                      </td>
+                    </tr>
+                  )}
+                  {!isLoading && pagedRecentExecutions.length === 0 && (
                     <tr>
                       <td colSpan={7} className="empty-cell">
                         実行履歴はありません。
                       </td>
                     </tr>
                   )}
-                  {recentExecutions.map((row) => (
+                  {pagedRecentExecutions.map((row) => (
                     <tr key={`${row.job_key}-${row.execution_name}`}>
                       <td>{row.job_label}</td>
                       <td>{row.execution_name}</td>
@@ -633,6 +715,28 @@ export const OpsPage = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="pagination-row">
+              <button
+                type="button"
+                className="ghost"
+                disabled={!canGoHistoryPrev || isLoading}
+                onClick={() => {
+                  setHistoryPageIndex((prev) => Math.max(prev - 1, 0));
+                }}
+              >
+                前へ
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                disabled={!canGoHistoryNext || isLoading}
+                onClick={() => {
+                  setHistoryPageIndex((prev) => prev + 1);
+                }}
+              >
+                次へ
+              </button>
             </div>
           </section>
         </>

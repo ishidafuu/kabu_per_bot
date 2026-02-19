@@ -10,9 +10,15 @@ import type {
 } from '../../types/dashboard';
 import { HttpClient } from './httpClient';
 
+export interface GetAdminOpsSummaryParams {
+  limitPerJob?: number;
+  includeRecentExecutions?: boolean;
+  includeSkipReasons?: boolean;
+}
+
 export interface DashboardClient {
   getSummary(): Promise<DashboardSummary>;
-  getAdminOpsSummary(): Promise<AdminOpsSummary>;
+  getAdminOpsSummary(params?: GetAdminOpsSummaryParams): Promise<AdminOpsSummary>;
   getAdminGlobalSettings(): Promise<AdminGlobalSettings>;
   updateAdminGlobalSettings(payload: AdminGlobalSettingsUpdatePayload): Promise<AdminGlobalSettings>;
   runAdminJob(jobKey: AdminJobKey, payload?: BackfillRunPayload): Promise<RunAdminJobResponse>;
@@ -33,8 +39,23 @@ export class HttpDashboardClient implements DashboardClient {
     });
   }
 
-  async getAdminOpsSummary(): Promise<AdminOpsSummary> {
-    return this.httpClient.request<AdminOpsSummary>('/admin/ops/summary', {
+  async getAdminOpsSummary(params: GetAdminOpsSummaryParams = {}): Promise<AdminOpsSummary> {
+    const query = new URLSearchParams();
+
+    if (params.limitPerJob != null) {
+      query.set('limit_per_job', String(params.limitPerJob));
+    }
+    if (params.includeRecentExecutions != null) {
+      query.set('include_recent_executions', String(params.includeRecentExecutions));
+    }
+    if (params.includeSkipReasons != null) {
+      query.set('include_skip_reasons', String(params.includeSkipReasons));
+    }
+
+    const suffix = query.toString();
+    const path = suffix.length > 0 ? `/admin/ops/summary?${suffix}` : '/admin/ops/summary';
+
+    return this.httpClient.request<AdminOpsSummary>(path, {
       method: 'GET',
     });
   }
