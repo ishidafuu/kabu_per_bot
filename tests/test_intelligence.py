@@ -261,6 +261,29 @@ class IntelligenceTest(unittest.TestCase):
         self.assertIn("売上高は前年同期比12%増", events[0].content)
         self.assertEqual(events[0].url, detail_url)
 
+    def test_ir_website_source_uses_last_modified_for_published_at(self) -> None:
+        listing_url = "https://example.com/ir"
+        detail_url = "https://example.com/ir/notice-1"
+        client = FakeWebClient(
+            {
+                listing_url: FakeWebResponse(
+                    status_code=200,
+                    text=f'<a href="{detail_url}">2026年3Q 決算説明資料</a>',
+                ),
+                detail_url: FakeWebResponse(
+                    status_code=200,
+                    text="<html><body><p>本文です。</p></body></html>",
+                    headers={"last-modified": "Fri, 14 Feb 2026 10:00:00 GMT"},
+                ),
+            }
+        )
+        source = IRWebsiteIntelSource(http_client=client)
+
+        events = source.fetch_events(self._watch_item(), now_iso="2026-02-15T00:00:00+09:00")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].published_at, "2026-02-14T10:00:00+00:00")
+
     def test_ir_website_source_extracts_pdf_body_content(self) -> None:
         listing_url = "https://example.com/ir"
         pdf_url = "https://example.com/ir/report.pdf"

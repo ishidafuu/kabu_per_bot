@@ -20,6 +20,7 @@ DEFAULT_WINDOW_1W_DAYS = 5
 DEFAULT_WINDOW_3M_DAYS = 63
 DEFAULT_WINDOW_1Y_DAYS = 252
 DEFAULT_COOLDOWN_HOURS = 2
+DEFAULT_INTEL_NOTIFICATION_MAX_AGE_DAYS = 30
 _HHMM_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
 
@@ -51,6 +52,7 @@ class AppSettings:
     grok_sns_scheduled_time: str = "21:10"
     grok_sns_per_ticker_cooldown_hours: int = 24
     grok_sns_prompt_template: str = field(default_factory=default_grok_prompt_template)
+    intel_notification_max_age_days: int = DEFAULT_INTEL_NOTIFICATION_MAX_AGE_DAYS
 
 
 def _read_dotenv(dotenv_path: Path) -> dict[str, str]:
@@ -172,4 +174,9 @@ def load_settings(
         grok_sns_scheduled_time=grok_sns_settings.scheduled_time,
         grok_sns_per_ticker_cooldown_hours=grok_sns_settings.per_ticker_cooldown_hours,
         grok_sns_prompt_template=grok_sns_settings.prompt_template,
+        intel_notification_max_age_days=_get_int(
+            merged,
+            "INTEL_NOTIFICATION_MAX_AGE_DAYS",
+            DEFAULT_INTEL_NOTIFICATION_MAX_AGE_DAYS,
+        ),
     )

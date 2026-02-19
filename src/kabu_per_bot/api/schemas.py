@@ -325,6 +325,7 @@ class AdminGrokBalanceResponse(BaseModel):
 
 class AdminGlobalSettingsResponse(BaseModel):
     cooldown_hours: int = Field(ge=1)
+    intel_notification_max_age_days: int = Field(ge=1)
     immediate_schedule: AdminImmediateScheduleResponse
     grok_sns: AdminGrokSnsSettingsResponse
     grok_balance: AdminGrokBalanceResponse
@@ -335,12 +336,18 @@ class AdminGlobalSettingsResponse(BaseModel):
 
 class AdminGlobalSettingsUpdateRequest(BaseModel):
     cooldown_hours: int | None = Field(default=None, ge=1)
+    intel_notification_max_age_days: int | None = Field(default=None, ge=1)
     immediate_schedule: AdminImmediateScheduleUpdateRequest | None = None
     grok_sns: AdminGrokSnsSettingsUpdateRequest | None = None
 
     @model_validator(mode="after")
     def validate_has_updates(self) -> "AdminGlobalSettingsUpdateRequest":
-        if self.cooldown_hours is None and self.immediate_schedule is None and self.grok_sns is None:
+        if (
+            self.cooldown_hours is None
+            and self.intel_notification_max_age_days is None
+            and self.immediate_schedule is None
+            and self.grok_sns is None
+        ):
             raise ValueError("at least one setting update is required")
         return self
 

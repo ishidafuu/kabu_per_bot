@@ -43,6 +43,54 @@ class FakeCollectionRef:
     def document(self, document_id: str) -> FakeDocumentRef:
         return FakeDocumentRef(path=f"{self.path}/{document_id}", db=self.db)
 
+    def where(self, field: str, op: str, value: str) -> "FakeQuery":
+        return FakeQuery(path=self.path, db=self.db, filters=[(field, op, value)])
+
+    def stream(self):
+        prefix = f"{self.path}/"
+        for key, value in self.db.items():
+            if not key.startswith(prefix):
+                continue
+            yield FakeSnapshot(exists=True, data=dict(value))
+
+
+@dataclass
+class FakeQuery:
+    path: str
+    db: dict[str, dict] = field(default_factory=dict)
+    filters: list[tuple[str, str, str]] = field(default_factory=list)
+    _limit: int | None = None
+
+    def where(self, field: str, op: str, value: str) -> "FakeQuery":
+        return FakeQuery(
+            path=self.path,
+            db=self.db,
+            filters=[*self.filters, (field, op, value)],
+            _limit=self._limit,
+        )
+
+    def limit(self, value: int) -> "FakeQuery":
+        return FakeQuery(path=self.path, db=self.db, filters=self.filters, _limit=value)
+
+    def stream(self):
+        prefix = f"{self.path}/"
+        rows: list[dict] = []
+        for key, value in self.db.items():
+            if not key.startswith(prefix):
+                continue
+            rows.append(dict(value))
+
+        for field, op, expected in self.filters:
+            if op != "==":
+                continue
+            rows = [row for row in rows if str(row.get(field, "")) == expected]
+
+        if self._limit is not None:
+            rows = rows[: self._limit]
+
+        for row in rows:
+            yield FakeSnapshot(exists=True, data=row)
+
 
 @dataclass
 class FakeFirestoreClient:
@@ -67,6 +115,8 @@ class FirestoreIntelSeenRepositoryTest(unittest.TestCase):
         self.assertFalse(repo.exists(event.fingerprint))
         repo.mark_seen(event, seen_at="2026-02-15T00:10:00+09:00")
         self.assertTrue(repo.exists(event.fingerprint))
+        self.assertTrue(repo.has_any_for_ticker("3901:TSE"))
+        self.assertFalse(repo.has_any_for_ticker("6501:TSE"))
 
 
 if __name__ == "__main__":

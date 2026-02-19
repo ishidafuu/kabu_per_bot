@@ -39,6 +39,7 @@ const mockJobs: AdminOpsJob[] = [
 const mockRecentExecutions: AdminOpsExecution[] = [];
 let mockGlobalSettings: AdminGlobalSettings = {
   cooldown_hours: 2,
+  intel_notification_max_age_days: 30,
   immediate_schedule: {
     enabled: true,
     timezone: 'Asia/Tokyo',
@@ -166,6 +167,8 @@ export class MockDashboardClient implements DashboardClient {
     await wait(80);
     mockGlobalSettings = {
       cooldown_hours: payload.cooldown_hours ?? mockGlobalSettings.cooldown_hours,
+      intel_notification_max_age_days:
+        payload.intel_notification_max_age_days ?? mockGlobalSettings.intel_notification_max_age_days,
       immediate_schedule: payload.immediate_schedule
         ? {
             timezone: 'Asia/Tokyo',

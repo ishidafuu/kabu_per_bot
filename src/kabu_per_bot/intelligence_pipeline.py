@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from hashlib import sha1
 import logging
 from typing import Protocol
@@ -37,6 +38,9 @@ class IntelSeenRepository(Protocol):
     def exists(self, fingerprint: str) -> bool:
         """Return whether event was already processed."""
 
+    def has_any_for_ticker(self, ticker: str) -> bool:
+        """Return whether ticker already has processed events."""
+
     def mark_seen(self, event: IntelEvent, *, seen_at: str) -> None:
         """Mark event as processed."""
 
@@ -45,6 +49,7 @@ class IntelSeenRepository(Protocol):
 class IntelligencePipelineConfig:
     cooldown_hours: int
     now_iso: str
+    intel_notification_max_age_days: int = 30
     channel: str = "DISCORD"
     execution_mode: NotificationExecutionMode = NotificationExecutionMode.ALL
     ai_global_enabled: bool = False
@@ -60,6 +65,9 @@ def run_intelligence_pipeline(
     sender: MessageSender,
     config: IntelligencePipelineConfig,
 ) -> PipelineResult:
+    if config.intel_notification_max_age_days <= 0:
+        raise ValueError("intel_notification_max_age_days must be > 0")
+
     result = PipelineResult()
     for item in watchlist_items:
         if not item.is_active:
@@ -98,6 +106,7 @@ def _process_ticker(
     sent = 0
     skipped = 0
     errors = 0
+    is_initial_run = not seen_repo.has_any_for_ticker(item.ticker)
     try:
         events = source.fetch_events(item, now_iso=config.now_iso)
     except IntelSourceError as exc:
@@ -126,6 +135,28 @@ def _process_ticker(
 
     for event in events:
         if seen_repo.exists(event.fingerprint):
+            continue
+
+        if is_initial_run:
+            LOGGER.info("IR/SNS初回既読化: ticker=%s url=%s", item.ticker, event.url)
+            seen_repo.mark_seen(event, seen_at=config.now_iso)
+            skipped += 1
+            continue
+
+        if not _is_event_recent(
+            event=event,
+            now_iso=config.now_iso,
+            max_age_days=config.intel_notification_max_age_days,
+        ):
+            LOGGER.info(
+                "IR/SNS通知対象外(公開日範囲外): ticker=%s url=%s published_at=%s max_age_days=%s",
+                item.ticker,
+                event.url,
+                event.published_at,
+                config.intel_notification_max_age_days,
+            )
+            seen_repo.mark_seen(event, seen_at=config.now_iso)
+            skipped += 1
             continue
 
         update_message = format_intel_update_message(
@@ -255,3 +286,34 @@ def _normalize_execution_mode(execution_mode: NotificationExecutionMode | str) -
         return NotificationExecutionMode(str(execution_mode).strip().upper())
     except ValueError as exc:
         raise ValueError(f"unsupported execution_mode: {execution_mode}") from exc
+
+
+def _is_event_recent(*, event: IntelEvent, now_iso: str, max_age_days: int) -> bool:
+    now = _parse_iso_datetime(now_iso)
+    published_at = _parse_iso_datetime_or_none(event.published_at)
+    if published_at is None:
+        return False
+    threshold = now - timedelta(days=max_age_days)
+    return published_at >= threshold
+
+
+def _parse_iso_datetime_or_none(value: str) -> datetime | None:
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _parse_iso_datetime(value: str) -> datetime:
+    parsed = _parse_iso_datetime_or_none(value)
+    if parsed is None:
+        raise ValueError(f"invalid iso datetime: {value}")
+    return parsed

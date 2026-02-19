@@ -65,6 +65,7 @@ def update_admin_global_settings(
             grok_sns_settings = payload.grok_sns.to_domain()
         repository.upsert_global_settings(
             cooldown_hours=payload.cooldown_hours,
+            intel_notification_max_age_days=payload.intel_notification_max_age_days,
             immediate_schedule=immediate_schedule,
             grok_sns_settings=grok_sns_settings,
             updated_at=datetime.now(timezone.utc).isoformat(),
@@ -85,6 +86,7 @@ def _build_global_settings_response(*, repository: GlobalSettingsRepository) -> 
     global_settings = repository.get_global_settings()
     runtime_settings = resolve_runtime_settings(
         default_cooldown_hours=app_settings.cooldown_hours,
+        default_intel_notification_max_age_days=app_settings.intel_notification_max_age_days,
         default_grok_sns_settings=GrokSnsSettings(
             enabled=app_settings.grok_sns_enabled,
             scheduled_time=app_settings.grok_sns_scheduled_time,
@@ -95,6 +97,7 @@ def _build_global_settings_response(*, repository: GlobalSettingsRepository) -> 
     )
     return AdminGlobalSettingsResponse(
         cooldown_hours=runtime_settings.cooldown_hours,
+        intel_notification_max_age_days=runtime_settings.intel_notification_max_age_days,
         immediate_schedule=AdminImmediateScheduleResponse.from_domain(runtime_settings.immediate_schedule),
         grok_sns=AdminGrokSnsSettingsResponse.from_domain(runtime_settings.grok_sns_settings),
         grok_balance=AdminGrokBalanceResponse(

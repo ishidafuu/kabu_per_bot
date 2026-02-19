@@ -54,6 +54,7 @@
     - 実行履歴（ページ分割）
   - 全体設定（クールダウン時間 + IMMEDIATE時間帯設定）の参照・更新
     - `cooldown_hours`
+    - `intel_notification_max_age_days`（IR/SNS通知対象期間）
     - `immediate_schedule.enabled`
     - `immediate_schedule.open_window_start/end/interval_min`
     - `immediate_schedule.close_window_start/end/interval_min`
@@ -255,9 +256,10 @@
 ### 4.6 全体設定API（管理者のみ）
 
 1. `GET /admin/settings/global`
-  - 目的: 全体設定（クールダウン時間 + IMMEDIATE時間帯設定 + Grok SNS取得設定）の取得
+  - 目的: 全体設定（クールダウン時間 + IR/SNS通知対象期間 + IMMEDIATE時間帯設定 + Grok SNS取得設定）の取得
   - 200レスポンス:
     - `cooldown_hours`
+    - `intel_notification_max_age_days`（1以上の整数）
     - `immediate_schedule`
       - `enabled`
       - `timezone`（`Asia/Tokyo` 固定）
@@ -277,9 +279,10 @@
     - `updated_by`（任意）
 
 2. `PATCH /admin/settings/global`
-  - 目的: 全体設定（クールダウン時間 + IMMEDIATE時間帯設定 + Grok SNS取得設定）の更新
+  - 目的: 全体設定（クールダウン時間 + IR/SNS通知対象期間 + IMMEDIATE時間帯設定 + Grok SNS取得設定）の更新
   - リクエスト:
     - `cooldown_hours`（任意、1以上の整数）
+    - `intel_notification_max_age_days`（任意、1以上の整数）
     - `immediate_schedule`（任意）
       - `enabled`（bool）
       - `open_window_start` / `open_window_end`（`HH:MM`）
@@ -292,12 +295,13 @@
       - `per_ticker_cooldown_hours`（1〜168）
       - `prompt_template`（20〜4000文字）
   - バリデーション:
-    - 少なくとも `cooldown_hours` / `immediate_schedule` / `grok_sns` のいずれかを含む
+    - 少なくとも `cooldown_hours` / `intel_notification_max_age_days` / `immediate_schedule` / `grok_sns` のいずれかを含む
     - `open_window_start < open_window_end`
     - `close_window_start < close_window_end`
     - open/close帯は重複不可
   - 200レスポンス:
     - `cooldown_hours`
+    - `intel_notification_max_age_days`
     - `immediate_schedule`
     - `grok_sns`
     - `source`

@@ -35,16 +35,23 @@ class FakeGlobalSettingsRepository:
         self,
         *,
         cooldown_hours: int | None = None,
+        intel_notification_max_age_days: int | None = None,
         immediate_schedule: ImmediateSchedule | None = None,
         grok_sns_settings: GrokSnsSettings | None = None,
         updated_at: str,
         updated_by: str | None,
     ) -> None:
         next_cooldown = self.settings.cooldown_hours if cooldown_hours is None else cooldown_hours
+        next_intel_max_age_days = (
+            self.settings.intel_notification_max_age_days
+            if intel_notification_max_age_days is None
+            else intel_notification_max_age_days
+        )
         next_schedule = self.settings.immediate_schedule if immediate_schedule is None else immediate_schedule
         next_grok = self.settings.grok_sns_settings if grok_sns_settings is None else grok_sns_settings
         self.settings = GlobalRuntimeSettings(
             cooldown_hours=next_cooldown,
+            intel_notification_max_age_days=next_intel_max_age_days,
             immediate_schedule=next_schedule,
             grok_sns_settings=next_grok,
             updated_at=updated_at,
@@ -99,6 +106,7 @@ class AdminSettingsApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertEqual(body["cooldown_hours"], 2)
+        self.assertEqual(body["intel_notification_max_age_days"], 30)
         self.assertTrue(body["immediate_schedule"]["enabled"])
         self.assertFalse(body["grok_sns"]["enabled"])
         self.assertFalse(body["grok_balance"]["configured"])
@@ -111,6 +119,7 @@ class AdminSettingsApiTest(unittest.TestCase):
             global_settings_repository=FakeGlobalSettingsRepository(
                 settings=GlobalRuntimeSettings(
                     cooldown_hours=4,
+                    intel_notification_max_age_days=10,
                     immediate_schedule=ImmediateSchedule(
                         enabled=False,
                         timezone="Asia/Tokyo",
@@ -144,6 +153,7 @@ class AdminSettingsApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertEqual(body["cooldown_hours"], 4)
+        self.assertEqual(body["intel_notification_max_age_days"], 10)
         self.assertFalse(body["immediate_schedule"]["enabled"])
         self.assertEqual(body["immediate_schedule"]["open_window_start"], "09:30")
         self.assertTrue(body["grok_sns"]["enabled"])
@@ -209,6 +219,29 @@ class AdminSettingsApiTest(unittest.TestCase):
         self.assertEqual(body["source"], "firestore")
         self.assertEqual(body["updated_by"], "admin-user")
         self.assertEqual(repository.settings.cooldown_hours, 6)
+
+    def test_patch_global_settings_updates_intel_notification_max_age_days(self) -> None:
+        repository = FakeGlobalSettingsRepository()
+        app = create_app(
+            global_settings_repository=repository,
+            token_verifier=FakeTokenVerifier(),
+        )
+        client = TestClient(app)
+
+        with patch(
+            "kabu_per_bot.api.routes.admin_settings.load_settings",
+            return_value=_app_settings(cooldown_hours=2),
+        ):
+            response = client.patch(
+                "/api/v1/admin/settings/global",
+                headers=_auth_header("admin-token"),
+                json={"intel_notification_max_age_days": 14},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["intel_notification_max_age_days"], 14)
+        self.assertEqual(repository.settings.intel_notification_max_age_days, 14)
 
     def test_patch_global_settings_updates_immediate_schedule(self) -> None:
         repository = FakeGlobalSettingsRepository()

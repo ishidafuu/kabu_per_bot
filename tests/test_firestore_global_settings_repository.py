@@ -68,6 +68,7 @@ class FirestoreGlobalSettingsRepositoryTest(unittest.TestCase):
         repo = FirestoreGlobalSettingsRepository(client)
         repo.upsert_global_settings(
             cooldown_hours=4,
+            intel_notification_max_age_days=21,
             immediate_schedule=ImmediateSchedule(
                 enabled=False,
                 timezone="Asia/Tokyo",
@@ -90,6 +91,7 @@ class FirestoreGlobalSettingsRepositoryTest(unittest.TestCase):
 
         result = repo.get_global_settings()
         self.assertEqual(result.cooldown_hours, 4)
+        self.assertEqual(result.intel_notification_max_age_days, 21)
         self.assertIsNotNone(result.immediate_schedule)
         assert result.immediate_schedule is not None
         self.assertFalse(result.immediate_schedule.enabled)
@@ -114,11 +116,24 @@ class FirestoreGlobalSettingsRepositoryTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             repo.get_global_settings()
 
+    def test_get_raises_for_invalid_intel_notification_max_age_days(self) -> None:
+        client = FakeFirestoreClient(
+            db={
+                f"{COLLECTION_GLOBAL_SETTINGS}/{GLOBAL_SETTINGS_DOC_ID}": {
+                    "intel_notification_max_age_days": 0,
+                }
+            }
+        )
+        repo = FirestoreGlobalSettingsRepository(client)
+        with self.assertRaises(ValueError):
+            repo.get_global_settings()
+
     def test_upsert_immediate_schedule_only_keeps_existing_cooldown(self) -> None:
         client = FakeFirestoreClient(
             db={
                 f"{COLLECTION_GLOBAL_SETTINGS}/{GLOBAL_SETTINGS_DOC_ID}": {
                     "cooldown_hours": 6,
+                    "intel_notification_max_age_days": 15,
                     "updated_at": "2026-02-18T03:00:00+00:00",
                     "updated_by": "seed-user",
                 }
@@ -134,6 +149,7 @@ class FirestoreGlobalSettingsRepositoryTest(unittest.TestCase):
 
         result = repo.get_global_settings()
         self.assertEqual(result.cooldown_hours, 6)
+        self.assertEqual(result.intel_notification_max_age_days, 15)
         self.assertIsNotNone(result.immediate_schedule)
 
     def test_get_raises_for_invalid_grok_sns_settings(self) -> None:

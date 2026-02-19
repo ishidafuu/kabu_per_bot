@@ -33,6 +33,7 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.grok_sns_scheduled_time, "21:10")
         self.assertEqual(settings.grok_sns_per_ticker_cooldown_hours, 24)
         self.assertGreaterEqual(len(settings.grok_sns_prompt_template), 20)
+        self.assertEqual(settings.intel_notification_max_age_days, 30)
 
     def test_env_override(self) -> None:
         settings = load_settings(
@@ -59,6 +60,7 @@ class LoadSettingsTest(unittest.TestCase):
                 "GROK_SNS_SCHEDULED_TIME": "20:40",
                 "GROK_SNS_PER_TICKER_COOLDOWN_HOURS": "12",
                 "GROK_SNS_PROMPT_TEMPLATE": "重要SNS投稿を要約し、投稿者とURLを含めてください。",
+                "INTEL_NOTIFICATION_MAX_AGE_DAYS": "14",
             },
             dotenv_path="does-not-exist.env",
         )
@@ -85,6 +87,7 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.grok_sns_scheduled_time, "20:40")
         self.assertEqual(settings.grok_sns_per_ticker_cooldown_hours, 12)
         self.assertEqual(settings.grok_sns_prompt_template, "重要SNS投稿を要約し、投稿者とURLを含めてください。")
+        self.assertEqual(settings.intel_notification_max_age_days, 14)
 
     def test_dotenv_loaded_when_env_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

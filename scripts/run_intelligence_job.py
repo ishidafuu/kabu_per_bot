@@ -120,6 +120,7 @@ def _resolve_runtime_config(*, settings, client):
         repository = FirestoreGlobalSettingsRepository(client)
         runtime_settings = resolve_runtime_settings(
             default_cooldown_hours=settings.cooldown_hours,
+            default_intel_notification_max_age_days=settings.intel_notification_max_age_days,
             default_grok_sns_settings=default_grok_sns_settings,
             global_settings=repository.get_global_settings(),
         )
@@ -127,6 +128,10 @@ def _resolve_runtime_config(*, settings, client):
             "クールダウン設定: %s時間 (source=%s)",
             runtime_settings.cooldown_hours,
             runtime_settings.source,
+        )
+        LOGGER.info(
+            "IR/SNS通知対象期間: %s日",
+            runtime_settings.intel_notification_max_age_days,
         )
         LOGGER.info(
             "Grok SNS設定: enabled=%s schedule=%s cooldown=%s時間",
@@ -139,6 +144,7 @@ def _resolve_runtime_config(*, settings, client):
         LOGGER.warning("全体設定の取得に失敗したため環境変数設定を使用: %s", exc)
         return resolve_runtime_settings(
             default_cooldown_hours=settings.cooldown_hours,
+            default_intel_notification_max_age_days=settings.intel_notification_max_age_days,
             default_grok_sns_settings=default_grok_sns_settings,
             global_settings=GlobalRuntimeSettings(),
         )
@@ -291,6 +297,7 @@ def main() -> int:
         config=IntelligencePipelineConfig(
             cooldown_hours=runtime_settings.cooldown_hours,
             now_iso=now_iso,
+            intel_notification_max_age_days=runtime_settings.intel_notification_max_age_days,
             execution_mode=_resolve_execution_mode(args.execution_mode),
             ai_global_enabled=settings.ai_notifications_enabled,
         ),

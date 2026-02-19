@@ -22,12 +22,17 @@ class FirestoreGlobalSettingsRepository:
             return GlobalRuntimeSettings()
         data = snapshot.to_dict() or {}
         cooldown_hours = _read_optional_positive_int(data.get("cooldown_hours"), key="cooldown_hours")
+        intel_notification_max_age_days = _read_optional_positive_int(
+            data.get("intel_notification_max_age_days"),
+            key="intel_notification_max_age_days",
+        )
         immediate_schedule = _read_optional_immediate_schedule(data)
         grok_sns_settings = _read_optional_grok_sns_settings(data)
         updated_at = _read_optional_datetime_iso(data.get("updated_at"))
         updated_by = _read_optional_string(data.get("updated_by"))
         return GlobalRuntimeSettings(
             cooldown_hours=cooldown_hours,
+            intel_notification_max_age_days=intel_notification_max_age_days,
             immediate_schedule=immediate_schedule,
             grok_sns_settings=grok_sns_settings,
             updated_at=updated_at,
@@ -38,12 +43,18 @@ class FirestoreGlobalSettingsRepository:
         self,
         *,
         cooldown_hours: int | None = None,
+        intel_notification_max_age_days: int | None = None,
         immediate_schedule: ImmediateSchedule | None = None,
         grok_sns_settings: GrokSnsSettings | None = None,
         updated_at: str,
         updated_by: str | None,
     ) -> None:
-        if cooldown_hours is None and immediate_schedule is None and grok_sns_settings is None:
+        if (
+            cooldown_hours is None
+            and intel_notification_max_age_days is None
+            and immediate_schedule is None
+            and grok_sns_settings is None
+        ):
             raise ValueError("at least one setting update is required")
         row = {
             "updated_at": _read_required_datetime_iso(updated_at),
@@ -53,6 +64,10 @@ class FirestoreGlobalSettingsRepository:
             if cooldown_hours <= 0:
                 raise ValueError("cooldown_hours must be > 0")
             row["cooldown_hours"] = int(cooldown_hours)
+        if intel_notification_max_age_days is not None:
+            if intel_notification_max_age_days <= 0:
+                raise ValueError("intel_notification_max_age_days must be > 0")
+            row["intel_notification_max_age_days"] = int(intel_notification_max_age_days)
         if immediate_schedule is not None:
             validate_immediate_schedule(immediate_schedule)
             row.update(

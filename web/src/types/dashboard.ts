@@ -60,6 +60,7 @@ export interface AdminImmediateSchedule {
 
 export interface AdminGlobalSettings {
   cooldown_hours: number;
+  intel_notification_max_age_days: number;
   immediate_schedule: AdminImmediateSchedule;
   grok_sns: AdminGrokSnsSettings;
   grok_balance: AdminGrokBalance;
@@ -86,6 +87,7 @@ export interface AdminGrokBalance {
 
 export interface AdminGlobalSettingsUpdatePayload {
   cooldown_hours?: number;
+  intel_notification_max_age_days?: number;
   immediate_schedule?: {
     enabled: boolean;
     open_window_start: string;

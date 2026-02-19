@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from enum import Enum
 import hashlib
 import html
@@ -133,13 +134,16 @@ class IRWebsiteIntelSource:
                     url=ir_url,
                     fallback_text=title,
                 )
+                published_at = _resolve_event_published_at(response=response, title=title, url=ir_url)
+                if not published_at:
+                    LOGGER.info("IR公開日時の推定に失敗: ticker=%s url=%s", item.ticker, ir_url)
                 events.append(
                     IntelEvent(
                         ticker=item.ticker,
                         kind=IntelKind.IR,
                         title=title,
                         url=ir_url,
-                        published_at=now_iso,
+                        published_at=published_at,
                         source_label="IRサイト",
                         content=content,
                     )
@@ -153,7 +157,6 @@ class IRWebsiteIntelSource:
                 ticker=item.ticker,
                 page=page,
                 base_url=ir_url,
-                now_iso=now_iso,
             )
             events.extend(extracted)
         return events
@@ -172,9 +175,8 @@ class IRWebsiteIntelSource:
         ticker: str,
         page: str,
         base_url: str,
-        now_iso: str,
     ) -> list[IntelEvent]:
-        candidates: list[tuple[int, str, str]] = []
+        candidates: list[tuple[int, str, str, str]] = []
         seen_urls: set[str] = set()
         for index, (href, label) in enumerate(self._HREF_PATTERN.findall(page)):
             title = _normalize_title(label)
@@ -186,7 +188,8 @@ class IRWebsiteIntelSource:
             if absolute_url in seen_urls:
                 continue
             seen_urls.add(absolute_url)
-            candidates.append((index, title, absolute_url))
+            guessed_published_at = _infer_published_at_from_text_or_url(text=title, url=absolute_url) or ""
+            candidates.append((index, title, absolute_url, guessed_published_at))
 
         ranked = sorted(
             candidates,
@@ -195,34 +198,45 @@ class IRWebsiteIntelSource:
         selected = ranked[: self._max_events_per_url]
 
         events: list[IntelEvent] = []
-        for _, title, absolute_url in selected:
-            content = self._request_event_content(ticker=ticker, url=absolute_url, fallback_text=title)
+        for _, title, absolute_url, guessed_published_at in selected:
+            content, published_at = self._request_event_content(
+                ticker=ticker,
+                url=absolute_url,
+                fallback_text=title,
+                title=title,
+            )
+            normalized_published_at = published_at or guessed_published_at
             events.append(
                 IntelEvent(
                     ticker=ticker,
                     kind=IntelKind.IR,
                     title=title,
                     url=absolute_url,
-                    published_at=now_iso,
+                    published_at=normalized_published_at,
                     source_label="IRサイト",
                     content=content,
                 )
             )
         return events
 
-    def _request_event_content(self, *, ticker: str, url: str, fallback_text: str) -> str:
+    def _request_event_content(self, *, ticker: str, url: str, fallback_text: str, title: str) -> tuple[str, str]:
         try:
             response = self._request_response(url=url, ticker=ticker)
         except Exception as exc:
             LOGGER.warning("IR本文取得失敗: ticker=%s url=%s error=%s", ticker, url, exc)
-            return fallback_text
+            fallback_published_at = _infer_published_at_from_text_or_url(text=title, url=url) or ""
+            return (fallback_text, fallback_published_at)
 
-        return self._extract_content_from_response(
+        content = self._extract_content_from_response(
             response=response,
             ticker=ticker,
             url=url,
             fallback_text=fallback_text,
         )
+        published_at = _resolve_event_published_at(response=response, title=title, url=url)
+        if not published_at:
+            LOGGER.info("IR公開日時の推定に失敗: ticker=%s url=%s", ticker, url)
+        return (content, published_at)
 
     def _extract_content_from_response(self, *, response: Any, ticker: str, url: str, fallback_text: str) -> str:
         try:
@@ -954,6 +968,53 @@ def _build_direct_ir_title(url: str) -> str:
     if filename:
         return filename
     return "IR資料"
+
+
+def _resolve_event_published_at(*, response: Any, title: str, url: str) -> str:
+    headers = getattr(response, "headers", {}) or {}
+    header_value = str(headers.get("last-modified", "")).strip()
+    parsed_header = _parse_http_datetime_iso8601(header_value)
+    if parsed_header:
+        return parsed_header
+    inferred = _infer_published_at_from_text_or_url(text=title, url=url)
+    if inferred:
+        return inferred
+    return ""
+
+
+def _parse_http_datetime_iso8601(value: str) -> str | None:
+    normalized = value.strip()
+    if not normalized:
+        return None
+    try:
+        parsed = parsedate_to_datetime(normalized)
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat()
+
+
+def _infer_published_at_from_text_or_url(*, text: str, url: str) -> str | None:
+    haystacks = [text, unquote(urlparse(url).path), unquote(url)]
+    patterns = (
+        re.compile(r"(20\d{2})[./\-年](\d{1,2})[./\-月](\d{1,2})日?"),
+        re.compile(r"(20\d{2})(\d{2})(\d{2})"),
+    )
+    for haystack in haystacks:
+        for pattern in patterns:
+            match = pattern.search(haystack)
+            if not match:
+                continue
+            try:
+                year = int(match.group(1))
+                month = int(match.group(2))
+                day = int(match.group(3))
+                parsed = datetime(year=year, month=month, day=day, tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            return parsed.isoformat()
+    return None
 
 
 def _score_ir_candidate(*, title: str, url: str, base_url: str) -> int:

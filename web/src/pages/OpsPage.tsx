@@ -121,6 +121,7 @@ export const OpsPage = () => {
   const [runningJobKey, setRunningJobKey] = useState<VisibleJobKey | 'discord_test' | 'grok_cooldown_reset' | null>(null);
   const [globalSettings, setGlobalSettings] = useState<AdminGlobalSettings | null>(null);
   const [cooldownHoursInput, setCooldownHoursInput] = useState('');
+  const [intelNotificationMaxAgeDaysInput, setIntelNotificationMaxAgeDaysInput] = useState('30');
   const [scheduleEnabledInput, setScheduleEnabledInput] = useState(true);
   const [openWindowStartInput, setOpenWindowStartInput] = useState('09:00');
   const [openWindowEndInput, setOpenWindowEndInput] = useState('10:00');
@@ -138,6 +139,7 @@ export const OpsPage = () => {
   const applyGlobalSettings = useCallback((value: AdminGlobalSettings): void => {
     setGlobalSettings(value);
     setCooldownHoursInput(String(value.cooldown_hours));
+    setIntelNotificationMaxAgeDaysInput(String(value.intel_notification_max_age_days));
     setScheduleEnabledInput(value.immediate_schedule.enabled);
     setOpenWindowStartInput(value.immediate_schedule.open_window_start);
     setOpenWindowEndInput(value.immediate_schedule.open_window_end);
@@ -288,6 +290,11 @@ export const OpsPage = () => {
       setOpsError('クールダウン時間は1以上の整数で入力してください。');
       return;
     }
+    const intelMaxAgeDays = Number(intelNotificationMaxAgeDaysInput.trim());
+    if (!Number.isInteger(intelMaxAgeDays) || intelMaxAgeDays <= 0) {
+      setOpsError('IR/SNS通知対象期間は1以上の整数で入力してください。');
+      return;
+    }
     const hhmm = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
     if (!hhmm.test(openWindowStartInput) || !hhmm.test(openWindowEndInput)) {
       setOpsError('寄り付き帯の時刻は HH:MM 形式で入力してください。');
@@ -327,6 +334,7 @@ export const OpsPage = () => {
     try {
       const response = await client.updateAdminGlobalSettings({
         cooldown_hours: parsed,
+        intel_notification_max_age_days: intelMaxAgeDays,
         immediate_schedule: {
           enabled: scheduleEnabledInput,
           open_window_start: openWindowStartInput,
@@ -357,6 +365,7 @@ export const OpsPage = () => {
     closeWindowIntervalInput,
     closeWindowStartInput,
     cooldownHoursInput,
+    intelNotificationMaxAgeDaysInput,
     grokCooldownHoursInput,
     grokPromptTemplateInput,
     grokScheduledTimeInput,
@@ -456,6 +465,7 @@ export const OpsPage = () => {
             あわせてIMMEDIATEの寄り付き帯/引け帯の実行時間帯と間隔（分）を設定できます。タイムゾーンはJST固定です。
           </p>
           <p className="muted">GrokによるSNS取得の定時時刻・再取得間隔・プロンプトテンプレートもここで設定できます。</p>
+          <p className="muted">IR/SNS通知は初回実行時のみ既読化し、公開日が対象期間内のものだけ通知されます。</p>
           <div className="settings-inline">
             <label className="inline-field">
               クールダウン（時間）
@@ -465,6 +475,17 @@ export const OpsPage = () => {
                 step={1}
                 value={cooldownHoursInput}
                 onChange={(event) => setCooldownHoursInput(event.target.value)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+            </label>
+            <label className="inline-field">
+              IR/SNS通知対象期間（日）
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={intelNotificationMaxAgeDaysInput}
+                onChange={(event) => setIntelNotificationMaxAgeDaysInput(event.target.value)}
                 disabled={opsForbidden || isSavingGlobalSettings || isLoading}
               />
             </label>
@@ -597,6 +618,9 @@ export const OpsPage = () => {
             現在値: {globalSettings ? `${globalSettings.cooldown_hours}時間` : '-'} / 反映元:{' '}
             {globalSettings?.source === 'firestore' ? '管理画面設定' : '環境変数デフォルト'}
           </p>
+          {globalSettings && (
+            <p className="muted">IR/SNS通知対象期間: {globalSettings.intel_notification_max_age_days}日</p>
+          )}
           {globalSettings && (
             <p className="muted">
               IMMEDIATE帯: {globalSettings.immediate_schedule.enabled ? '有効' : '無効'} / 寄り付き{' '}

@@ -15,6 +15,7 @@ class RuntimeSettingsTest(unittest.TestCase):
         )
 
         self.assertEqual(resolved.cooldown_hours, 2)
+        self.assertEqual(resolved.intel_notification_max_age_days, 30)
         self.assertEqual(resolved.immediate_schedule, ImmediateSchedule.default())
         self.assertEqual(resolved.grok_sns_settings.scheduled_time, "21:10")
         self.assertEqual(resolved.source, "env_default")
@@ -37,7 +38,20 @@ class RuntimeSettingsTest(unittest.TestCase):
         )
 
         self.assertEqual(resolved.cooldown_hours, 2)
+        self.assertEqual(resolved.intel_notification_max_age_days, 30)
         self.assertFalse(resolved.immediate_schedule.enabled)
+        self.assertEqual(resolved.source, "firestore")
+
+    def test_resolve_uses_firestore_when_intel_max_age_days_overridden(self) -> None:
+        resolved = resolve_runtime_settings(
+            default_cooldown_hours=2,
+            global_settings=GlobalRuntimeSettings(
+                intel_notification_max_age_days=14,
+            ),
+        )
+
+        self.assertEqual(resolved.cooldown_hours, 2)
+        self.assertEqual(resolved.intel_notification_max_age_days, 14)
         self.assertEqual(resolved.source, "firestore")
 
     def test_resolve_uses_firestore_when_grok_settings_overridden(self) -> None:

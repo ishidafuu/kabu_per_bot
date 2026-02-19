@@ -147,6 +147,7 @@ class GlobalSettingsRepository(Protocol):
         self,
         *,
         cooldown_hours: int | None = None,
+        intel_notification_max_age_days: int | None = None,
         immediate_schedule: ImmediateSchedule | None = None,
         grok_sns_settings: GrokSnsSettings | None = None,
         updated_at: str,

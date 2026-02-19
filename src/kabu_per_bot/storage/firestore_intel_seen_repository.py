@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from kabu_per_bot.intelligence import IntelEvent
-from kabu_per_bot.storage.firestore_schema import COLLECTION_INTEL_SEEN
+from kabu_per_bot.storage.firestore_schema import COLLECTION_INTEL_SEEN, normalize_ticker
 
 
 class FirestoreIntelSeenRepository:
@@ -13,6 +13,22 @@ class FirestoreIntelSeenRepository:
     def exists(self, fingerprint: str) -> bool:
         snapshot = self._collection.document(fingerprint).get()
         return bool(snapshot.exists)
+
+    def has_any_for_ticker(self, ticker: str) -> bool:
+        normalized_ticker = normalize_ticker(ticker)
+        if hasattr(self._collection, "where"):
+            query = self._collection.where("ticker", "==", normalized_ticker)
+            if hasattr(query, "limit"):
+                query = query.limit(1)
+            for _ in query.stream():
+                return True
+            return False
+        if hasattr(self._collection, "stream"):
+            for snapshot in self._collection.stream():
+                data = snapshot.to_dict() or {}
+                if str(data.get("ticker", "")).strip().upper() == normalized_ticker:
+                    return True
+        return False
 
     def mark_seen(self, event: IntelEvent, *, seen_at: str) -> None:
         self._collection.document(event.fingerprint).set(
