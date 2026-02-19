@@ -93,11 +93,29 @@ class FakeQuery:
 
 
 @dataclass
+class FakeBrokenQuery(FakeQuery):
+    def stream(self):
+        raise RuntimeError("The query requires an index.")
+
+
+@dataclass
+class FakeBrokenCollectionRef(FakeCollectionRef):
+    def where(self, field: str, op: str, value: str) -> "FakeQuery":
+        return FakeBrokenQuery(path=self.path, db=self.db, filters=[(field, op, value)])
+
+
+@dataclass
 class FakeFirestoreClient:
     db: dict[str, dict] = field(default_factory=dict)
 
     def collection(self, name: str) -> FakeCollectionRef:
         return FakeCollectionRef(path=name, db=self.db)
+
+
+@dataclass
+class FakeBrokenQueryFirestoreClient(FakeFirestoreClient):
+    def collection(self, name: str) -> FakeCollectionRef:
+        return FakeBrokenCollectionRef(path=name, db=self.db)
 
 
 class FirestoreIntelSeenRepositoryTest(unittest.TestCase):
@@ -145,6 +163,22 @@ class FirestoreIntelSeenRepositoryTest(unittest.TestCase):
 
         repo.mark_seen(ir_event, seen_at="2026-02-16T00:10:00+09:00")
         self.assertTrue(repo.has_any_for_ticker_and_kind("3901:TSE", IntelKind.IR))
+
+    def test_has_any_for_ticker_and_kind_fallback_when_query_requires_index(self) -> None:
+        repo = FirestoreIntelSeenRepository(FakeBrokenQueryFirestoreClient())
+        event = IntelEvent(
+            ticker="3901:TSE",
+            kind=IntelKind.IR,
+            title="決算資料",
+            url="https://example.com/ir/2",
+            published_at="2026-02-16T00:00:00+09:00",
+            source_label="IRサイト",
+            content="本文",
+        )
+
+        repo.mark_seen(event, seen_at="2026-02-16T00:10:00+09:00")
+        self.assertTrue(repo.has_any_for_ticker_and_kind("3901:TSE", IntelKind.IR))
+        self.assertFalse(repo.has_any_for_ticker_and_kind("3901:TSE", IntelKind.SNS))
 
 
 if __name__ == "__main__":

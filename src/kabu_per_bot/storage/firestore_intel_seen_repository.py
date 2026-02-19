@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from kabu_per_bot.intelligence import IntelEvent, IntelKind
 from kabu_per_bot.storage.firestore_schema import COLLECTION_INTEL_SEEN, normalize_ticker
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class FirestoreIntelSeenRepository:
@@ -25,14 +29,17 @@ class FirestoreIntelSeenRepository:
 
     def _has_any(self, *, ticker: str, kind: str | None = None) -> bool:
         if hasattr(self._collection, "where"):
-            query = self._collection.where("ticker", "==", ticker)
-            if kind is not None:
-                query = query.where("kind", "==", kind)
-            if hasattr(query, "limit"):
-                query = query.limit(1)
-            for _ in query.stream():
-                return True
-            return False
+            try:
+                query = self._collection.where("ticker", "==", ticker)
+                if kind is not None:
+                    query = query.where("kind", "==", kind)
+                if hasattr(query, "limit"):
+                    query = query.limit(1)
+                for _ in query.stream():
+                    return True
+                return False
+            except Exception as exc:
+                LOGGER.warning("intel_seen query失敗のためフォールバック: %s", exc)
         if hasattr(self._collection, "stream"):
             for snapshot in self._collection.stream():
                 data = snapshot.to_dict() or {}
