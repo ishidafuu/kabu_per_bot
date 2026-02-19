@@ -41,6 +41,7 @@ class RunIntelligenceJobScriptTest(TestCase):
         args = run_intelligence_job.argparse.Namespace(
             now_iso="2026-02-12T09:00:00+00:00",
             execution_mode="all",
+            respect_grok_schedule=False,
             discord_webhook_url="",
             stdout=True,
         )
@@ -83,6 +84,7 @@ class RunIntelligenceJobScriptTest(TestCase):
         args = run_intelligence_job.argparse.Namespace(
             now_iso="2026-02-12T09:00:00+00:00",
             execution_mode="all",
+            respect_grok_schedule=False,
             discord_webhook_url="",
             stdout=True,
         )
@@ -118,6 +120,51 @@ class RunIntelligenceJobScriptTest(TestCase):
         self.assertEqual(code, 0)
         config = mocked_pipeline.call_args.kwargs["config"]
         self.assertEqual(config.cooldown_hours, 7)
+
+    def test_main_respect_grok_schedule_skips_when_not_scheduled_minute(self) -> None:
+        args = run_intelligence_job.argparse.Namespace(
+            now_iso="2026-02-19T06:00:00+00:00",  # JST 15:00
+            execution_mode="all",
+            respect_grok_schedule=True,
+            discord_webhook_url="",
+            stdout=True,
+        )
+        settings = AppSettings(
+            app_env="test",
+            timezone="Asia/Tokyo",
+            window_1w_days=5,
+            window_3m_days=63,
+            window_1y_days=252,
+            cooldown_hours=2,
+            firestore_project_id="",
+            ai_notifications_enabled=True,
+            x_api_bearer_token="token",
+        )
+        runtime_settings = RuntimeSettings(
+            cooldown_hours=2,
+            immediate_schedule=ImmediateSchedule.default(),
+            source="firestore",
+            grok_sns_settings=GrokSnsSettings(
+                enabled=True,
+                scheduled_time="16:00",
+                per_ticker_cooldown_hours=24,
+                prompt_template="対象 {ticker}",
+            ),
+        )
+        with (
+            patch.object(run_intelligence_job, "parse_args", return_value=args),
+            patch.object(run_intelligence_job, "load_settings", return_value=settings),
+            patch.object(run_intelligence_job, "_create_firestore_client", return_value=object()),
+            patch.object(run_intelligence_job, "_resolve_runtime_config", return_value=runtime_settings),
+            patch.object(run_intelligence_job, "run_intelligence_pipeline") as mocked_pipeline,
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            code = run_intelligence_job.main()
+        self.assertEqual(code, 0)
+        mocked_pipeline.assert_not_called()
+        lines = [line for line in stdout.getvalue().splitlines() if line.strip()]
+        payload = json.loads(lines[-1])
+        self.assertEqual(payload, {"processed_tickers": 0, "sent_notifications": 0, "skipped_notifications": 0, "errors": 0})
 
     def test_build_intel_source_includes_grok_when_enabled(self) -> None:
         settings = AppSettings(

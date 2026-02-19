@@ -74,6 +74,7 @@ PYTHONPATH=src python scripts/run_immediate_window_job.py --window close --disco
 - `kabu-immediate-close` <- `sc-kabu-immediate-close`（平日13:00-16:59 毎分起動、設定一致時のみ実処理）
 - `kabu-daily` <- `sc-kabu-daily`（平日18:00 JST）
 - `kabu-daily-at21` <- `sc-kabu-daily-at21`（平日21:05 JST）
+- `kabu-intelligence` <- `sc-kabu-intelligence`（毎分起動、管理画面の Grok定時取得時刻と一致した分のみ実処理）
 - `kabu-backfill-incremental` <- `sc-kabu-backfill-incremental`（平日21:15 JST）
 - `kabu-earnings-weekly` <- `sc-kabu-earnings-weekly`（土曜21:00 JST）
 - `kabu-earnings-tomorrow` <- `sc-kabu-earnings-tomorrow`（毎日21:00 JST）
@@ -88,6 +89,7 @@ gcloud run jobs executions list --job=kabu-immediate-open --region=asia-northeas
 gcloud run jobs executions list --job=kabu-immediate-close --region=asia-northeast1 --project=<GCP_PROJECT_ID>
 gcloud run jobs executions list --job=kabu-daily --region=asia-northeast1 --project=<GCP_PROJECT_ID>
 gcloud run jobs executions list --job=kabu-daily-at21 --region=asia-northeast1 --project=<GCP_PROJECT_ID>
+gcloud run jobs executions list --job=kabu-intelligence --region=asia-northeast1 --project=<GCP_PROJECT_ID>
 gcloud scheduler jobs list --location=asia-northeast1 --project=<GCP_PROJECT_ID>
 ```
 

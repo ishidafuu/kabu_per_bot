@@ -12,7 +12,7 @@ from kabu_per_bot.discord_notifier import DiscordNotifier
 from kabu_per_bot.grok_sns_settings import GrokSnsSettings
 from kabu_per_bot.intelligence import CompositeIntelSource, GrokPromptIntelSource, IRWebsiteIntelSource, VertexGeminiAiAnalyzer
 from kabu_per_bot.intelligence_pipeline import IntelligencePipelineConfig, run_intelligence_pipeline
-from kabu_per_bot.pipeline import NotificationExecutionMode
+from kabu_per_bot.pipeline import NotificationExecutionMode, PipelineResult
 from kabu_per_bot.runtime_settings import GlobalRuntimeSettings, resolve_runtime_settings
 from kabu_per_bot.settings import load_settings
 from kabu_per_bot.storage.firestore_global_settings_repository import FirestoreGlobalSettingsRepository
@@ -42,6 +42,14 @@ def parse_args() -> argparse.Namespace:
         choices=("all", "daily", "at_21"),
         default="all",
         help="Dispatch filter mode. all=daily+21, daily=IMMEDIATE only, at_21=AT_21 only.",
+    )
+    parser.add_argument(
+        "--respect-grok-schedule",
+        action="store_true",
+        help=(
+            "When enabled, run pipeline only at scheduled Grok minute in JST. "
+            "Recommended for Cloud Scheduler every-minute trigger."
+        ),
     )
     parser.add_argument(
         "--discord-webhook-url",
@@ -174,6 +182,17 @@ def _is_scheduled_grok_time(*, now_iso: str | None, scheduled_time: str) -> bool
     return f"{jst.hour:02d}:{jst.minute:02d}" == scheduled_time
 
 
+def _should_run_by_grok_schedule(*, now_iso: str, runtime_settings) -> bool:
+    if not runtime_settings.grok_sns_settings.enabled:
+        LOGGER.info("Grok SNS取得は無効のため処理をスキップします。")
+        return False
+    scheduled_time = runtime_settings.grok_sns_settings.scheduled_time
+    if not _is_scheduled_grok_time(now_iso=now_iso, scheduled_time=scheduled_time):
+        LOGGER.info("Grok SNS定時外のため処理をスキップします（scheduled_time=%s JST）", scheduled_time)
+        return False
+    return True
+
+
 def _create_grok_fetch_gate(*, notification_log_repo, cooldown_hours: int):
     def gate(item, now_iso: str) -> bool:
         if cooldown_hours <= 0:
@@ -227,6 +246,11 @@ def main() -> int:
     now_iso = _resolve_now_utc_iso(now_iso=args.now_iso)
     client = _create_firestore_client(project_id=settings.firestore_project_id)
     runtime_settings = _resolve_runtime_config(settings=settings, client=client)
+    if getattr(args, "respect_grok_schedule", False):
+        if not _should_run_by_grok_schedule(now_iso=now_iso, runtime_settings=runtime_settings):
+            print(json.dumps(PipelineResult().__dict__, ensure_ascii=False))
+            return 0
+
     watchlist_repo = FirestoreWatchlistRepository(client)
     log_repo = FirestoreNotificationLogRepository(client)
     seen_repo = FirestoreIntelSeenRepository(client)
