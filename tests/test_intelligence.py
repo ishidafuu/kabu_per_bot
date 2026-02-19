@@ -527,26 +527,10 @@ class IntelligenceTest(unittest.TestCase):
         with self.assertRaises(IntelSourceError):
             source.fetch_events(item, now_iso="2026-02-15T00:00:00+00:00")
 
-    def test_grok_prompt_source_fallbacks_to_reasoning_model(self) -> None:
+    def test_grok_prompt_source_returns_empty_when_first_model_has_no_posts(self) -> None:
         client = FakeGrokClient(
             [
                 FakeGrokResponse(payload={"choices": [{"message": {"content": '{"posts":[]}'}}]}),
-                FakeGrokResponse(
-                    payload={
-                        "choices": [
-                            {
-                                "message": {
-                                    "content": (
-                                        '{"posts":[{"url":"https://x.com/fuji/status/2",'
-                                        '"published_at":"2026-02-15T12:00:00+09:00",'
-                                        '"account":"@fuji_ceo","source_label":"役員",'
-                                        '"summary":"設備投資の進捗を投稿"}]}'
-                                    )
-                                }
-                            }
-                        ]
-                    }
-                ),
             ]
         )
         source = GrokPromptIntelSource(
@@ -559,10 +543,9 @@ class IntelligenceTest(unittest.TestCase):
 
         events = source.fetch_events(self._watch_item(), now_iso="2026-02-15T00:00:00+00:00")
 
-        self.assertEqual(len(events), 1)
-        self.assertEqual(events[0].url, "https://x.com/fuji/status/2")
+        self.assertEqual(events, [])
         self.assertEqual(client.calls[0]["json"]["model"], "grok-4-1-fast-non-reasoning")
-        self.assertEqual(client.calls[1]["json"]["model"], "grok-4-1-fast-reasoning")
+        self.assertEqual(len(client.calls), 1)
 
     def test_grok_prompt_source_fallbacks_when_first_model_json_invalid(self) -> None:
         client = FakeGrokClient(

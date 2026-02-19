@@ -388,6 +388,8 @@ class GrokPromptIntelSource:
             events = self._parse_events(item=item, now_iso=now_iso, content=content)
             if events:
                 return events
+            # 投稿0件は異常ではないため、失敗扱いせず通知なしで終了する。
+            return []
         except IntelSourceError as exc:
             first_error = exc
 
@@ -398,6 +400,7 @@ class GrokPromptIntelSource:
                 events = self._parse_events(item=item, now_iso=now_iso, content=content)
                 if events:
                     return events
+                return []
             except IntelSourceError as exc:
                 if first_error is not None:
                     raise IntelSourceError(f"{first_error}; fallback={exc}") from exc
@@ -405,7 +408,7 @@ class GrokPromptIntelSource:
 
         if first_error is not None:
             raise first_error
-        raise IntelSourceError(f"SNS取得失敗: ticker={item.ticker} reason=no_valid_posts")
+        return []
 
     def _call_chat(self, *, model: str, item: WatchlistItem, now_iso: str) -> str:
         payload = {
