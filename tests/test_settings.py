@@ -33,8 +33,6 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.grok_sns_scheduled_time, "21:10")
         self.assertEqual(settings.grok_sns_per_ticker_cooldown_hours, 24)
         self.assertGreaterEqual(len(settings.grok_sns_prompt_template), 20)
-        self.assertIn("{ticker}", settings.grok_sns_prompt_template)
-        self.assertIn("[注目度:H/M/L|状況:改善/継続/悪化/不明|Cat:有/無(内容)|影響:↑/→/↓]", settings.grok_sns_prompt_template)
         self.assertEqual(settings.intel_notification_max_age_days, 30)
 
     def test_env_override(self) -> None:

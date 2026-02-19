@@ -169,7 +169,6 @@ PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source grok_only -
 - `--intel-source all` 指定時も内部では `ir_only` と `grok_only` を別パイプラインで実行し、結果を集約する。
 - `--intel-source grok_only --respect-grok-schedule` 指定時は `GROK_SNS_ENABLED=true` かつ実行時刻（JST）が `GROK_SNS_SCHEDULED_TIME` と一致した分のみ処理する。
 - `GROK_SNS_PER_TICKER_COOLDOWN_HOURS` の間は、同一銘柄の `SNS注目` 通知が直近にある場合は再取得をスキップする。
-- `GROK_SNS_PROMPT_TEMPLATE` の既定値は、`summary` 先頭に `[注目度|状況|Cat|影響]` を付与する形式（例: `[注目度:H|状況:改善|Cat:有(受注)|影響:↑] 要点`）。
 - AI要約は `Vertex AI Gemini` を利用し、`VERTEX_AI_LOCATION` / `VERTEX_AI_MODEL` で変更できる。
 - IRリンク先の HTML/PDF 本文を取得し、本文テキストを要約対象として扱う。
 - IR通知は銘柄ごとの初回実行時に既読化のみを行い、通知は送信しない（Grok SNSは初回から通知対象）。
