@@ -232,3 +232,5 @@ PYTHONPATH=src python scripts/send_discord_test_notification.py --webhook-url <D
 
 - 現行仕様は `docs/README.md` の「正本（運用中）」を参照。
 - 完了済みの受け入れ基準や旧版は `docs/90_アーカイブ/` を参照。
+- `docs/` を更新したら `cd web && npm run sync:help-docs` で `/guide` 用データを同期し、`npm run dev` で表示確認する。
+- `npm run dev` / `npm run build` / `npm run test:e2e` は同期を自動実行するが、ドキュメント単独更新時は手動同期を先に実施する。

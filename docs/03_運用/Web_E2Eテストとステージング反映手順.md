@@ -82,6 +82,26 @@ E2E_API_PYTHON=../.venv/bin/python npm run test:e2e:api
 - `E2E_API_PYTHON` 未指定時は `../.venv/bin/python`（存在する場合）を優先し、なければ `python3` を使用する。
 - フロントは `VITE_USE_MOCK_AUTH=true` / `VITE_USE_MOCK_API=false` で動作し、認証はテスト用トークン（`mock-token`）を使用する。
 
+### 3.3 `/guide` 用ヘルプ同期（docs更新時）
+
+`docs/` のMarkdownを更新した場合は、Web表示用の同期を先に実施する。
+
+```bash
+cd /Users/ishidafuu/Documents/repository/kabu_per_bot/web
+npm run sync:help-docs
+npm run dev
+```
+
+確認ポイント:
+
+1. `web/public/help-docs/index.json` の `generated_at` が更新される
+2. `/guide` で更新したドキュメント本文が表示される
+
+補足:
+
+- `npm run dev` / `npm run build` / `npm run test:e2e` でも自動同期される
+- ドキュメント単独更新時は、表示崩れの早期検知のため手動同期を先に実施する
+
 ## 4. ステージング反映（現行運用の最小手順）
 
 ### 4.1 事前条件
@@ -104,7 +124,14 @@ npm run test:e2e
 E2E_API_PYTHON=../.venv/bin/python npm run test:e2e:api
 ```
 
-2. ステージング向けにビルド
+2. `docs/` 更新がある場合はヘルプ同期を実行
+
+```bash
+cd /Users/ishidafuu/Documents/repository/kabu_per_bot/web
+npm run sync:help-docs
+```
+
+3. ステージング向けにビルド
 
 ```bash
 cd /Users/ishidafuu/Documents/repository/kabu_per_bot/web
@@ -114,7 +141,7 @@ VITE_API_BASE_URL="<STG_API_BASE_URL>" \
 npm run build
 ```
 
-3. Firebase Hosting へ反映
+4. Firebase Hosting へ反映
 
 ```bash
 cd /Users/ishidafuu/Documents/repository/kabu_per_bot
