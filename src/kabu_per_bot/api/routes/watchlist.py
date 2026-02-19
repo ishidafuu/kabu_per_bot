@@ -240,18 +240,31 @@ def _resolve_status_dependency(
     value_key: str,
     factory_key: str,
 ):
-    dependency = getattr(request.app.state, value_key, None)
+    return _resolve_status_dependency_from_app(
+        app=request.app,
+        value_key=value_key,
+        factory_key=factory_key,
+    )
+
+
+def _resolve_status_dependency_from_app(
+    *,
+    app: Any,
+    value_key: str,
+    factory_key: str,
+):
+    dependency = getattr(app.state, value_key, None)
     if dependency is not None:
         return dependency
 
-    factory = getattr(request.app.state, factory_key, None)
+    factory = getattr(app.state, factory_key, None)
     if factory is None:
         raise InternalServerError(f"{value_key} の依存解決に失敗しました。")
     try:
         dependency = factory()
     except Exception as exc:
         raise InternalServerError(f"{value_key} の初期化に失敗しました。") from exc
-    setattr(request.app.state, value_key, dependency)
+    setattr(app.state, value_key, dependency)
     return dependency
 
 
@@ -385,20 +398,47 @@ def _normalize_map_keys(values: Any) -> dict[str, Any]:
 
 def _run_watchlist_registration_warmup(*, request: Request, item: WatchlistItem) -> None:
     settings = load_settings()
-    trade_date = datetime.now(ZoneInfo(settings.timezone)).date().isoformat()
+    api_key = os.environ.get("JQUANTS_API_KEY", "").strip()
+    thread = threading.Thread(
+        target=_run_watchlist_registration_warmup_worker,
+        kwargs={
+            "app": request.app,
+            "item": item,
+            "timezone_name": settings.timezone,
+            "window_1w_days": settings.window_1w_days,
+            "window_3m_days": settings.window_3m_days,
+            "window_1y_days": settings.window_1y_days,
+            "api_key": api_key,
+        },
+        daemon=True,
+    )
+    thread.start()
+
+
+def _run_watchlist_registration_warmup_worker(
+    *,
+    app: Any,
+    item: WatchlistItem,
+    timezone_name: str,
+    window_1w_days: int,
+    window_3m_days: int,
+    window_1y_days: int,
+    api_key: str,
+) -> None:
+    trade_date = datetime.now(ZoneInfo(timezone_name)).date().isoformat()
     try:
-        daily_metrics_repo = _resolve_status_dependency(
-            request=request,
+        daily_metrics_repo = _resolve_status_dependency_from_app(
+            app=app,
             value_key="daily_metrics_repository",
             factory_key="daily_metrics_repository_factory",
         )
-        metric_medians_repo = _resolve_status_dependency(
-            request=request,
+        metric_medians_repo = _resolve_status_dependency_from_app(
+            app=app,
             value_key="metric_medians_repository",
             factory_key="metric_medians_repository_factory",
         )
-        signal_state_repo = _resolve_status_dependency(
-            request=request,
+        signal_state_repo = _resolve_status_dependency_from_app(
+            app=app,
             value_key="signal_state_repository",
             factory_key="signal_state_repository_factory",
         )
@@ -410,7 +450,7 @@ def _run_watchlist_registration_warmup(*, request: Request, item: WatchlistItem)
         upsert_latest_snapshot_metric(
             item=item,
             trade_date=trade_date,
-            market_data_source=create_default_market_data_source(),
+            market_data_source=create_default_market_data_source(jquants_api_key=api_key),
             daily_metrics_repo=daily_metrics_repo,
         )
         refresh_latest_medians_and_signal(
@@ -418,32 +458,26 @@ def _run_watchlist_registration_warmup(*, request: Request, item: WatchlistItem)
             daily_metrics_repo=daily_metrics_repo,
             medians_repo=metric_medians_repo,
             signal_state_repo=signal_state_repo,
-            window_1w_days=settings.window_1w_days,
-            window_3m_days=settings.window_3m_days,
-            window_1y_days=settings.window_1y_days,
+            window_1w_days=window_1w_days,
+            window_3m_days=window_3m_days,
+            window_1y_days=window_1y_days,
         )
         LOGGER.info("登録直後ウォームアップ完了: ticker=%s trade_date=%s", item.ticker, trade_date)
     except Exception as exc:
         LOGGER.exception("登録直後ウォームアップ失敗: ticker=%s error=%s", item.ticker, exc)
 
-    api_key = os.environ.get("JQUANTS_API_KEY", "").strip()
     if not api_key:
         LOGGER.warning("JQUANTS_API_KEY 未設定のため、登録直後バックフィルをスキップ: ticker=%s", item.ticker)
         return
 
-    thread = threading.Thread(
-        target=_run_watchlist_registration_backfill_worker,
-        kwargs={
-            "item": item,
-            "api_key": api_key,
-            "timezone_name": settings.timezone,
-            "window_1w_days": settings.window_1w_days,
-            "window_3m_days": settings.window_3m_days,
-            "window_1y_days": settings.window_1y_days,
-        },
-        daemon=True,
+    _run_watchlist_registration_backfill_worker(
+        item=item,
+        api_key=api_key,
+        timezone_name=timezone_name,
+        window_1w_days=window_1w_days,
+        window_3m_days=window_3m_days,
+        window_1y_days=window_1y_days,
     )
-    thread.start()
 
 
 def _run_watchlist_registration_backfill_worker(
