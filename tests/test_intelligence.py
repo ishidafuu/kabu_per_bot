@@ -564,6 +564,43 @@ class IntelligenceTest(unittest.TestCase):
         self.assertEqual(client.calls[0]["json"]["model"], "grok-4-1-fast-non-reasoning")
         self.assertEqual(client.calls[1]["json"]["model"], "grok-4-1")
 
+    def test_grok_prompt_source_fallbacks_when_first_model_json_invalid(self) -> None:
+        client = FakeGrokClient(
+            [
+                FakeGrokResponse(payload={"choices": [{"message": {"content": "not-json"}}]}),
+                FakeGrokResponse(
+                    payload={
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": (
+                                        '{"posts":[{"url":"https://x.com/fuji/status/3",'
+                                        '"published_at":"2026-02-15T12:30:00+09:00",'
+                                        '"account":"@fuji_ir","source_label":"公式",'
+                                        '"summary":"工場稼働率の改善を投稿"}]}'
+                                    )
+                                }
+                            }
+                        ]
+                    }
+                ),
+            ]
+        )
+        source = GrokPromptIntelSource(
+            api_key="dummy-key",
+            model="grok-4-1-fast-non-reasoning",
+            reasoning_model="grok-4-1",
+            prompt_template="対象 {ticker}",
+            http_client=client,
+        )
+
+        events = source.fetch_events(self._watch_item(), now_iso="2026-02-15T00:00:00+00:00")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].url, "https://x.com/fuji/status/3")
+        self.assertEqual(client.calls[0]["json"]["model"], "grok-4-1-fast-non-reasoning")
+        self.assertEqual(client.calls[1]["json"]["model"], "grok-4-1")
+
     def test_grok_prompt_source_skips_fetch_by_gate(self) -> None:
         client = FakeGrokClient(
             [

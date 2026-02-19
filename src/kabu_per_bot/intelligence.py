@@ -381,19 +381,30 @@ class GrokPromptIntelSource:
         if self._fetch_gate is not None and not self._fetch_gate(item, now_iso):
             return []
 
-        # 1st: non-reasoning model for cost efficiency
-        content = self._call_chat(model=self._model, item=item, now_iso=now_iso)
-        events = self._parse_events(item=item, now_iso=now_iso, content=content)
-        if events:
-            return events
-
-        # 2nd: reasoning model as fallback when parse or extraction failed
-        if self._reasoning_model and self._reasoning_model != self._model:
-            content = self._call_chat(model=self._reasoning_model, item=item, now_iso=now_iso)
+        first_error: IntelSourceError | None = None
+        try:
+            # 1st: non-reasoning model for cost efficiency
+            content = self._call_chat(model=self._model, item=item, now_iso=now_iso)
             events = self._parse_events(item=item, now_iso=now_iso, content=content)
             if events:
                 return events
+        except IntelSourceError as exc:
+            first_error = exc
 
+        # 2nd: reasoning model as fallback when parse/extraction or API call failed on 1st model.
+        if self._reasoning_model and self._reasoning_model != self._model:
+            try:
+                content = self._call_chat(model=self._reasoning_model, item=item, now_iso=now_iso)
+                events = self._parse_events(item=item, now_iso=now_iso, content=content)
+                if events:
+                    return events
+            except IntelSourceError as exc:
+                if first_error is not None:
+                    raise IntelSourceError(f"{first_error}; fallback={exc}") from exc
+                raise
+
+        if first_error is not None:
+            raise first_error
         raise IntelSourceError(f"SNS取得失敗: ticker={item.ticker} reason=no_valid_posts")
 
     def _call_chat(self, *, model: str, item: WatchlistItem, now_iso: str) -> str:
