@@ -14,9 +14,11 @@ from kabu_per_bot.admin_ops import (
 )
 from kabu_per_bot.api.dependencies import (
     AdminOpsReader,
+    IntelSeenReader,
     NotificationLogReader,
     get_admin_ops_service,
     get_authenticated_uid,
+    get_intel_seen_repository,
     get_notification_log_repository,
     require_admin_user,
 )
@@ -153,6 +155,7 @@ def send_discord_test_notification(
 def reset_grok_cooldown(
     ticker: str | None = Query(default=None),
     notification_log_repository: NotificationLogReader = Depends(get_notification_log_repository),
+    intel_seen_repository: IntelSeenReader = Depends(get_intel_seen_repository),
 ) -> AdminOpsGrokCooldownResetResponse:
     normalized_ticker: str | None = None
     if ticker is not None and ticker.strip():
@@ -161,7 +164,9 @@ def reset_grok_cooldown(
             raise BadRequestError("ticker は 1234:TSE 形式で指定してください。")
         normalized_ticker = candidate
     try:
-        deleted = notification_log_repository.reset_grok_sns_cooldown(ticker=normalized_ticker)
+        deleted_logs = notification_log_repository.reset_grok_sns_cooldown(ticker=normalized_ticker)
+        deleted_seen = intel_seen_repository.reset_sns_seen(ticker=normalized_ticker)
+        deleted = deleted_logs + deleted_seen
     except ValueError as exc:
         raise BadRequestError(str(exc)) from exc
     except Exception as exc:
@@ -169,6 +174,8 @@ def reset_grok_cooldown(
     return AdminOpsGrokCooldownResetResponse(
         reset_at=datetime.now(timezone.utc).isoformat(),
         deleted_entries=deleted,
+        deleted_notification_logs=deleted_logs,
+        deleted_seen_entries=deleted_seen,
         ticker=normalized_ticker,
     )
 

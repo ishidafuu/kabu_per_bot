@@ -261,7 +261,7 @@ export const OpsPage = () => {
 
   const resetGrokCooldown = useCallback(async (): Promise<void> => {
     const accepted = window.confirm(
-      'Grokの取得クールダウンをリセットします。\nSNS注目の通知ログを削除し、次回定時で再取得可能にします。続行しますか？',
+      'Grokの再取得抑制をリセットします。\nSNS注目の通知ログと既読キャッシュを削除し、次回定時で再通知可能にします。続行しますか？',
     );
     if (!accepted) {
       return;
@@ -273,7 +273,7 @@ export const OpsPage = () => {
     try {
       const response = await client.resetGrokCooldown();
       setOpNotice(
-        `Grokクールダウンをリセットしました: ${response.deleted_entries}件削除（${formatTime(response.reset_at)}）`,
+        `Grok再取得リセット完了: 通知ログ${response.deleted_notification_logs}件 + 既読${response.deleted_seen_entries}件（合計${response.deleted_entries}件, ${formatTime(response.reset_at)}）`,
       );
       await refreshOps();
     } catch (error) {

@@ -245,12 +245,14 @@
     - `sent_at`
 
 5. `POST /admin/ops/grok/cooldown/reset`
-  - 目的: Grok取得クールダウン判定に使う `SNS注目` 通知ログを削除し、再取得可能にする
+  - 目的: Grok再通知抑制に使う `SNS注目` 通知ログと `intel_seen(kind=SNS)` を削除し、再取得/再通知可能にする
   - クエリ:
     - `ticker`（任意: `1234:TSE` 形式。未指定時は全銘柄）
   - 200レスポンス:
     - `reset_at`
     - `deleted_entries`
+    - `deleted_notification_logs`
+    - `deleted_seen_entries`
     - `ticker`
 
 ### 4.6 全体設定API（管理者のみ）

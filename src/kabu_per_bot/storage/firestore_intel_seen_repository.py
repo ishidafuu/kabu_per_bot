@@ -44,3 +44,26 @@ class FirestoreIntelSeenRepository:
             },
             merge=False,
         )
+
+    def reset_sns_seen(self, *, ticker: str | None = None) -> int:
+        normalized_ticker = normalize_ticker(ticker) if ticker is not None else None
+        targets: list[Any] = []
+        if hasattr(self._collection, "where"):
+            query = self._collection.where("kind", "==", "SNS")
+            if normalized_ticker:
+                query = query.where("ticker", "==", normalized_ticker)
+            targets = list(query.stream())
+        if not targets:
+            for snapshot in self._collection.stream():
+                data = snapshot.to_dict() or {}
+                if str(data.get("kind", "")).strip().upper() != "SNS":
+                    continue
+                if normalized_ticker and str(data.get("ticker", "")).strip().upper() != normalized_ticker:
+                    continue
+                targets.append(snapshot)
+
+        deleted = 0
+        for snapshot in targets:
+            snapshot.reference.delete()
+            deleted += 1
+        return deleted

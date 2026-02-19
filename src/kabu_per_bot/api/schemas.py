@@ -217,6 +217,8 @@ class AdminOpsDiscordTestResponse(BaseModel):
 class AdminOpsGrokCooldownResetResponse(BaseModel):
     reset_at: str
     deleted_entries: int = Field(ge=0)
+    deleted_notification_logs: int = Field(ge=0)
+    deleted_seen_entries: int = Field(ge=0)
     ticker: str | None = None
 
 

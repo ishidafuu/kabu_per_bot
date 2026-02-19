@@ -119,5 +119,7 @@ export interface RunAdminJobResponse {
 export interface AdminGrokCooldownResetResponse {
   reset_at: string;
   deleted_entries: number;
+  deleted_notification_logs: number;
+  deleted_seen_entries: number;
   ticker?: string | null;
 }

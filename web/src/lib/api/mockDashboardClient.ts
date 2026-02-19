@@ -151,9 +151,13 @@ export class MockDashboardClient implements DashboardClient {
 
   async resetGrokCooldown(ticker?: string): Promise<AdminGrokCooldownResetResponse> {
     await wait(80);
+    const deletedNotificationLogs = ticker ? 3 : 12;
+    const deletedSeenEntries = ticker ? 2 : 8;
     return {
       reset_at: new Date().toISOString(),
-      deleted_entries: ticker ? 3 : 12,
+      deleted_entries: deletedNotificationLogs + deletedSeenEntries,
+      deleted_notification_logs: deletedNotificationLogs,
+      deleted_seen_entries: deletedSeenEntries,
       ticker: ticker ?? null,
     };
   }

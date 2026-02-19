@@ -9,6 +9,7 @@ from kabu_per_bot.api.dependencies import (
     DailyMetricsReader,
     EarningsCalendarReader,
     GlobalSettingsRepository,
+    IntelSeenReader,
     MetricMediansReader,
     NotificationLogReader,
     SignalStateReader,
@@ -16,6 +17,7 @@ from kabu_per_bot.api.dependencies import (
     create_daily_metrics_repository,
     create_earnings_calendar_repository,
     create_admin_ops_service,
+    create_intel_seen_repository,
     create_metric_medians_repository,
     create_notification_log_repository,
     create_global_settings_repository,
@@ -34,6 +36,7 @@ def create_app(
     watchlist_service: WatchlistService | None = None,
     watchlist_history_repository: WatchlistHistoryReader | None = None,
     notification_log_repository: NotificationLogReader | None = None,
+    intel_seen_repository: IntelSeenReader | None = None,
     daily_metrics_repository: DailyMetricsReader | None = None,
     metric_medians_repository: MetricMediansReader | None = None,
     signal_state_repository: SignalStateReader | None = None,
@@ -69,6 +72,9 @@ def create_app(
 
     app.state.notification_log_repository = notification_log_repository
     app.state.notification_log_repository_factory = create_notification_log_repository
+
+    app.state.intel_seen_repository = intel_seen_repository
+    app.state.intel_seen_repository_factory = create_intel_seen_repository
 
     app.state.daily_metrics_repository = daily_metrics_repository
     app.state.daily_metrics_repository_factory = create_daily_metrics_repository

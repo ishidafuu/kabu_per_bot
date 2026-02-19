@@ -39,6 +39,16 @@ class FakeNotificationLogRepository:
 
 
 @dataclass
+class FakeIntelSeenRepository:
+    deleted_entries: int = 0
+    last_ticker: str | None = None
+
+    def reset_sns_seen(self, *, ticker: str | None = None) -> int:
+        self.last_ticker = ticker
+        return self.deleted_entries
+
+
+@dataclass
 class FakeAdminOpsService:
     execution: JobExecution = field(
         default_factory=lambda: JobExecution(
@@ -208,9 +218,11 @@ class AdminOpsApiTest(unittest.TestCase):
 
     def test_reset_grok_cooldown_endpoint(self) -> None:
         notification_repo = FakeNotificationLogRepository(deleted_entries=7)
+        intel_seen_repo = FakeIntelSeenRepository(deleted_entries=5)
         app = create_app(
             admin_ops_service=FakeAdminOpsService(),
             notification_log_repository=notification_repo,
+            intel_seen_repository=intel_seen_repo,
             token_verifier=FakeTokenVerifier(),
         )
         client = TestClient(app)
@@ -222,14 +234,18 @@ class AdminOpsApiTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         body = response.json()
-        self.assertEqual(body["deleted_entries"], 7)
+        self.assertEqual(body["deleted_entries"], 12)
+        self.assertEqual(body["deleted_notification_logs"], 7)
+        self.assertEqual(body["deleted_seen_entries"], 5)
         self.assertEqual(body["ticker"], "6490:TSE")
         self.assertEqual(notification_repo.last_ticker, "6490:TSE")
+        self.assertEqual(intel_seen_repo.last_ticker, "6490:TSE")
 
     def test_reset_grok_cooldown_endpoint_rejects_invalid_ticker(self) -> None:
         app = create_app(
             admin_ops_service=FakeAdminOpsService(),
             notification_log_repository=FakeNotificationLogRepository(deleted_entries=0),
+            intel_seen_repository=FakeIntelSeenRepository(deleted_entries=0),
             token_verifier=FakeTokenVerifier(),
         )
         client = TestClient(app)
