@@ -55,6 +55,59 @@ class FakeFirestoreClient:
         return FakeCollectionRef(path=name, db=self.db)
 
 
+@dataclass
+class IndexFailingQuery:
+    docs: list[dict]
+
+    def where(self, field: str, op: str, value: str) -> "IndexFailingQuery":
+        _ = field, op, value
+        return self
+
+    def order_by(self, field: str, direction: str = "ASCENDING") -> "IndexFailingQuery":
+        _ = field, direction
+        return self
+
+    def offset(self, value: int) -> "IndexFailingQuery":
+        _ = value
+        return self
+
+    def limit(self, value: int) -> "IndexFailingQuery":
+        _ = value
+        return self
+
+    def stream(self):
+        raise RuntimeError("The query requires an index.")
+
+
+@dataclass
+class IndexFailingCollectionRef:
+    docs: list[dict]
+
+    def document(self, document_id: str) -> FakeDocumentRef:
+        _ = document_id
+        return FakeDocumentRef(path="ignored", db={})
+
+    def where(self, field: str, op: str, value: str) -> IndexFailingQuery:
+        _ = field, op, value
+        return IndexFailingQuery(docs=self.docs)
+
+    def order_by(self, field: str, direction: str = "ASCENDING") -> IndexFailingQuery:
+        _ = field, direction
+        return IndexFailingQuery(docs=self.docs)
+
+    def stream(self) -> list[FakeSnapshot]:
+        return [FakeSnapshot(exists=True, data=dict(value)) for value in self.docs]
+
+
+@dataclass
+class IndexFailingFirestoreClient:
+    docs: list[dict]
+
+    def collection(self, name: str) -> IndexFailingCollectionRef:
+        _ = name
+        return IndexFailingCollectionRef(docs=self.docs)
+
+
 class FirestoreWatchlistHistoryRepositoryTest(unittest.TestCase):
     def test_append_and_list(self) -> None:
         repo = FirestoreWatchlistHistoryRepository(FakeFirestoreClient())
@@ -100,6 +153,33 @@ class FirestoreWatchlistHistoryRepositoryTest(unittest.TestCase):
         self.assertEqual(updated.reason, "理由更新")
         missing = repo.update_reason(record_id="not-found", reason="x")
         self.assertIsNone(missing)
+
+    def test_list_timeline_falls_back_when_query_requires_index(self) -> None:
+        docs = [
+            WatchlistHistoryRecord.create(
+                ticker="3901:TSE",
+                action=WatchlistHistoryAction.ADD,
+                acted_at="2026-02-12T00:00:00+00:00",
+            ).to_document(),
+            WatchlistHistoryRecord.create(
+                ticker="3901:TSE",
+                action=WatchlistHistoryAction.REMOVE,
+                acted_at="2026-02-12T03:00:00+00:00",
+                reason="監視終了",
+            ).to_document(),
+            WatchlistHistoryRecord.create(
+                ticker="6758:TSE",
+                action=WatchlistHistoryAction.ADD,
+                acted_at="2026-02-12T04:00:00+00:00",
+            ).to_document(),
+        ]
+        repo = FirestoreWatchlistHistoryRepository(IndexFailingFirestoreClient(docs=docs))
+
+        rows = repo.list_timeline(ticker="3901:TSE", limit=10, offset=0)
+
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0].action, WatchlistHistoryAction.REMOVE)
+        self.assertEqual(rows[1].action, WatchlistHistoryAction.ADD)
 
 
 if __name__ == "__main__":

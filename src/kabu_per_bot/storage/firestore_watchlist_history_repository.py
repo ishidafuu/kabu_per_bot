@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from kabu_per_bot.storage.firestore_schema import COLLECTION_WATCHLIST_HISTORY, normalize_ticker
 from kabu_per_bot.watchlist import WatchlistHistoryRecord
+
+LOGGER = logging.getLogger(__name__)
+_MISSING_INDEX_WARNING_KEYS: set[str] = set()
 
 
 class FirestoreWatchlistHistoryRepository:
@@ -45,15 +49,20 @@ class FirestoreWatchlistHistoryRepository:
     ) -> list[WatchlistHistoryRecord]:
         normalized_ticker = normalize_ticker(ticker) if ticker is not None else None
         if hasattr(self._collection, "where") and hasattr(self._collection, "order_by"):
-            query = self._collection
-            if normalized_ticker:
-                query = query.where("ticker", "==", normalized_ticker)
-            query = query.order_by("acted_at", direction="DESCENDING")
-            if offset > 0 and hasattr(query, "offset"):
-                query = query.offset(offset)
-            if limit is not None and hasattr(query, "limit"):
-                query = query.limit(limit)
-            return [WatchlistHistoryRecord.from_document(snapshot.to_dict() or {}) for snapshot in query.stream()]
+            try:
+                query = self._collection
+                if normalized_ticker:
+                    query = query.where("ticker", "==", normalized_ticker)
+                query = query.order_by("acted_at", direction="DESCENDING")
+                if offset > 0 and hasattr(query, "offset"):
+                    query = query.offset(offset)
+                if limit is not None and hasattr(query, "limit"):
+                    query = query.limit(limit)
+                return [WatchlistHistoryRecord.from_document(snapshot.to_dict() or {}) for snapshot in query.stream()]
+            except Exception as exc:
+                if not _is_missing_index_error(exc):
+                    raise
+                _log_missing_index_warning_once(key="timeline.primary", exc=exc)
 
         records: list[WatchlistHistoryRecord] = []
         for snapshot in self._collection.stream():
@@ -85,3 +94,15 @@ class FirestoreWatchlistHistoryRepository:
                 continue
             count += 1
         return count
+
+
+def _is_missing_index_error(exc: Exception) -> bool:
+    lowered = str(exc).lower()
+    return "requires an index" in lowered
+
+
+def _log_missing_index_warning_once(*, key: str, exc: Exception) -> None:
+    if key in _MISSING_INDEX_WARNING_KEYS:
+        return
+    _MISSING_INDEX_WARNING_KEYS.add(key)
+    LOGGER.warning("watchlist_history query index不足のためフォールバック: %s", exc)
