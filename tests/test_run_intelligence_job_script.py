@@ -123,7 +123,7 @@ class RunIntelligenceJobScriptTest(TestCase):
         config = mocked_pipeline.call_args.kwargs["config"]
         self.assertEqual(config.cooldown_hours, 7)
         self.assertEqual(config.intel_notification_max_age_days, 30)
-        self.assertEqual(config.channel, run_intelligence_job.DISCORD_INTELLIGENCE_CHANNEL)
+        self.assertEqual(config.channel, run_intelligence_job.DISCORD_INTELLIGENCE_IR_CHANNEL)
 
     def test_main_respect_grok_schedule_skips_when_not_scheduled_minute(self) -> None:
         args = run_intelligence_job.argparse.Namespace(
@@ -512,6 +512,43 @@ class RunIntelligenceJobScriptTest(TestCase):
         result = gate(item, "2026-02-19T12:00:00+00:00")
 
         self.assertFalse(result)
+
+    def test_resolve_scope_webhook_url_prefers_ir_specific_url(self) -> None:
+        args = run_intelligence_job.argparse.Namespace(
+            discord_webhook_url="https://example.com/common",
+            discord_webhook_url_ir="https://example.com/ir",
+            discord_webhook_url_sns="https://example.com/sns",
+        )
+        self.assertEqual(
+            run_intelligence_job._resolve_scope_webhook_url(args, scope="ir_only"),
+            "https://example.com/ir",
+        )
+
+    def test_resolve_scope_webhook_url_prefers_sns_specific_url(self) -> None:
+        args = run_intelligence_job.argparse.Namespace(
+            discord_webhook_url="https://example.com/common",
+            discord_webhook_url_ir="https://example.com/ir",
+            discord_webhook_url_sns="https://example.com/sns",
+        )
+        self.assertEqual(
+            run_intelligence_job._resolve_scope_webhook_url(args, scope="grok_only"),
+            "https://example.com/sns",
+        )
+
+    def test_resolve_scope_webhook_url_fallbacks_common_url(self) -> None:
+        args = run_intelligence_job.argparse.Namespace(
+            discord_webhook_url="https://example.com/common",
+            discord_webhook_url_ir="",
+            discord_webhook_url_sns="",
+        )
+        self.assertEqual(
+            run_intelligence_job._resolve_scope_webhook_url(args, scope="ir_only"),
+            "https://example.com/common",
+        )
+        self.assertEqual(
+            run_intelligence_job._resolve_scope_webhook_url(args, scope="grok_only"),
+            "https://example.com/common",
+        )
 
 
 if __name__ == "__main__":

@@ -60,7 +60,9 @@ uvicorn kabu_per_bot.api.app:app --reload
 - `DISCORD_WEBHOOK_URL`（全ジョブ共通の通知先。未分割時に使用）
 - `DISCORD_WEBHOOK_URL_DAILY`（日次/IMMEDIATEジョブ専用。未設定時は `DISCORD_WEBHOOK_URL` を使用）
 - `DISCORD_WEBHOOK_URL_EARNINGS`（決算ジョブ専用。未設定時は `DISCORD_WEBHOOK_URL` を使用）
-- `DISCORD_WEBHOOK_URL_INTELLIGENCE`（IR/SNS/AIジョブ専用。未設定時は `DISCORD_WEBHOOK_URL` を使用）
+- `DISCORD_WEBHOOK_URL_INTELLIGENCE`（IR/SNS共通fallback。未設定時は `DISCORD_WEBHOOK_URL` を使用）
+- `DISCORD_WEBHOOK_URL_INTELLIGENCE_IR`（IR通知専用。未設定時は `DISCORD_WEBHOOK_URL_INTELLIGENCE` を使用）
+- `DISCORD_WEBHOOK_URL_INTELLIGENCE_SNS`（SNS/AI通知専用。未設定時は `DISCORD_WEBHOOK_URL_INTELLIGENCE` を使用）
 - `DISCORD_WEBHOOK_URL_OPS`（管理画面疎通テスト/テスト送信専用。未設定時は `DISCORD_WEBHOOK_URL` を使用）
 - `GROK_API_KEY`（SNS取得で使用）
 - `GROK_MANAGEMENT_API_KEY` / `GROK_MANAGEMENT_TEAM_ID`（運用画面のGrok残高表示で使用）
@@ -197,7 +199,7 @@ PYTHONPATH=src python scripts/run_incremental_backfill_job.py
 ウォッチリストの `ir_urls` / `x_official_account` / `x_executive_accounts` を監視し、`IR更新` / `SNS注目` / `AI注目` を通知する実行コマンド:
 
 ```bash
-PYTHONPATH=src python scripts/run_intelligence_job.py --discord-webhook-url <DISCORD_WEBHOOK_URL_INTELLIGENCE>
+PYTHONPATH=src python scripts/run_intelligence_job.py --discord-webhook-url-ir <DISCORD_WEBHOOK_URL_INTELLIGENCE_IR> --discord-webhook-url-sns <DISCORD_WEBHOOK_URL_INTELLIGENCE_SNS>
 ```
 
 - `AI_NOTIFICATIONS_ENABLED=true` かつ銘柄設定 `ai_enabled=true` の場合に `AI注目` を送信。
@@ -205,6 +207,7 @@ PYTHONPATH=src python scripts/run_intelligence_job.py --discord-webhook-url <DIS
 - モデルは `GROK_MODEL_FAST`（既定: `grok-4-1-fast-non-reasoning`）を優先し、抽出失敗時に `GROK_MODEL_REASONING`（既定: `grok-4-1-fast-reasoning`）をフォールバック利用。
 - `GROK_SNS_ENABLED=true` の場合のみGrok取得を実行し、`GROK_SNS_SCHEDULED_TIME`（JST）と実行時刻が一致した時だけSNS取得を行います。
 - `GROK_SNS_PER_TICKER_COOLDOWN_HOURS` の間は、同一銘柄の直近 `SNS注目` 通知がある場合に再取得をスキップします。
+- 通知先は `DISCORD_WEBHOOK_URL_INTELLIGENCE_IR`（IR系）/ `DISCORD_WEBHOOK_URL_INTELLIGENCE_SNS`（SNS/AI系）で分離可能です。
 - AI要約は `Vertex AI Gemini` を利用（既定: `VERTEX_AI_LOCATION=global`, `VERTEX_AI_MODEL=gemini-2.0-flash-001`）。
 - IRリンク先は HTML/PDF 本文を取得し、本文テキストを要約対象に含める。
 - `--execution-mode daily|at_21` で通知時間フィルタを選択可能。

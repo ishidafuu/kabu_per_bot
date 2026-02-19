@@ -24,7 +24,10 @@ from kabu_per_bot.storage.firestore_watchlist_repository import FirestoreWatchli
 LOGGER = logging.getLogger(__name__)
 DISCORD_WEBHOOK_DEFAULT_ENV = "DISCORD_WEBHOOK_URL"
 DISCORD_WEBHOOK_INTELLIGENCE_ENV = "DISCORD_WEBHOOK_URL_INTELLIGENCE"
-DISCORD_INTELLIGENCE_CHANNEL = "DISCORD_INTELLIGENCE"
+DISCORD_WEBHOOK_INTELLIGENCE_IR_ENV = "DISCORD_WEBHOOK_URL_INTELLIGENCE_IR"
+DISCORD_WEBHOOK_INTELLIGENCE_SNS_ENV = "DISCORD_WEBHOOK_URL_INTELLIGENCE_SNS"
+DISCORD_INTELLIGENCE_IR_CHANNEL = "DISCORD_INTELLIGENCE_IR"
+DISCORD_INTELLIGENCE_SNS_CHANNEL = "DISCORD_INTELLIGENCE_SNS"
 
 
 class StdoutSender:
@@ -64,18 +67,44 @@ def parse_args() -> argparse.Namespace:
         "--discord-webhook-url",
         default=_resolve_discord_webhook_default(DISCORD_WEBHOOK_INTELLIGENCE_ENV),
         help=(
-            "Discord webhook URL. Required unless --stdout is set. "
+            "Discord webhook URL (共通fallback)。Required unless --stdout is set. "
             f"Default: {DISCORD_WEBHOOK_INTELLIGENCE_ENV} (fallback: {DISCORD_WEBHOOK_DEFAULT_ENV})."
+        ),
+    )
+    parser.add_argument(
+        "--discord-webhook-url-ir",
+        default=_resolve_discord_webhook_default(
+            DISCORD_WEBHOOK_INTELLIGENCE_IR_ENV,
+            DISCORD_WEBHOOK_INTELLIGENCE_ENV,
+        ),
+        help=(
+            "Discord webhook URL for IR notifications. Required unless --stdout is set and IR scope is selected. "
+            f"Default: {DISCORD_WEBHOOK_INTELLIGENCE_IR_ENV} "
+            f"(fallback: {DISCORD_WEBHOOK_INTELLIGENCE_ENV} -> {DISCORD_WEBHOOK_DEFAULT_ENV})."
+        ),
+    )
+    parser.add_argument(
+        "--discord-webhook-url-sns",
+        default=_resolve_discord_webhook_default(
+            DISCORD_WEBHOOK_INTELLIGENCE_SNS_ENV,
+            DISCORD_WEBHOOK_INTELLIGENCE_ENV,
+        ),
+        help=(
+            "Discord webhook URL for SNS/AI notifications. "
+            "Required unless --stdout is set and SNS scope is selected. "
+            f"Default: {DISCORD_WEBHOOK_INTELLIGENCE_SNS_ENV} "
+            f"(fallback: {DISCORD_WEBHOOK_INTELLIGENCE_ENV} -> {DISCORD_WEBHOOK_DEFAULT_ENV})."
         ),
     )
     parser.add_argument("--stdout", action="store_true", help="Send notifications to stdout.")
     return parser.parse_args()
 
 
-def _resolve_discord_webhook_default(primary_env_key: str) -> str:
-    primary = os.environ.get(primary_env_key, "").strip()
-    if primary:
-        return primary
+def _resolve_discord_webhook_default(primary_env_key: str, *fallback_env_keys: str) -> str:
+    for env_key in (primary_env_key, *fallback_env_keys):
+        value = os.environ.get(env_key, "").strip()
+        if value:
+            return value
     return os.environ.get(DISCORD_WEBHOOK_DEFAULT_ENV, "").strip()
 
 
@@ -89,19 +118,49 @@ def _create_firestore_client(*, project_id: str):
     return firestore.Client(project=project_id or None)
 
 
-def _resolve_sender(args: argparse.Namespace):
+def _resolve_scope_sender(args: argparse.Namespace, *, scope: str):
     if args.stdout:
-        LOGGER.info("送信先: stdout")
+        LOGGER.info("送信先: stdout (scope=%s)", scope)
         return StdoutSender()
-    webhook_url = args.discord_webhook_url.strip()
+
+    webhook_url = _resolve_scope_webhook_url(args, scope=scope)
     if not webhook_url:
+        if scope == "ir_only":
+            raise ValueError(
+                "IR通知向け Discord webhook URL が必要です。"
+                "--discord-webhook-url-ir または "
+                f"{DISCORD_WEBHOOK_INTELLIGENCE_IR_ENV}/"
+                f"{DISCORD_WEBHOOK_INTELLIGENCE_ENV}/"
+                f"{DISCORD_WEBHOOK_DEFAULT_ENV} を設定してください。"
+            )
         raise ValueError(
-            "Discord webhook URL が必要です。"
-            f"--discord-webhook-url または {DISCORD_WEBHOOK_INTELLIGENCE_ENV}/{DISCORD_WEBHOOK_DEFAULT_ENV} "
-            "を設定してください。"
+            "SNS通知向け Discord webhook URL が必要です。"
+            "--discord-webhook-url-sns または "
+            f"{DISCORD_WEBHOOK_INTELLIGENCE_SNS_ENV}/"
+            f"{DISCORD_WEBHOOK_INTELLIGENCE_ENV}/"
+            f"{DISCORD_WEBHOOK_DEFAULT_ENV} を設定してください。"
         )
-    LOGGER.info("送信先: Discord webhook (channel=%s)", DISCORD_INTELLIGENCE_CHANNEL)
+    LOGGER.info("送信先: Discord webhook (scope=%s channel=%s)", scope, _channel_for_scope(scope))
     return DiscordNotifier(webhook_url)
+
+
+def _resolve_scope_webhook_url(args: argparse.Namespace, *, scope: str) -> str:
+    common = str(getattr(args, "discord_webhook_url", "")).strip()
+    ir = str(getattr(args, "discord_webhook_url_ir", "")).strip()
+    sns = str(getattr(args, "discord_webhook_url_sns", "")).strip()
+    if scope == "ir_only":
+        return ir or common
+    if scope == "grok_only":
+        return sns or common
+    raise ValueError(f"unsupported scope: {scope}")
+
+
+def _channel_for_scope(scope: str) -> str:
+    if scope == "ir_only":
+        return DISCORD_INTELLIGENCE_IR_CHANNEL
+    if scope == "grok_only":
+        return DISCORD_INTELLIGENCE_SNS_CHANNEL
+    raise ValueError(f"unsupported scope: {scope}")
 
 
 def _resolve_now_utc_iso(*, now_iso: str | None) -> str:
@@ -288,6 +347,7 @@ def _run_source_scoped_pipeline(
     seen_repo,
     notification_log_repo,
     sender,
+    channel: str,
     execution_mode: NotificationExecutionMode,
 ) -> PipelineResult:
     source = _build_intel_source(
@@ -312,7 +372,7 @@ def _run_source_scoped_pipeline(
             cooldown_hours=runtime_settings.cooldown_hours,
             now_iso=now_iso,
             intel_notification_max_age_days=runtime_settings.intel_notification_max_age_days,
-            channel=DISCORD_INTELLIGENCE_CHANNEL,
+            channel=channel,
             execution_mode=execution_mode,
             ai_global_enabled=settings.ai_notifications_enabled,
         ),
@@ -350,7 +410,8 @@ def main() -> int:
         if not _should_run_by_grok_schedule(now_iso=now_iso, runtime_settings=runtime_settings):
             print(json.dumps(PipelineResult().__dict__, ensure_ascii=False))
             return 0
-    sender = _resolve_sender(args)
+    scopes = ("ir_only", "grok_only") if args.intel_source == "all" else (args.intel_source,)
+    scope_senders = {scope: _resolve_scope_sender(args, scope=scope) for scope in scopes}
 
     watchlist_repo = FirestoreWatchlistRepository(client)
     log_repo = FirestoreNotificationLogRepository(client)
@@ -363,9 +424,9 @@ def main() -> int:
     )
     execution_mode = _resolve_execution_mode(args.execution_mode)
 
-    scopes = ("ir_only", "grok_only") if args.intel_source == "all" else (args.intel_source,)
     scoped_results: list[PipelineResult] = []
     for scope in scopes:
+        channel = _channel_for_scope(scope)
         scoped_results.append(
             _run_source_scoped_pipeline(
                 scope=scope,
@@ -376,7 +437,8 @@ def main() -> int:
                 analyzer=analyzer,
                 seen_repo=seen_repo,
                 notification_log_repo=log_repo,
-                sender=sender,
+                sender=scope_senders[scope],
+                channel=channel,
                 execution_mode=execution_mode,
             )
         )

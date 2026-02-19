@@ -158,8 +158,8 @@ PYTHONPATH=src python scripts/run_earnings_job.py --job tomorrow --discord-webho
 ## 7. IR/SNS/AI通知ジョブ
 
 ```bash
-PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source ir_only --discord-webhook-url <DISCORD_WEBHOOK_URL_INTELLIGENCE>
-PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source grok_only --respect-grok-schedule --discord-webhook-url <DISCORD_WEBHOOK_URL_INTELLIGENCE>
+PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source ir_only --discord-webhook-url-ir <DISCORD_WEBHOOK_URL_INTELLIGENCE_IR>
+PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source grok_only --respect-grok-schedule --discord-webhook-url-sns <DISCORD_WEBHOOK_URL_INTELLIGENCE_SNS>
 ```
 
 - `AI_NOTIFICATIONS_ENABLED=true` かつ銘柄設定 `ai_enabled=true` で `【AI注目】` を送信。
@@ -179,7 +179,9 @@ Webhook分割（任意）:
 
 - 日次/IMMEDIATE: `DISCORD_WEBHOOK_URL_DAILY`
 - 決算: `DISCORD_WEBHOOK_URL_EARNINGS`
-- IR/SNS/AI: `DISCORD_WEBHOOK_URL_INTELLIGENCE`
+- IR: `DISCORD_WEBHOOK_URL_INTELLIGENCE_IR`
+- SNS/AI: `DISCORD_WEBHOOK_URL_INTELLIGENCE_SNS`
+- IR/SNS共通fallback: `DISCORD_WEBHOOK_URL_INTELLIGENCE`
 - 疎通テスト/運用操作: `DISCORD_WEBHOOK_URL_OPS`
 - いずれも未設定時は `DISCORD_WEBHOOK_URL` をフォールバック利用
 
