@@ -156,7 +156,8 @@ class CloudRunAdminOpsService:
         for job in self._jobs:
             if not job.configured:
                 continue
-            if not include_recent_executions and not include_skip_reasons:
+            include_skip_for_job = include_skip_reasons and job.key in _DAILY_JOB_KEYS
+            if not include_recent_executions and not include_skip_for_job:
                 continue
             try:
                 executions = list(self.list_executions(job_key=job.key, limit=limit_per_job))
@@ -178,10 +179,27 @@ class CloudRunAdminOpsService:
                             skip_reason_error=None,
                         )
                     )
+                if include_skip_for_job:
+                    latest_skip_rows.append(
+                        JobExecution(
+                            job_key=job.key,
+                            job_label=job.label,
+                            job_name=job.job_name or "",
+                            execution_name="",
+                            status="FAILED",
+                            create_time=datetime.now(timezone.utc).isoformat(),
+                            start_time=None,
+                            completion_time=None,
+                            message=None,
+                            log_uri=None,
+                            skip_reasons=(),
+                            skip_reason_error=f"実行履歴取得失敗: {exc}",
+                        )
+                    )
                 continue
             if include_recent_executions:
                 recent.extend(executions)
-            if include_skip_reasons and job.key in _DAILY_JOB_KEYS and executions:
+            if include_skip_for_job and executions:
                 latest = executions[0]
                 latest_skip_rows.append(self._attach_skip_reasons(job=job, execution=latest))
 

@@ -43,6 +43,41 @@ class AdminOpsServiceTest(unittest.TestCase):
         self.assertEqual(actual.execution_name, "new")
         self.assertEqual(service._request_json.call_count, 1)
 
+    def test_get_summary_skip_only_queries_daily_jobs_only(self) -> None:
+        service = object.__new__(CloudRunAdminOpsService)
+        daily_job = AdminOpsJob(key="daily", label="日次", job_name="kabu-daily")
+        weekly_job = AdminOpsJob(key="earnings_weekly", label="今週決算", job_name="kabu-earnings-weekly")
+        service._jobs = (daily_job, weekly_job)
+        service.list_executions = Mock(return_value=(_execution(name="new", status="SUCCEEDED", created_at="2026-02-01T00:00:00+00:00"),))
+        service._attach_skip_reasons = Mock(side_effect=lambda *, job, execution: execution)
+
+        summary = service.get_summary(
+            limit_per_job=1,
+            include_recent_executions=False,
+            include_skip_reasons=True,
+        )
+
+        self.assertEqual(service.list_executions.call_count, 1)
+        self.assertEqual(service.list_executions.call_args.kwargs["job_key"], "daily")
+        self.assertEqual(len(summary.latest_skip_reasons), 1)
+
+    def test_get_summary_skip_only_surfaces_execution_fetch_error(self) -> None:
+        service = object.__new__(CloudRunAdminOpsService)
+        daily_job = AdminOpsJob(key="daily", label="日次", job_name="kabu-daily")
+        service._jobs = (daily_job,)
+        service.list_executions = Mock(side_effect=RuntimeError("boom"))
+
+        summary = service.get_summary(
+            limit_per_job=1,
+            include_recent_executions=False,
+            include_skip_reasons=True,
+        )
+
+        self.assertEqual(len(summary.latest_skip_reasons), 1)
+        self.assertEqual(summary.latest_skip_reasons[0].job_key, "daily")
+        self.assertEqual(summary.latest_skip_reasons[0].status, "FAILED")
+        self.assertIn("実行履歴取得失敗", summary.latest_skip_reasons[0].skip_reason_error or "")
+
 
 if __name__ == "__main__":
     unittest.main()
