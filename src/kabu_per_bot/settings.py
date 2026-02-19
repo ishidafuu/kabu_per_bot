@@ -8,7 +8,11 @@ import os
 import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from kabu_per_bot.grok_sns_settings import default_grok_prompt_template
+from kabu_per_bot.grok_sns_settings import (
+    GrokSnsSettings,
+    default_grok_prompt_template,
+    validate_grok_sns_settings,
+)
 
 
 DEFAULT_TIMEZONE = "Asia/Tokyo"
@@ -127,6 +131,17 @@ def load_settings(
         raise SettingsError("WINDOW_* must satisfy 1W <= 3M <= 1Y.")
 
     prompt_template = merged.get("GROK_SNS_PROMPT_TEMPLATE", "").strip() or default_grok_prompt_template()
+    grok_sns_settings = GrokSnsSettings(
+        enabled=_get_bool(merged, "GROK_SNS_ENABLED", False),
+        scheduled_time=_get_hhmm(merged, "GROK_SNS_SCHEDULED_TIME", "21:10"),
+        per_ticker_cooldown_hours=_get_int(merged, "GROK_SNS_PER_TICKER_COOLDOWN_HOURS", 24),
+        prompt_template=prompt_template,
+    )
+    try:
+        validate_grok_sns_settings(grok_sns_settings)
+    except ValueError as exc:
+        raise SettingsError(str(exc)) from exc
+
     return AppSettings(
         app_env=_get_str(merged, "APP_ENV", "development"),
         timezone=timezone,
@@ -139,8 +154,8 @@ def load_settings(
         x_api_bearer_token=merged.get("X_API_BEARER_TOKEN", "").strip(),
         vertex_ai_location=_get_str(merged, "VERTEX_AI_LOCATION", "global"),
         vertex_ai_model=_get_str(merged, "VERTEX_AI_MODEL", "gemini-2.0-flash-001"),
-        grok_sns_enabled=_get_bool(merged, "GROK_SNS_ENABLED", False),
-        grok_sns_scheduled_time=_get_hhmm(merged, "GROK_SNS_SCHEDULED_TIME", "21:10"),
-        grok_sns_per_ticker_cooldown_hours=_get_int(merged, "GROK_SNS_PER_TICKER_COOLDOWN_HOURS", 24),
-        grok_sns_prompt_template=prompt_template,
+        grok_sns_enabled=grok_sns_settings.enabled,
+        grok_sns_scheduled_time=grok_sns_settings.scheduled_time,
+        grok_sns_per_ticker_cooldown_hours=grok_sns_settings.per_ticker_cooldown_hours,
+        grok_sns_prompt_template=grok_sns_settings.prompt_template,
     )

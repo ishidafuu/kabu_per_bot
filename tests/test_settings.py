@@ -132,6 +132,20 @@ class LoadSettingsTest(unittest.TestCase):
                 dotenv_path="does-not-exist.env",
             )
 
+    def test_invalid_grok_cooldown_upper_bound_raises(self) -> None:
+        with self.assertRaises(SettingsError):
+            load_settings(
+                env={"GROK_SNS_PER_TICKER_COOLDOWN_HOURS": "300"},
+                dotenv_path="does-not-exist.env",
+            )
+
+    def test_invalid_grok_prompt_length_raises(self) -> None:
+        with self.assertRaises(SettingsError):
+            load_settings(
+                env={"GROK_SNS_PROMPT_TEMPLATE": "短すぎる"},
+                dotenv_path="does-not-exist.env",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
