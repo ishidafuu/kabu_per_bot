@@ -78,6 +78,10 @@ const mergeIrUrlText = (currentText: string, urls: string[]): string => {
   return merged.join('\n');
 };
 
+const isAddableIrCandidate = (candidate: IrUrlCandidate): boolean => {
+  return candidate.validation_status !== 'INVALID';
+};
+
 export const WatchlistForm = ({
   mode,
   initialValue,
@@ -174,6 +178,8 @@ export const WatchlistForm = ({
       x_executive_accounts_text: values.x_executive_accounts_text.trim(),
     });
   };
+
+  const addableCandidates = irCandidates.filter(isAddableIrCandidate);
 
   return (
     <section className="panel">
@@ -273,10 +279,10 @@ export const WatchlistForm = ({
                 <button
                   type="button"
                   className="ghost"
-                  onClick={() => appendIrUrls(irCandidates.map((row) => row.url))}
-                  disabled={isSuggestingIr || submitting}
+                  onClick={() => appendIrUrls(addableCandidates.map((row) => row.url))}
+                  disabled={isSuggestingIr || submitting || addableCandidates.length === 0}
                 >
-                  候補を全件追加
+                  追加可能候補を全件追加
                 </button>
               )}
             </div>
@@ -295,9 +301,9 @@ export const WatchlistForm = ({
                       type="button"
                       className="ghost"
                       onClick={() => appendIrUrls([row.url])}
-                      disabled={isSuggestingIr || submitting}
+                      disabled={isSuggestingIr || submitting || !isAddableIrCandidate(row)}
                     >
-                      このURLを追加
+                      {isAddableIrCandidate(row) ? 'このURLを追加' : 'このURLは追加不可'}
                     </button>
                   </div>
                 ))}
