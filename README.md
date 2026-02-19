@@ -31,6 +31,8 @@ uvicorn kabu_per_bot.api.app:app --reload
 
 運用操作は `ダッシュボード` から分離し、`/ops` に集約しています（管理者のみ）。
 
+- 寄り付き帯ジョブ実行（`kabu-immediate-open`）
+- 引け帯ジョブ実行（`kabu-immediate-close`）
 - 日次ジョブ実行（`kabu-daily`）
 - 21:05ジョブ実行（`kabu-daily-at21`）
 - 今週決算ジョブ実行（`kabu-earnings-weekly`）
@@ -41,16 +43,20 @@ uvicorn kabu_per_bot.api.app:app --reload
 
 補足:
 - バックフィルは誤操作防止のためWeb画面からは実行しません。必要時は `scripts/run_backfill_daily_metrics.py` または Cloud Run Job を使用してください。
+- `kabu-intelligence` / `kabu-grok` は定期実行前提のため、`/ops` の手動実行メニューには表示しません。
 
 必要な環境変数（API側）:
 
 - `API_ADMIN_UIDS`: 管理者UID（`,`区切り）。または Firebase カスタムクレーム `admin=true`
 - `OPS_GCP_PROJECT_ID`: Cloud Run Job 実行先プロジェクト（未指定時は `FIRESTORE_PROJECT_ID`）
 - `OPS_GCP_REGION`: Cloud Run リージョン（既定: `asia-northeast1`）
+- `OPS_IMMEDIATE_OPEN_JOB_NAME`（既定: `kabu-immediate-open`）
+- `OPS_IMMEDIATE_CLOSE_JOB_NAME`（既定: `kabu-immediate-close`）
 - `OPS_DAILY_JOB_NAME`（既定: `kabu-daily`）
 - `OPS_DAILY_AT21_JOB_NAME`（既定: `kabu-daily-at21`）
 - `OPS_EARNINGS_WEEKLY_JOB_NAME`（既定: `kabu-earnings-weekly`）
 - `OPS_EARNINGS_TOMORROW_JOB_NAME`（既定: `kabu-earnings-tomorrow`）
+- `INTEL_NOTIFICATION_MAX_AGE_DAYS`（IR/SNS通知対象期間の環境変数デフォルト。既定: `30`）
 - `DISCORD_WEBHOOK_URL`（Discord疎通テストAPIで使用）
 - `GROK_API_KEY`（SNS取得で使用）
 - `GROK_MANAGEMENT_API_KEY` / `GROK_MANAGEMENT_TEAM_ID`（運用画面のGrok残高表示で使用）
@@ -121,14 +127,19 @@ PYTHONPATH=src python scripts/run_daily_job.py --stdout --no-notification-log
 ### 本番定期実行構成（2026-02-18 時点）
 
 - タイムゾーン: `Asia/Tokyo`
+- `sc-kabu-immediate-open`（平日8:00-11:59 毎分）: `kabu-immediate-open` を起動し、`immediate_schedule` の寄り付き帯/間隔一致時のみ `notify_timing=IMMEDIATE` を評価
+- `sc-kabu-immediate-close`（平日13:00-16:59 毎分）: `kabu-immediate-close` を起動し、`immediate_schedule` の引け帯/間隔一致時のみ `notify_timing=IMMEDIATE` を評価
 - `sc-kabu-daily`（平日18:00）: `kabu-daily` を実行し、`notify_timing=IMMEDIATE` 銘柄を評価
 - `sc-kabu-daily-at21`（平日21:05）: `kabu-daily-at21` を実行し、`notify_timing=AT_21` 銘柄を評価
+- `sc-kabu-intelligence`（平日21:05）: `kabu-intelligence` を実行し、IR更新を評価
+- `sc-kabu-grok`（毎分）: `kabu-grok` を起動し、Grok定時（`grok_sns.scheduled_time`）一致時のみSNS取得を評価
 - `sc-kabu-backfill-incremental`（平日21:15）: `kabu-backfill-incremental` を実行し、`daily_metrics` 欠損/遅延を増分補完
 - `sc-kabu-earnings-weekly`（土曜21:00）: `kabu-earnings-weekly` を実行
 - `sc-kabu-earnings-tomorrow`（毎日21:00）: `kabu-earnings-tomorrow` を実行
 
 補足:
 - 増分バックフィルJobは `J-Quants APIキー` の Secret（既定: `jquants-api-key`）が利用可能な場合のみ作成されます。
+- Grok Jobは `GROK_API_KEY` の Secret（既定: `grok-api-key`）が利用可能な場合のみ作成されます。
 - `scripts/setup_scheduler.sh` 実行時に `JQUANTS_API_KEY`（環境変数または `.env`）があると、Secretへ最新バージョンとして登録されます。
 
 日次ジョブで通知が送信されるのは、以下のいずれかに該当した場合のみです。

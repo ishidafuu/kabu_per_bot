@@ -10,7 +10,8 @@
 6. `earnings_calendar`
 7. `notification_log`
 8. `job_run`
-9. `global_settings`
+9. `intel_seen`
+10. `global_settings`
 
 ## 2. 一意制約（ドキュメントIDで担保）
 
@@ -18,7 +19,7 @@ FirestoreはRDBの一意制約を持たないため、ドキュメントIDを合
 
 1. `watchlist`
    - doc id: `{ticker}`（例: `3901:TSE`）
-   - 主要フィールド: `ticker`, `name`, `metric_type`, `notify_channel`, `notify_timing`, `always_notify_enabled`, `ai_enabled`, `is_active`
+   - 主要フィールド: `ticker`, `name`, `metric_type`, `notify_channel`, `notify_timing`, `always_notify_enabled`, `ai_enabled`, `is_active`, `ir_urls`, `x_official_account`, `x_executive_accounts`
 2. `daily_metrics`
    - doc id: `{ticker}|{trade_date}`
 3. `metric_medians`
@@ -33,10 +34,14 @@ FirestoreはRDBの一意制約を持たないため、ドキュメントIDを合
    - doc id: `{job_name}|{hash}`
    - 必須フィールド: `job_name`, `started_at`, `finished_at`, `status`, `error_count`, `failed`
    - `status` は `SUCCESS` / `FAILED`
-7. `global_settings`
+7. `intel_seen`
+   - doc id: `{fingerprint}`
+   - 主要フィールド: `id`, `ticker`, `kind`（`IR`/`SNS`）, `title`, `url`, `published_at`, `source_label`, `seen_at`
+8. `global_settings`
    - doc id: `runtime`
    - 主なフィールド:
      - `cooldown_hours`
+     - `intel_notification_max_age_days`
      - `immediate_schedule_enabled`
      - `immediate_schedule_timezone`
      - `immediate_open_window_start`

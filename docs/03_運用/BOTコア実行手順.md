@@ -28,7 +28,22 @@ PYTHONPATH=src python -m unittest discover -s tests
 - 通知フォーマット
 - 欠損通知（`【データ不明】`）
 
-## 4. ジョブ実行（日次本番フロー）
+## 4. ジョブ実行（早見表 + 日次本番フロー）
+
+### 4.1 ジョブ種別と実行パターン（早見表）
+
+| 種別 | 実行スクリプト/引数 | 通知タイミング対象 | 実処理の実行条件 |
+| --- | --- | --- | --- |
+| 日次（IMMEDIATE） | `scripts/run_daily_job.py --execution-mode daily` | `notify_timing=IMMEDIATE` | 常に実行 |
+| 日次（AT_21） | `scripts/run_daily_job.py --execution-mode at_21` | `notify_timing=AT_21` | 常に実行 |
+| 日次（両方） | `scripts/run_daily_job.py --execution-mode all` | `IMMEDIATE` + `AT_21` | 常に実行 |
+| 寄り付き帯 | `scripts/run_immediate_window_job.py --window open` | `notify_timing=IMMEDIATE` | `immediate_schedule` の時間帯・間隔一致時のみ |
+| 引け帯 | `scripts/run_immediate_window_job.py --window close` | `notify_timing=IMMEDIATE` | `immediate_schedule` の時間帯・間隔一致時のみ |
+| 今週決算 | `scripts/run_earnings_job.py --job weekly` | `notify_timing=AT_21` | 常に実行（来週決算を抽出） |
+| 明日決算 | `scripts/run_earnings_job.py --job tomorrow` | `notify_timing=AT_21` | 常に実行（翌日決算を抽出） |
+| IR通知 | `scripts/run_intelligence_job.py --intel-source ir_only` | `IMMEDIATE/AT_21`（`--execution-mode`準拠） | 常に実行 |
+| Grok SNS通知 | `scripts/run_intelligence_job.py --intel-source grok_only --respect-grok-schedule` | `IMMEDIATE/AT_21`（`--execution-mode`準拠） | `grok_sns.enabled=true` かつ JST定時一致時のみ |
+| 増分バックフィル | `scripts/run_incremental_backfill_job.py` | なし（補完処理） | 常に実行 |
 
 ```bash
 PYTHONPATH=src python scripts/run_daily_job.py
@@ -68,6 +83,26 @@ PYTHONPATH=src python scripts/run_immediate_window_job.py --window close --disco
 - `global_settings/runtime.immediate_schedule` の時間帯・間隔に一致した時刻のみ実処理する。
 - 帯外や間隔未一致の時刻は `processed=0 sent=0 skipped=0 errors=0` を返して正常終了する。
 
+### 4.2 設定の優先順位（実装準拠）
+
+1. `global_settings/runtime`（管理画面 `/ops` から更新）
+2. `.env` / 環境変数
+3. コード既定値
+
+主な反映先:
+
+- `run_daily_job.py` / `run_earnings_job.py`:
+  - `cooldown_hours` は `global_settings.runtime.cooldown_hours` を優先
+- `run_immediate_window_job.py`:
+  - `cooldown_hours` と `immediate_schedule.*` を `global_settings.runtime` から解決
+- `run_intelligence_job.py`:
+  - `cooldown_hours`
+  - `intel_notification_max_age_days`
+  - `grok_sns.enabled/scheduled_time/per_ticker_cooldown_hours/prompt_template`
+  - 以上を `global_settings.runtime` 優先で解決
+- `run_backfill_daily_metrics.py` / `run_incremental_backfill_job.py`:
+  - `JQUANTS_API_KEY` 等の環境変数ベースで動作（`global_settings` は参照しない）
+
 定期実行（Cloud Run Jobs + Scheduler）での既定構成:
 
 - `kabu-immediate-open` <- `sc-kabu-immediate-open`（平日8:00-11:59 毎分起動、設定一致時のみ実処理）
@@ -82,6 +117,7 @@ PYTHONPATH=src python scripts/run_immediate_window_job.py --window close --disco
 
 補足:
 - `kabu-backfill-incremental` は `J-Quants APIキー` の Secret（既定: `jquants-api-key`）が利用可能な場合のみ作成される。
+- `kabu-grok` は `GROK_API_KEY` の Secret（既定: `grok-api-key`）が利用可能な場合のみ作成される。
 
 確認コマンド:
 
