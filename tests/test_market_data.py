@@ -154,7 +154,7 @@ class MarketDataSourceTest(unittest.TestCase):
 
     def test_jquants_source_parses_snapshot(self) -> None:
         client = FakeJQuantsClient(
-            bars=[{"Date": "2026-02-18", "C": 1234.5}],
+            bars=[{"Date": "2026-02-18", "C": 1234.5, "MarketCapitalization": 120_500_000_000.0}],
             summary=[{"DiscDate": "2026-02-14", "DiscTime": "15:30:00", "DiscNo": "1", "FEPS": 100.0, "FSales": 50000.0}],
             earnings=[{"Code": "39840", "Date": "2026-02-19"}],
         )
@@ -164,6 +164,7 @@ class MarketDataSourceTest(unittest.TestCase):
         self.assertEqual(snapshot.close_price, 1234.5)
         self.assertEqual(snapshot.eps_forecast, 100.0)
         self.assertEqual(snapshot.sales_forecast, 50000.0)
+        self.assertEqual(snapshot.market_cap, 120_500_000_000.0)
         self.assertEqual(snapshot.earnings_date, "2026-02-19")
 
     def test_jquants_source_without_earnings_calendar_date_raises_fetch_error(self) -> None:
@@ -198,6 +199,7 @@ class MarketDataSourceTest(unittest.TestCase):
         stock_html = """
         <table>
           <tr><th scope='row'>終値</th><td>3,705</td></tr>
+          <tr><th scope='row'>時価総額</th><td>1,205<span>億円</span></td></tr>
         </table>
         """
         finance_html = """
@@ -234,6 +236,7 @@ class MarketDataSourceTest(unittest.TestCase):
         self.assertEqual(snapshot.close_price, 3705.0)
         self.assertEqual(snapshot.eps_forecast, 273.9)
         self.assertEqual(snapshot.sales_forecast, 50_000_000.0)
+        self.assertEqual(snapshot.market_cap, 120_500_000_000.0)
         self.assertEqual(snapshot.earnings_date, "2026-02-06")
 
     def test_kabutan_source_missing_value_raises_fetch_error(self) -> None:
@@ -269,9 +272,14 @@ class MarketDataSourceTest(unittest.TestCase):
         window.__PRELOADED_STATE__ = {
           "mainStocksPriceBoard": {"priceBoard": {"price": "3,705"}},
           "mainStocksDetail": {"referenceIndex": {"eps": "273.92"}},
+          "mainStocksReferenceIndex": {"marketCap": "120,538百万円"},
           "mainStocksPressReleaseSummary": {"disclosedTime": "2026-02-06T14:00:00+09:00"}
         };
         </script>
+        <section>
+          <span>時価総額</span>
+          <dd><span>120,538</span><span>百万円</span></dd>
+        </section>
         """
         performance_html = """
         <script>
@@ -291,6 +299,7 @@ class MarketDataSourceTest(unittest.TestCase):
         self.assertEqual(snapshot.close_price, 3705.0)
         self.assertEqual(snapshot.eps_forecast, 273.92)
         self.assertEqual(snapshot.sales_forecast, 49_000_000_000_000.0)
+        self.assertEqual(snapshot.market_cap, 120_538_000_000.0)
         self.assertEqual(snapshot.earnings_date, "2026-02-06")
 
     def test_yahoo_source_uses_financials_when_quote_has_no_earnings_date(self) -> None:

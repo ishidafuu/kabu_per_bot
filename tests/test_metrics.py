@@ -8,6 +8,24 @@ from kabu_per_bot.watchlist import MetricType
 
 
 class MetricsTest(unittest.TestCase):
+    def test_build_daily_metric_psr_uses_market_cap_when_available(self) -> None:
+        snapshot = MarketDataSnapshot.create(
+            ticker="3901:TSE",
+            close_price=1200.0,
+            eps_forecast=100.0,
+            sales_forecast=4000.0,
+            market_cap=8_000.0,
+            source="株探",
+            earnings_date="2026-05-10",
+        )
+        metric = build_daily_metric(
+            ticker="3901:TSE",
+            trade_date="2026-02-12",
+            metric_type=MetricType.PSR,
+            snapshot=snapshot,
+        )
+        self.assertEqual(metric.psr_value, 2.0)
+
     def test_build_daily_metric_per_formula(self) -> None:
         snapshot = MarketDataSnapshot.create(
             ticker="3901:TSE",

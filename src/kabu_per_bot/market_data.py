@@ -184,6 +184,11 @@ class KabutanMarketDataSource(_HttpMarketDataSource):
         finance_page = self._request_text(url=finance_url, ticker=normalized_ticker)
 
         close_price = _try_parse_number(stock_page, [r"<th[^>]*>\s*終値\s*</th>\s*<td[^>]*>\s*([^<]+)"], label="close_price")
+        market_cap = _try_parse_number(
+            stock_page,
+            [r"<th[^>]*>\s*時価総額\s*</th>\s*<td[^>]*>(.*?)</td>"],
+            label="market_cap",
+        )
 
         sales_forecast, eps_forecast, earnings_date = _extract_kabutan_forecast_fields(finance_page)
 
@@ -201,6 +206,7 @@ class KabutanMarketDataSource(_HttpMarketDataSource):
             close_price=close_price,
             eps_forecast=eps_forecast,
             sales_forecast=sales_forecast,
+            market_cap=market_cap,
             earnings_date=earnings_date,
             source=self.source_name,
         )
@@ -244,6 +250,11 @@ class YahooFinanceMarketDataSource(_HttpMarketDataSource):
             [r'"forecast"\s*:\s*\{[^{}]*?"netSales"\s*:\s*([0-9.]+)'],
             label="sales_forecast",
         )
+        market_cap = _try_parse_number(
+            quote_page,
+            [r"時価総額</span>.*?<dd[^>]*>(.*?)</dd>"],
+            label="market_cap",
+        )
 
         earnings_date = _try_parse_date(
             quote_page,
@@ -279,6 +290,7 @@ class YahooFinanceMarketDataSource(_HttpMarketDataSource):
             close_price=close_price,
             eps_forecast=eps_forecast,
             sales_forecast=sales_forecast,
+            market_cap=market_cap,
             earnings_date=earnings_date,
             source=self.source_name,
         )
@@ -339,6 +351,7 @@ class JQuantsMarketDataSource:
             ) from exc
 
         close_price = _latest_close_price_from_jquants(bars_daily)
+        market_cap = _latest_market_cap_from_jquants(bars_daily)
         latest_fin = _latest_fin_summary_row(fin_summary)
         eps_forecast = _as_float_or_none(None if latest_fin is None else latest_fin.get("FEPS"))
         sales_forecast = _as_float_or_none(None if latest_fin is None else latest_fin.get("FSales"))
@@ -359,6 +372,7 @@ class JQuantsMarketDataSource:
             close_price=close_price,
             eps_forecast=eps_forecast,
             sales_forecast=sales_forecast,
+            market_cap=market_cap,
             earnings_date=earnings_date,
             source=self.source_name,
         )
@@ -468,12 +482,19 @@ def _required_field_errors(
 
 
 def _parse_number(value: str) -> float:
-    normalized = value.replace(",", "").replace(" ", "")
-    normalized = normalized.replace("\u3000", "")
-    normalized = normalized.replace("円", "").replace("株", "")
+    normalized = re.sub(r"\s+", "", value.replace(",", ""))
 
     if not normalized or normalized in {"-", "--", "---", "―", "－"}:
         raise ValueError(f"missing numeric value: {value}")
+
+    for unit, multiplier in (("百万円", 1_000_000), ("千円", 1_000)):
+        if unit in normalized:
+            token_match = re.search(r"-?\d+(?:\.\d+)?", normalized.replace(unit, ""))
+            if not token_match:
+                raise ValueError(f"no numeric token: {value}")
+            return float(token_match.group(0)) * multiplier
+
+    normalized = normalized.replace("円", "").replace("株", "")
 
     if any(unit in normalized for unit in ("兆", "億", "万")):
         return _parse_japanese_large_number(normalized)
@@ -544,6 +565,35 @@ def _latest_close_price_from_jquants(rows: list[dict[str, object]]) -> float | N
             latest_date = trade_day
             latest_close = close_price
     return latest_close
+
+
+def _latest_market_cap_from_jquants(rows: list[dict[str, object]]) -> float | None:
+    latest_date: date | None = None
+    latest_market_cap: float | None = None
+    market_cap_keys = (
+        "MarketCapitalization",
+        "MarketCap",
+        "market_cap",
+        "marketCapitalization",
+    )
+
+    for row in rows:
+        raw_date = _as_iso_date_or_none(row.get("Date"))
+        if raw_date is None:
+            continue
+        trade_day = date.fromisoformat(raw_date)
+        market_cap: float | None = None
+        for key in market_cap_keys:
+            value = _as_float_or_none(row.get(key))
+            if value is not None and value > 0:
+                market_cap = value
+                break
+        if market_cap is None:
+            continue
+        if latest_date is None or trade_day >= latest_date:
+            latest_date = trade_day
+            latest_market_cap = market_cap
+    return latest_market_cap
 
 
 def _latest_fin_summary_row(rows: list[dict[str, object]]) -> dict[str, object] | None:
