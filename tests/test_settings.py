@@ -22,6 +22,10 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.x_api_bearer_token, "")
         self.assertEqual(settings.vertex_ai_location, "global")
         self.assertEqual(settings.vertex_ai_model, "gemini-2.0-flash-001")
+        self.assertFalse(settings.grok_sns_enabled)
+        self.assertEqual(settings.grok_sns_scheduled_time, "21:10")
+        self.assertEqual(settings.grok_sns_per_ticker_cooldown_hours, 24)
+        self.assertGreaterEqual(len(settings.grok_sns_prompt_template), 20)
 
     def test_env_override(self) -> None:
         settings = load_settings(
@@ -37,6 +41,10 @@ class LoadSettingsTest(unittest.TestCase):
                 "X_API_BEARER_TOKEN": "token-123",
                 "VERTEX_AI_LOCATION": "asia-northeast1",
                 "VERTEX_AI_MODEL": "gemini-2.5-flash",
+                "GROK_SNS_ENABLED": "true",
+                "GROK_SNS_SCHEDULED_TIME": "20:40",
+                "GROK_SNS_PER_TICKER_COOLDOWN_HOURS": "12",
+                "GROK_SNS_PROMPT_TEMPLATE": "重要SNS投稿を要約し、投稿者とURLを含めてください。",
             },
             dotenv_path="does-not-exist.env",
         )
@@ -52,6 +60,10 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.x_api_bearer_token, "token-123")
         self.assertEqual(settings.vertex_ai_location, "asia-northeast1")
         self.assertEqual(settings.vertex_ai_model, "gemini-2.5-flash")
+        self.assertTrue(settings.grok_sns_enabled)
+        self.assertEqual(settings.grok_sns_scheduled_time, "20:40")
+        self.assertEqual(settings.grok_sns_per_ticker_cooldown_hours, 12)
+        self.assertEqual(settings.grok_sns_prompt_template, "重要SNS投稿を要約し、投稿者とURLを含めてください。")
 
     def test_dotenv_loaded_when_env_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -110,6 +122,13 @@ class LoadSettingsTest(unittest.TestCase):
                     "WINDOW_3M_DAYS": "63",
                     "WINDOW_1Y_DAYS": "252",
                 },
+                dotenv_path="does-not-exist.env",
+            )
+
+    def test_invalid_grok_scheduled_time_raises(self) -> None:
+        with self.assertRaises(SettingsError):
+            load_settings(
+                env={"GROK_SNS_SCHEDULED_TIME": "24:10"},
                 dotenv_path="does-not-exist.env",
             )
 

@@ -11,6 +11,7 @@ from kabu_per_bot.admin_ops import (
     CloudRunAdminOpsService,
     JobExecution,
 )
+from kabu_per_bot.grok_sns_settings import GrokSnsSettings
 from kabu_per_bot.immediate_schedule import ImmediateSchedule
 from kabu_per_bot.api.errors import ForbiddenError, InternalServerError, UnauthorizedError
 from kabu_per_bot.earnings import EarningsCalendarEntry
@@ -138,6 +139,7 @@ class GlobalSettingsRepository(Protocol):
         *,
         cooldown_hours: int | None = None,
         immediate_schedule: ImmediateSchedule | None = None,
+        grok_sns_settings: GrokSnsSettings | None = None,
         updated_at: str,
         updated_by: str | None,
     ) -> None:

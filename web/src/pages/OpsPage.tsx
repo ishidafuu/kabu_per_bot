@@ -99,6 +99,10 @@ export const OpsPage = () => {
   const [closeWindowStartInput, setCloseWindowStartInput] = useState('14:30');
   const [closeWindowEndInput, setCloseWindowEndInput] = useState('15:30');
   const [closeWindowIntervalInput, setCloseWindowIntervalInput] = useState('10');
+  const [grokSnsEnabledInput, setGrokSnsEnabledInput] = useState(false);
+  const [grokScheduledTimeInput, setGrokScheduledTimeInput] = useState('21:10');
+  const [grokCooldownHoursInput, setGrokCooldownHoursInput] = useState('24');
+  const [grokPromptTemplateInput, setGrokPromptTemplateInput] = useState('');
   const [isSavingGlobalSettings, setIsSavingGlobalSettings] = useState(false);
 
   const refreshOps = useCallback(async (): Promise<void> => {
@@ -120,6 +124,10 @@ export const OpsPage = () => {
       setCloseWindowStartInput(globalSettingsResponse.immediate_schedule.close_window_start);
       setCloseWindowEndInput(globalSettingsResponse.immediate_schedule.close_window_end);
       setCloseWindowIntervalInput(String(globalSettingsResponse.immediate_schedule.close_window_interval_min));
+      setGrokSnsEnabledInput(globalSettingsResponse.grok_sns.enabled);
+      setGrokScheduledTimeInput(globalSettingsResponse.grok_sns.scheduled_time);
+      setGrokCooldownHoursInput(String(globalSettingsResponse.grok_sns.per_ticker_cooldown_hours));
+      setGrokPromptTemplateInput(globalSettingsResponse.grok_sns.prompt_template);
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) {
         setOpsForbidden(true);
@@ -204,14 +212,27 @@ export const OpsPage = () => {
       setOpsError('引け帯の時刻は HH:MM 形式で入力してください。');
       return;
     }
+    if (!hhmm.test(grokScheduledTimeInput)) {
+      setOpsError('Grok定時取得時刻は HH:MM 形式で入力してください。');
+      return;
+    }
     const openInterval = Number(openWindowIntervalInput.trim());
     const closeInterval = Number(closeWindowIntervalInput.trim());
+    const grokCooldownHours = Number(grokCooldownHoursInput.trim());
     if (!Number.isInteger(openInterval) || openInterval < 1 || openInterval > 60) {
       setOpsError('寄り付き帯の間隔は1〜60の整数で入力してください。');
       return;
     }
     if (!Number.isInteger(closeInterval) || closeInterval < 1 || closeInterval > 60) {
       setOpsError('引け帯の間隔は1〜60の整数で入力してください。');
+      return;
+    }
+    if (!Number.isInteger(grokCooldownHours) || grokCooldownHours < 1 || grokCooldownHours > 168) {
+      setOpsError('Grokの再取得間隔は1〜168の整数で入力してください。');
+      return;
+    }
+    if (grokPromptTemplateInput.trim().length < 20) {
+      setOpsError('Grokプロンプトは20文字以上で入力してください。');
       return;
     }
 
@@ -230,6 +251,12 @@ export const OpsPage = () => {
           close_window_end: closeWindowEndInput,
           close_window_interval_min: closeInterval,
         },
+        grok_sns: {
+          enabled: grokSnsEnabledInput,
+          scheduled_time: grokScheduledTimeInput,
+          per_ticker_cooldown_hours: grokCooldownHours,
+          prompt_template: grokPromptTemplateInput.trim(),
+        },
       });
       setGlobalSettings(response);
       setCooldownHoursInput(String(response.cooldown_hours));
@@ -240,6 +267,10 @@ export const OpsPage = () => {
       setCloseWindowStartInput(response.immediate_schedule.close_window_start);
       setCloseWindowEndInput(response.immediate_schedule.close_window_end);
       setCloseWindowIntervalInput(String(response.immediate_schedule.close_window_interval_min));
+      setGrokSnsEnabledInput(response.grok_sns.enabled);
+      setGrokScheduledTimeInput(response.grok_sns.scheduled_time);
+      setGrokCooldownHoursInput(String(response.grok_sns.per_ticker_cooldown_hours));
+      setGrokPromptTemplateInput(response.grok_sns.prompt_template);
       setOpNotice(`全体設定を更新しました（クールダウン: ${response.cooldown_hours}時間）。`);
     } catch (error) {
       setOpsError(toUserMessage(error));
@@ -252,6 +283,10 @@ export const OpsPage = () => {
     closeWindowIntervalInput,
     closeWindowStartInput,
     cooldownHoursInput,
+    grokCooldownHoursInput,
+    grokPromptTemplateInput,
+    grokScheduledTimeInput,
+    grokSnsEnabledInput,
     openWindowEndInput,
     openWindowIntervalInput,
     openWindowStartInput,
@@ -274,6 +309,9 @@ export const OpsPage = () => {
         </p>
         <p className="muted">
           あわせてIMMEDIATEの寄り付き帯/引け帯の実行時間帯と間隔（分）を設定できます。タイムゾーンはJST固定です。
+        </p>
+        <p className="muted">
+          GrokによるSNS取得の定時時刻・再取得間隔・プロンプトテンプレートもここで設定できます。
         </p>
         <div className="settings-inline">
           <label className="inline-field">
@@ -330,6 +368,47 @@ export const OpsPage = () => {
           </label>
         </div>
         <div className="settings-inline">
+          <label className="inline-checkbox">
+            <input
+              type="checkbox"
+              checked={grokSnsEnabledInput}
+              onChange={(event) => setGrokSnsEnabledInput(event.target.checked)}
+              disabled={opsForbidden || isSavingGlobalSettings}
+            />
+            Grok SNS取得を有効化
+          </label>
+          <label className="inline-field">
+            Grok定時取得（HH:MM JST）
+            <input
+              type="text"
+              value={grokScheduledTimeInput}
+              onChange={(event) => setGrokScheduledTimeInput(event.target.value)}
+              disabled={opsForbidden || isSavingGlobalSettings}
+            />
+          </label>
+          <label className="inline-field">
+            1銘柄ごとの再取得間隔（時間）
+            <input
+              type="number"
+              min={1}
+              max={168}
+              step={1}
+              value={grokCooldownHoursInput}
+              onChange={(event) => setGrokCooldownHoursInput(event.target.value)}
+              disabled={opsForbidden || isSavingGlobalSettings}
+            />
+          </label>
+        </div>
+        <label>
+          Grokへ渡すプロンプトテンプレート
+          <textarea
+            value={grokPromptTemplateInput}
+            onChange={(event) => setGrokPromptTemplateInput(event.target.value)}
+            disabled={opsForbidden || isSavingGlobalSettings}
+            rows={6}
+          />
+        </label>
+        <div className="settings-inline">
           <label className="inline-field">
             引け帯 開始（HH:MM）
             <input
@@ -381,6 +460,12 @@ export const OpsPage = () => {
             分) / 引け {globalSettings.immediate_schedule.close_window_start}-
             {globalSettings.immediate_schedule.close_window_end} ({globalSettings.immediate_schedule.close_window_interval_min}
             分)
+          </p>
+        )}
+        {globalSettings && (
+          <p className="muted">
+            Grok SNS: {globalSettings.grok_sns.enabled ? '有効' : '無効'} / 定時 {globalSettings.grok_sns.scheduled_time}{' '}
+            / 再取得間隔 {globalSettings.grok_sns.per_ticker_cooldown_hours}時間
           </p>
         )}
         {globalSettings?.updated_at && (

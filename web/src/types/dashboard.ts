@@ -61,9 +61,17 @@ export interface AdminImmediateSchedule {
 export interface AdminGlobalSettings {
   cooldown_hours: number;
   immediate_schedule: AdminImmediateSchedule;
+  grok_sns: AdminGrokSnsSettings;
   source: 'env_default' | 'firestore';
   updated_at?: string | null;
   updated_by?: string | null;
+}
+
+export interface AdminGrokSnsSettings {
+  enabled: boolean;
+  scheduled_time: string;
+  per_ticker_cooldown_hours: number;
+  prompt_template: string;
 }
 
 export interface AdminGlobalSettingsUpdatePayload {
@@ -76,6 +84,12 @@ export interface AdminGlobalSettingsUpdatePayload {
     close_window_start: string;
     close_window_end: string;
     close_window_interval_min: number;
+  };
+  grok_sns?: {
+    enabled: boolean;
+    scheduled_time: string;
+    per_ticker_cooldown_hours: number;
+    prompt_template: string;
   };
 }
 

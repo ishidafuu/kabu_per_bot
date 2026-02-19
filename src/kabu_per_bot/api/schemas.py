@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from kabu_per_bot.grok_sns_settings import GrokSnsSettings, validate_grok_sns_settings
 from kabu_per_bot.immediate_schedule import ImmediateSchedule, validate_immediate_schedule
 from kabu_per_bot.signal import NotificationLogEntry
 from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchlistItem, XAccountLink
@@ -271,9 +272,46 @@ class AdminImmediateScheduleUpdateRequest(BaseModel):
         )
 
 
+class AdminGrokSnsSettingsResponse(BaseModel):
+    enabled: bool
+    scheduled_time: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    per_ticker_cooldown_hours: int = Field(ge=1, le=168)
+    prompt_template: str = Field(min_length=20, max_length=4000)
+
+    @classmethod
+    def from_domain(cls, value: GrokSnsSettings) -> "AdminGrokSnsSettingsResponse":
+        return cls(
+            enabled=value.enabled,
+            scheduled_time=value.scheduled_time,
+            per_ticker_cooldown_hours=value.per_ticker_cooldown_hours,
+            prompt_template=value.prompt_template,
+        )
+
+
+class AdminGrokSnsSettingsUpdateRequest(BaseModel):
+    enabled: bool
+    scheduled_time: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    per_ticker_cooldown_hours: int = Field(ge=1, le=168)
+    prompt_template: str = Field(min_length=20, max_length=4000)
+
+    @model_validator(mode="after")
+    def validate_schedule(self) -> "AdminGrokSnsSettingsUpdateRequest":
+        validate_grok_sns_settings(self.to_domain())
+        return self
+
+    def to_domain(self) -> GrokSnsSettings:
+        return GrokSnsSettings(
+            enabled=self.enabled,
+            scheduled_time=self.scheduled_time,
+            per_ticker_cooldown_hours=self.per_ticker_cooldown_hours,
+            prompt_template=self.prompt_template,
+        )
+
+
 class AdminGlobalSettingsResponse(BaseModel):
     cooldown_hours: int = Field(ge=1)
     immediate_schedule: AdminImmediateScheduleResponse
+    grok_sns: AdminGrokSnsSettingsResponse
     source: str
     updated_at: str | None = None
     updated_by: str | None = None
@@ -282,10 +320,11 @@ class AdminGlobalSettingsResponse(BaseModel):
 class AdminGlobalSettingsUpdateRequest(BaseModel):
     cooldown_hours: int | None = Field(default=None, ge=1)
     immediate_schedule: AdminImmediateScheduleUpdateRequest | None = None
+    grok_sns: AdminGrokSnsSettingsUpdateRequest | None = None
 
     @model_validator(mode="after")
     def validate_has_updates(self) -> "AdminGlobalSettingsUpdateRequest":
-        if self.cooldown_hours is None and self.immediate_schedule is None:
+        if self.cooldown_hours is None and self.immediate_schedule is None and self.grok_sns is None:
             raise ValueError("at least one setting update is required")
         return self
 

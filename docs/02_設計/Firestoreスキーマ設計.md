@@ -35,7 +35,22 @@ FirestoreはRDBの一意制約を持たないため、ドキュメントIDを合
    - `status` は `SUCCESS` / `FAILED`
 7. `global_settings`
    - doc id: `runtime`
-   - 主なフィールド: `cooldown_hours`, `updated_at`, `updated_by`
+   - 主なフィールド:
+     - `cooldown_hours`
+     - `immediate_schedule_enabled`
+     - `immediate_schedule_timezone`
+     - `immediate_open_window_start`
+     - `immediate_open_window_end`
+     - `immediate_open_window_interval_min`
+     - `immediate_close_window_start`
+     - `immediate_close_window_end`
+     - `immediate_close_window_interval_min`
+     - `grok_sns_enabled`
+     - `grok_sns_scheduled_time`
+     - `grok_sns_per_ticker_cooldown_hours`
+     - `grok_sns_prompt_template`
+     - `updated_at`
+     - `updated_by`
 
 ## 3. インデックス
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from kabu_per_bot.grok_sns_settings import GrokSnsSettings, validate_grok_sns_settings
 from kabu_per_bot.immediate_schedule import ImmediateSchedule, JST_TIMEZONE, validate_immediate_schedule
 from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
 from kabu_per_bot.storage.firestore_schema import COLLECTION_GLOBAL_SETTINGS
@@ -22,11 +23,13 @@ class FirestoreGlobalSettingsRepository:
         data = snapshot.to_dict() or {}
         cooldown_hours = _read_optional_positive_int(data.get("cooldown_hours"), key="cooldown_hours")
         immediate_schedule = _read_optional_immediate_schedule(data)
+        grok_sns_settings = _read_optional_grok_sns_settings(data)
         updated_at = _read_optional_datetime_iso(data.get("updated_at"))
         updated_by = _read_optional_string(data.get("updated_by"))
         return GlobalRuntimeSettings(
             cooldown_hours=cooldown_hours,
             immediate_schedule=immediate_schedule,
+            grok_sns_settings=grok_sns_settings,
             updated_at=updated_at,
             updated_by=updated_by,
         )
@@ -36,10 +39,11 @@ class FirestoreGlobalSettingsRepository:
         *,
         cooldown_hours: int | None = None,
         immediate_schedule: ImmediateSchedule | None = None,
+        grok_sns_settings: GrokSnsSettings | None = None,
         updated_at: str,
         updated_by: str | None,
     ) -> None:
-        if cooldown_hours is None and immediate_schedule is None:
+        if cooldown_hours is None and immediate_schedule is None and grok_sns_settings is None:
             raise ValueError("at least one setting update is required")
         row = {
             "updated_at": _read_required_datetime_iso(updated_at),
@@ -61,6 +65,16 @@ class FirestoreGlobalSettingsRepository:
                     "immediate_close_window_start": immediate_schedule.close_window_start,
                     "immediate_close_window_end": immediate_schedule.close_window_end,
                     "immediate_close_window_interval_min": int(immediate_schedule.close_window_interval_min),
+                }
+            )
+        if grok_sns_settings is not None:
+            validate_grok_sns_settings(grok_sns_settings)
+            row.update(
+                {
+                    "grok_sns_enabled": bool(grok_sns_settings.enabled),
+                    "grok_sns_scheduled_time": grok_sns_settings.scheduled_time,
+                    "grok_sns_per_ticker_cooldown_hours": int(grok_sns_settings.per_ticker_cooldown_hours),
+                    "grok_sns_prompt_template": grok_sns_settings.prompt_template.strip(),
                 }
             )
         self._collection.document(GLOBAL_SETTINGS_DOC_ID).set(row, merge=True)
@@ -176,3 +190,32 @@ def _read_optional_immediate_schedule(data: dict[str, Any]) -> ImmediateSchedule
     )
     validate_immediate_schedule(schedule)
     return schedule
+
+
+def _read_optional_grok_sns_settings(data: dict[str, Any]) -> GrokSnsSettings | None:
+    keys = (
+        "grok_sns_enabled",
+        "grok_sns_scheduled_time",
+        "grok_sns_per_ticker_cooldown_hours",
+        "grok_sns_prompt_template",
+    )
+    if not any(key in data for key in keys):
+        return None
+
+    default = GrokSnsSettings.default()
+    enabled_value = _read_optional_bool(data.get("grok_sns_enabled"), key="grok_sns_enabled")
+    scheduled_time_value = _read_optional_hhmm(data.get("grok_sns_scheduled_time"), key="grok_sns_scheduled_time")
+    cooldown_value = _read_optional_positive_int(
+        data.get("grok_sns_per_ticker_cooldown_hours"),
+        key="grok_sns_per_ticker_cooldown_hours",
+    )
+    prompt_value = _read_optional_string(data.get("grok_sns_prompt_template"))
+
+    settings = GrokSnsSettings(
+        enabled=default.enabled if enabled_value is None else enabled_value,
+        scheduled_time=scheduled_time_value or default.scheduled_time,
+        per_ticker_cooldown_hours=cooldown_value or default.per_ticker_cooldown_hours,
+        prompt_template=prompt_value or default.prompt_template,
+    )
+    validate_grok_sns_settings(settings)
+    return settings

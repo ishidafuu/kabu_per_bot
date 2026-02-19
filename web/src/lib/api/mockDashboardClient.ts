@@ -47,6 +47,13 @@ let mockGlobalSettings: AdminGlobalSettings = {
     close_window_end: '15:30',
     close_window_interval_min: 10,
   },
+  grok_sns: {
+    enabled: false,
+    scheduled_time: '21:10',
+    per_ticker_cooldown_hours: 24,
+    prompt_template:
+      '以下の銘柄に関連する直近のSNS投稿を要約してください。重要度が高い話題を優先し、投稿者・時刻・URLを必ず含めてください。',
+  },
   source: 'env_default',
   updated_at: null,
   updated_by: null,
@@ -139,6 +146,11 @@ export class MockDashboardClient implements DashboardClient {
             ...payload.immediate_schedule,
           }
         : mockGlobalSettings.immediate_schedule,
+      grok_sns: payload.grok_sns
+        ? {
+            ...payload.grok_sns,
+          }
+        : mockGlobalSettings.grok_sns,
       source: 'firestore',
       updated_at: new Date().toISOString(),
       updated_by: 'mock-admin',

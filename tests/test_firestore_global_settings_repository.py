@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import unittest
 
+from kabu_per_bot.grok_sns_settings import GrokSnsSettings
 from kabu_per_bot.immediate_schedule import ImmediateSchedule
 from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
 from kabu_per_bot.storage.firestore_global_settings_repository import (
@@ -77,6 +78,12 @@ class FirestoreGlobalSettingsRepositoryTest(unittest.TestCase):
                 close_window_end="15:00",
                 close_window_interval_min=20,
             ),
+            grok_sns_settings=GrokSnsSettings(
+                enabled=True,
+                scheduled_time="20:40",
+                per_ticker_cooldown_hours=12,
+                prompt_template="重要SNS投稿を要約し、投稿者・時刻・URLを必ず含めてください。",
+            ),
             updated_at="2026-02-18T12:00:00+09:00",
             updated_by="admin-user",
         )
@@ -87,6 +94,10 @@ class FirestoreGlobalSettingsRepositoryTest(unittest.TestCase):
         assert result.immediate_schedule is not None
         self.assertFalse(result.immediate_schedule.enabled)
         self.assertEqual(result.immediate_schedule.open_window_interval_min, 30)
+        self.assertIsNotNone(result.grok_sns_settings)
+        assert result.grok_sns_settings is not None
+        self.assertTrue(result.grok_sns_settings.enabled)
+        self.assertEqual(result.grok_sns_settings.scheduled_time, "20:40")
         self.assertEqual(result.updated_by, "admin-user")
         self.assertEqual(result.updated_at, "2026-02-18T03:00:00+00:00")
         self.assertIn(f"{COLLECTION_GLOBAL_SETTINGS}/{GLOBAL_SETTINGS_DOC_ID}", client.db)
@@ -124,6 +135,21 @@ class FirestoreGlobalSettingsRepositoryTest(unittest.TestCase):
         result = repo.get_global_settings()
         self.assertEqual(result.cooldown_hours, 6)
         self.assertIsNotNone(result.immediate_schedule)
+
+    def test_get_raises_for_invalid_grok_sns_settings(self) -> None:
+        client = FakeFirestoreClient(
+            db={
+                f"{COLLECTION_GLOBAL_SETTINGS}/{GLOBAL_SETTINGS_DOC_ID}": {
+                    "grok_sns_enabled": True,
+                    "grok_sns_scheduled_time": "24:00",
+                    "grok_sns_per_ticker_cooldown_hours": 10,
+                    "grok_sns_prompt_template": "十分な長さのプロンプトです。十分な長さのプロンプトです。",
+                }
+            }
+        )
+        repo = FirestoreGlobalSettingsRepository(client)
+        with self.assertRaises(ValueError):
+            repo.get_global_settings()
 
     def test_get_raises_for_invalid_immediate_schedule(self) -> None:
         client = FakeFirestoreClient(
