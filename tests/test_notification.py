@@ -42,6 +42,7 @@ class NotificationFormatterTest(unittest.TestCase):
         )
         self.assertIn("【超PER割安】", message.body)
         self.assertIn("under（3日連続）", message.body)
+        self.assertIn("🔥", message.body)
         self.assertEqual(message.category, "超PER割安")
 
     def test_earnings_message_format(self) -> None:
@@ -138,7 +139,9 @@ class NotificationFormatterTest(unittest.TestCase):
             ),
         )
         self.assertIn("【IR更新】", message.body)
+        self.assertIn("📝 ", message.body)
         self.assertIn("URL: https://example.com/ir.pdf", message.body)
+        self.assertIn("🏷️ 種別: IRサイト", message.body)
         self.assertEqual(message.category, "IR更新")
 
     def test_ai_attention_message_format(self) -> None:
@@ -164,6 +167,9 @@ class NotificationFormatterTest(unittest.TestCase):
             ),
         )
         self.assertIn("【AI注目】", message.body)
+        self.assertIn("🔗 根拠：", message.body)
+        self.assertIn("🏷️ 分類：", message.body)
+        self.assertIn("🎯 確信度：", message.body)
         self.assertIn("根拠：https://x.com/fujifilm_ir/status/1", message.body)
         self.assertEqual(message.category, "AI注目")
 

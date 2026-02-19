@@ -38,7 +38,8 @@ def format_signal_message(
     del metric_value, median_1w, median_3m, median_1y
     streak_days = max(1, state.streak_days)
     combo_label = _format_combo_label(state.combo, is_strong=state.is_strong)
-    body = f"【{state.category}】{normalized_ticker} {company_name} {combo_label} under（{streak_days}日連続）"
+    trend_icon = "🔥" if state.is_strong else "📉"
+    body = f"【{state.category}】{normalized_ticker} {company_name} {combo_label} under（{streak_days}日連続） {trend_icon}"
     return NotificationMessage(
         ticker=normalized_ticker,
         category=state.category,
@@ -73,10 +74,10 @@ def format_signal_status_message(
         [
             f"【{metric_label}状況】",
             f"{company_name} ({normalized_ticker})",
-            f"{metric_label}: {_fmt(metric_value)}",
-            f"中央値(1W/3M/1Y): {_fmt(median_1w)} / {_fmt(median_3m)} / {_fmt(median_1y)}",
-            f"判定レベル: {level_label}",
-            discount_line,
+            f"📊 {metric_label}: {_fmt(metric_value)}",
+            f"📚 中央値(1W/3M/1Y): {_fmt(median_1w)} / {_fmt(median_3m)} / {_fmt(median_1y)}",
+            f"🧭 判定レベル: {level_label}",
+            f"🔕 {discount_line}",
         ]
     )
     return NotificationMessage(
@@ -148,9 +149,9 @@ def format_intel_update_message(
     body = "\n".join(
         [
             f"【{category}】{normalized_ticker} {company_name}",
-            event.title,
-            f"URL: {event.url}",
-            f"種別: {event.source_label}",
+            f"📝 {event.title}",
+            f"🔗 URL: {event.url}",
+            f"🏷️ 種別: {event.source_label}",
         ]
     )
     return NotificationMessage(
@@ -174,9 +175,9 @@ def format_ai_attention_message(
     body = "\n".join(
         [
             f"【AI注目】{normalized_ticker} {company_name} {insight.summary}",
-            f"根拠：{evidence}",
-            f"分類：IR={insight.ir_label} SNS={insight.sns_label} トーン={insight.tone}",
-            f"確信度：{insight.confidence}",
+            f"🔗 根拠：{evidence}",
+            f"🏷️ 分類：IR={insight.ir_label} SNS={insight.sns_label} トーン={insight.tone}",
+            f"🎯 確信度：{insight.confidence}",
         ]
     )
     return NotificationMessage(

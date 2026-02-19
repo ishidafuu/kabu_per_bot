@@ -84,18 +84,18 @@
 
 ```text
 【IR更新】9504:TSE 北海道電力
-決算短信（2026年2月6日・公認会計士等による期中レビューの完了） [PDF:411KB] PDFファイルを開きます。
-URL: https://www.hepco.co.jp/corporate/ir/ir_lib/pdf/kessan2025-3q_review.pdf
-種別: IRサイト
+📝 決算短信（2026年2月6日・公認会計士等による期中レビューの完了） [PDF:411KB] PDFファイルを開きます。
+🔗 URL: https://www.hepco.co.jp/corporate/ir/ir_lib/pdf/kessan2025-3q_review.pdf
+🏷️ 種別: IRサイト
 ```
 
 `AI注目`（本文要約）:
 
 ```text
 【AI注目】9504:TSE 北海道電力 北海道電力の2026年3月期第3四半期決算短信。売上高は減少も営業利益は増加。通期業績予想は据え置き。
-根拠：https://www.hepco.co.jp/corporate/ir/ir_lib/pdf/kessan2025-3q_review.pdf
-分類：IR=決算資料 SNS=該当なし トーン=ニュートラル
-確信度：High
+🔗 根拠：https://www.hepco.co.jp/corporate/ir/ir_lib/pdf/kessan2025-3q_review.pdf
+🏷️ 分類：IR=決算資料 SNS=該当なし トーン=ニュートラル
+🎯 確信度：High
 ```
 
 ## 7. 既知の制約
