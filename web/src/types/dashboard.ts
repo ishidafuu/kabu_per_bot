@@ -113,3 +113,9 @@ export interface BackfillRunPayload {
 export interface RunAdminJobResponse {
   execution: AdminOpsExecution;
 }
+
+export interface AdminGrokCooldownResetResponse {
+  reset_at: string;
+  deleted_entries: number;
+  ticker?: string | null;
+}

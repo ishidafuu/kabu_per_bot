@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, Query
 
 from kabu_per_bot.admin_ops import (
@@ -12,14 +14,17 @@ from kabu_per_bot.admin_ops import (
 )
 from kabu_per_bot.api.dependencies import (
     AdminOpsReader,
+    NotificationLogReader,
     get_admin_ops_service,
     get_authenticated_uid,
+    get_notification_log_repository,
     require_admin_user,
 )
 from kabu_per_bot.api.errors import BadRequestError, ConflictError, InternalServerError, NotFoundError
 from kabu_per_bot.api.openapi import error_responses
 from kabu_per_bot.api.schemas import (
     AdminOpsBackfillRequest,
+    AdminOpsGrokCooldownResetResponse,
     AdminOpsDiscordTestResponse,
     AdminOpsExecutionListResponse,
     AdminOpsExecutionResponse,
@@ -138,6 +143,34 @@ def send_discord_test_notification(
     except Exception as exc:
         raise InternalServerError(f"Discord疎通テストに失敗しました: {exc}") from exc
     return AdminOpsDiscordTestResponse(sent_at=sent_at)
+
+
+@router.post(
+    "/grok/cooldown/reset",
+    response_model=AdminOpsGrokCooldownResetResponse,
+    responses=error_responses(400, 401, 403, 500),
+)
+def reset_grok_cooldown(
+    ticker: str | None = Query(default=None),
+    notification_log_repository: NotificationLogReader = Depends(get_notification_log_repository),
+) -> AdminOpsGrokCooldownResetResponse:
+    normalized_ticker: str | None = None
+    if ticker is not None and ticker.strip():
+        candidate = ticker.strip().upper()
+        if len(candidate) != 8 or candidate[4:] != ":TSE" or not candidate[:4].isdigit():
+            raise BadRequestError("ticker は 1234:TSE 形式で指定してください。")
+        normalized_ticker = candidate
+    try:
+        deleted = notification_log_repository.reset_grok_sns_cooldown(ticker=normalized_ticker)
+    except ValueError as exc:
+        raise BadRequestError(str(exc)) from exc
+    except Exception as exc:
+        raise InternalServerError(f"Grokクールダウンのリセットに失敗しました: {exc}") from exc
+    return AdminOpsGrokCooldownResetResponse(
+        reset_at=datetime.now(timezone.utc).isoformat(),
+        deleted_entries=deleted,
+        ticker=normalized_ticker,
+    )
 
 
 def _to_execution_response(row: JobExecution) -> AdminOpsExecutionResponse:

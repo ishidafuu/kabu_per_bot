@@ -214,6 +214,12 @@ class AdminOpsDiscordTestResponse(BaseModel):
     sent_at: str
 
 
+class AdminOpsGrokCooldownResetResponse(BaseModel):
+    reset_at: str
+    deleted_entries: int = Field(ge=0)
+    ticker: str | None = None
+
+
 class AdminOpsBackfillRequest(BaseModel):
     from_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     to_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")

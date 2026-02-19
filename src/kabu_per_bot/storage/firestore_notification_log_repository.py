@@ -173,6 +173,35 @@ class FirestoreNotificationLogRepository:
                 return True
         return False
 
+    def reset_grok_sns_cooldown(self, *, ticker: str | None = None) -> int:
+        normalized_ticker = normalize_ticker(ticker) if ticker is not None else None
+        targets: list[Any] = []
+        if hasattr(self._collection, "where"):
+            try:
+                query = self._collection.where("category", "==", "SNS注目")
+                if normalized_ticker:
+                    query = query.where("ticker", "==", normalized_ticker)
+                targets = list(query.stream())
+            except Exception as exc:
+                if not _is_missing_index_error(exc):
+                    raise
+                _log_missing_index_warning_once(key="reset_grok_cooldown.primary", exc=exc)
+
+        if not targets:
+            for snapshot in self._collection.stream():
+                data = snapshot.to_dict() or {}
+                if str(data.get("category", "")).strip() != "SNS注目":
+                    continue
+                if normalized_ticker and str(data.get("ticker", "")).strip().upper() != normalized_ticker:
+                    continue
+                targets.append(snapshot)
+
+        deleted = 0
+        for snapshot in targets:
+            snapshot.reference.delete()
+            deleted += 1
+        return deleted
+
 
 def _parse_iso_datetime(value: str) -> datetime:
     parsed = datetime.fromisoformat(value)

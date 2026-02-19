@@ -65,6 +65,7 @@
     - 今週決算
     - 明日決算
   - Discord疎通テスト送信
+  - Grokクールダウン全解除（`SNS注目` 通知ログ削除）
   - 各ジョブの用途説明と通常スケジュール表示
   - 実行履歴表示（execution/status/start/completion/log link）
   - 日次系ジョブの通知スキップ理由集計（Cloud Logging の `通知スキップ:` 行解析）
@@ -241,6 +242,15 @@
   - 目的: Discord疎通テスト通知の送信
   - 200レスポンス:
     - `sent_at`
+
+5. `POST /admin/ops/grok/cooldown/reset`
+  - 目的: Grok取得クールダウン判定に使う `SNS注目` 通知ログを削除し、再取得可能にする
+  - クエリ:
+    - `ticker`（任意: `1234:TSE` 形式。未指定時は全銘柄）
+  - 200レスポンス:
+    - `reset_at`
+    - `deleted_entries`
+    - `ticker`
 
 ### 4.6 全体設定API（管理者のみ）
 

@@ -1,4 +1,5 @@
 import type {
+  AdminGrokCooldownResetResponse,
   AdminGlobalSettings,
   AdminGlobalSettingsUpdatePayload,
   AdminJobKey,
@@ -145,6 +146,15 @@ export class MockDashboardClient implements DashboardClient {
   async sendDiscordTest(): Promise<{ sent_at: string }> {
     await wait(60);
     return { sent_at: new Date().toISOString() };
+  }
+
+  async resetGrokCooldown(ticker?: string): Promise<AdminGrokCooldownResetResponse> {
+    await wait(80);
+    return {
+      reset_at: new Date().toISOString(),
+      deleted_entries: ticker ? 3 : 12,
+      ticker: ticker ?? null,
+    };
   }
 
   async getAdminGlobalSettings(): Promise<AdminGlobalSettings> {

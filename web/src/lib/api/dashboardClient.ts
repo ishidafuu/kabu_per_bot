@@ -1,4 +1,5 @@
 import type {
+  AdminGrokCooldownResetResponse,
   AdminGlobalSettings,
   AdminGlobalSettingsUpdatePayload,
   AdminJobKey,
@@ -24,6 +25,7 @@ export interface DashboardClient {
   runAdminJob(jobKey: AdminJobKey, payload?: BackfillRunPayload): Promise<RunAdminJobResponse>;
   listAdminExecutions(jobKey: AdminJobKey, limit?: number): Promise<AdminOpsExecution[]>;
   sendDiscordTest(): Promise<{ sent_at: string }>;
+  resetGrokCooldown(ticker?: string): Promise<AdminGrokCooldownResetResponse>;
 }
 
 export class HttpDashboardClient implements DashboardClient {
@@ -79,6 +81,13 @@ export class HttpDashboardClient implements DashboardClient {
 
   async sendDiscordTest(): Promise<{ sent_at: string }> {
     return this.httpClient.request<{ sent_at: string }>('/admin/ops/discord/test', {
+      method: 'POST',
+    });
+  }
+
+  async resetGrokCooldown(ticker?: string): Promise<AdminGrokCooldownResetResponse> {
+    const suffix = ticker != null && ticker.trim().length > 0 ? `?ticker=${encodeURIComponent(ticker.trim())}` : '';
+    return this.httpClient.request<AdminGrokCooldownResetResponse>(`/admin/ops/grok/cooldown/reset${suffix}`, {
       method: 'POST',
     });
   }

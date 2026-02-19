@@ -118,7 +118,7 @@ export const OpsPage = () => {
   const [opsError, setOpsError] = useState('');
   const [opsForbidden, setOpsForbidden] = useState(false);
   const [opNotice, setOpNotice] = useState('');
-  const [runningJobKey, setRunningJobKey] = useState<VisibleJobKey | 'discord_test' | null>(null);
+  const [runningJobKey, setRunningJobKey] = useState<VisibleJobKey | 'discord_test' | 'grok_cooldown_reset' | null>(null);
   const [globalSettings, setGlobalSettings] = useState<AdminGlobalSettings | null>(null);
   const [cooldownHoursInput, setCooldownHoursInput] = useState('');
   const [scheduleEnabledInput, setScheduleEnabledInput] = useState(true);
@@ -257,6 +257,30 @@ export const OpsPage = () => {
     }
   }, [client]);
 
+  const resetGrokCooldown = useCallback(async (): Promise<void> => {
+    const accepted = window.confirm(
+      'Grokの取得クールダウンをリセットします。\nSNS注目の通知ログを削除し、次回定時で再取得可能にします。続行しますか？',
+    );
+    if (!accepted) {
+      return;
+    }
+
+    setRunningJobKey('grok_cooldown_reset');
+    setOpsError('');
+    setOpNotice('');
+    try {
+      const response = await client.resetGrokCooldown();
+      setOpNotice(
+        `Grokクールダウンをリセットしました: ${response.deleted_entries}件削除（${formatTime(response.reset_at)}）`,
+      );
+      await refreshOps();
+    } catch (error) {
+      setOpsError(toUserMessage(error));
+    } finally {
+      setRunningJobKey(null);
+    }
+  }, [client, refreshOps]);
+
   const saveGlobalSettings = useCallback(async (): Promise<void> => {
     const rawValue = cooldownHoursInput.trim();
     const parsed = Number(rawValue);
@@ -390,6 +414,16 @@ export const OpsPage = () => {
               disabled={runningJobKey !== null || opsForbidden}
             >
               {runningJobKey === 'discord_test' ? '送信中...' : 'Discord疎通テスト'}
+            </button>
+          )}
+          {activeSection === 'manual' && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void resetGrokCooldown()}
+              disabled={runningJobKey !== null || opsForbidden}
+            >
+              {runningJobKey === 'grok_cooldown_reset' ? 'リセット中...' : 'Grokクールダウン全解除'}
             </button>
           )}
         </div>

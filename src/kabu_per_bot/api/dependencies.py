@@ -80,6 +80,9 @@ class NotificationLogReader(Protocol):
     ) -> bool:
         """Return failed-job flag."""
 
+    def reset_grok_sns_cooldown(self, *, ticker: str | None = None) -> int:
+        """Delete SNS notification logs used for Grok cooldown and return deleted count."""
+
 
 class DailyMetricsReader(Protocol):
     def list_recent(self, ticker: str, *, limit: int) -> list[DailyMetric]:
