@@ -412,7 +412,10 @@ def _run_watchlist_registration_warmup(*, request: Request, item: WatchlistItem)
         },
         daemon=True,
     )
-    thread.start()
+    try:
+        thread.start()
+    except Exception as exc:
+        LOGGER.exception("登録直後ウォームアップ開始失敗: ticker=%s error=%s", item.ticker, exc)
 
 
 def _run_watchlist_registration_warmup_worker(

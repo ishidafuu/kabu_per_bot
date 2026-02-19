@@ -175,6 +175,48 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         mocked_warmup.assert_called_once()
 
+    def test_create_starts_warmup_in_background_thread(self) -> None:
+        client = _build_client()
+        with patch("kabu_per_bot.api.routes.watchlist._run_watchlist_registration_warmup_worker") as mocked_worker:
+            with patch("kabu_per_bot.api.routes.watchlist.threading.Thread") as mocked_thread:
+                mocked_thread.return_value.start.return_value = None
+                response = client.post(
+                    "/api/v1/watchlist",
+                    headers=_auth_header(),
+                    json={
+                        "ticker": "3901:tse",
+                        "name": "富士フイルム",
+                        "metric_type": "PER",
+                        "notify_channel": "DISCORD",
+                        "notify_timing": "IMMEDIATE",
+                    },
+                )
+        self.assertEqual(response.status_code, 201)
+        mocked_thread.assert_called_once()
+        mocked_thread.return_value.start.assert_called_once()
+        mocked_worker.assert_not_called()
+
+    def test_create_succeeds_when_warmup_thread_start_fails(self) -> None:
+        client = _build_client()
+        with patch("kabu_per_bot.api.routes.watchlist.threading.Thread") as mocked_thread:
+            mocked_thread.return_value.start.side_effect = RuntimeError("can't start new thread")
+            create_response = client.post(
+                "/api/v1/watchlist",
+                headers=_auth_header(),
+                json={
+                    "ticker": "3901:tse",
+                    "name": "富士フイルム",
+                    "metric_type": "PER",
+                    "notify_channel": "DISCORD",
+                    "notify_timing": "IMMEDIATE",
+                },
+            )
+        self.assertEqual(create_response.status_code, 201)
+
+        detail_response = client.get("/api/v1/watchlist/3901:TSE", headers=_auth_header())
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertEqual(detail_response.json()["ticker"], "3901:TSE")
+
     def test_duplicate_and_limit_error(self) -> None:
         client = _build_client(max_items=1)
         payload = {
