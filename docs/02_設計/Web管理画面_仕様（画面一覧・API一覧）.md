@@ -47,8 +47,14 @@
 ### 3.3 運用操作画面（管理者）
 
 - 管理者向け運用パネル:
-  - 全体設定（クールダウン時間）の参照・更新
+  - 全体設定（クールダウン時間 + IMMEDIATE時間帯設定）の参照・更新
+    - `cooldown_hours`
+    - `immediate_schedule.enabled`
+    - `immediate_schedule.open_window_start/end/interval_min`
+    - `immediate_schedule.close_window_start/end/interval_min`
   - Cloud Run Jobs 手動実行
+    - 寄り付き帯（IMMEDIATE）
+    - 引け帯（IMMEDIATE）
     - 日次（IMMEDIATE）
     - 21:05（AT_21）
     - 今週決算
@@ -230,19 +236,40 @@
 ### 4.6 全体設定API（管理者のみ）
 
 1. `GET /admin/settings/global`
-  - 目的: 全体設定（クールダウン時間）の取得
+  - 目的: 全体設定（クールダウン時間 + IMMEDIATE時間帯設定）の取得
   - 200レスポンス:
     - `cooldown_hours`
+    - `immediate_schedule`
+      - `enabled`
+      - `timezone`（`Asia/Tokyo` 固定）
+      - `open_window_start`
+      - `open_window_end`
+      - `open_window_interval_min`
+      - `close_window_start`
+      - `close_window_end`
+      - `close_window_interval_min`
     - `source`（`env_default` / `firestore`）
     - `updated_at`（任意）
     - `updated_by`（任意）
 
 2. `PATCH /admin/settings/global`
-  - 目的: 全体設定（クールダウン時間）の更新
+  - 目的: 全体設定（クールダウン時間 + IMMEDIATE時間帯設定）の更新
   - リクエスト:
-    - `cooldown_hours`（1以上の整数）
+    - `cooldown_hours`（任意、1以上の整数）
+    - `immediate_schedule`（任意）
+      - `enabled`（bool）
+      - `open_window_start` / `open_window_end`（`HH:MM`）
+      - `open_window_interval_min`（1〜60）
+      - `close_window_start` / `close_window_end`（`HH:MM`）
+      - `close_window_interval_min`（1〜60）
+  - バリデーション:
+    - 少なくとも `cooldown_hours` または `immediate_schedule` のどちらかを含む
+    - `open_window_start < open_window_end`
+    - `close_window_start < close_window_end`
+    - open/close帯は重複不可
   - 200レスポンス:
     - `cooldown_hours`
+    - `immediate_schedule`
     - `source`
     - `updated_at`
     - `updated_by`

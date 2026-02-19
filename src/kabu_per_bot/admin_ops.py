@@ -12,7 +12,7 @@ from kabu_per_bot.storage.firestore_schema import normalize_ticker, normalize_tr
 
 _CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 _RUNNING_STATUSES = {"PENDING", "RUNNING"}
-_DAILY_JOB_KEYS = {"daily", "daily_at21"}
+_DAILY_JOB_KEYS = {"daily", "daily_at21", "immediate_open", "immediate_close"}
 _RUN_LOOKUP_TIMEOUT_SECONDS = 12
 _RUN_LOOKUP_INTERVAL_SECONDS = 0.5
 
@@ -361,6 +361,16 @@ def _create_authorized_session():
 
 def _load_default_jobs() -> tuple[AdminOpsJob, ...]:
     return (
+        AdminOpsJob(
+            key="immediate_open",
+            label="寄り付き帯ジョブ（IMMEDIATE）",
+            job_name=_env_or_default("OPS_IMMEDIATE_OPEN_JOB_NAME", "kabu-immediate-open"),
+        ),
+        AdminOpsJob(
+            key="immediate_close",
+            label="引け帯ジョブ（IMMEDIATE）",
+            job_name=_env_or_default("OPS_IMMEDIATE_CLOSE_JOB_NAME", "kabu-immediate-close"),
+        ),
         AdminOpsJob(
             key="daily",
             label="日次ジョブ（IMMEDIATE）",

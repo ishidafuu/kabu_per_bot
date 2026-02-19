@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import unittest
 
+from kabu_per_bot.immediate_schedule import ImmediateSchedule
 from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
 from kabu_per_bot.storage.firestore_global_settings_repository import (
     FirestoreGlobalSettingsRepository,
@@ -66,12 +67,26 @@ class FirestoreGlobalSettingsRepositoryTest(unittest.TestCase):
         repo = FirestoreGlobalSettingsRepository(client)
         repo.upsert_global_settings(
             cooldown_hours=4,
+            immediate_schedule=ImmediateSchedule(
+                enabled=False,
+                timezone="Asia/Tokyo",
+                open_window_start="09:30",
+                open_window_end="10:30",
+                open_window_interval_min=30,
+                close_window_start="14:00",
+                close_window_end="15:00",
+                close_window_interval_min=20,
+            ),
             updated_at="2026-02-18T12:00:00+09:00",
             updated_by="admin-user",
         )
 
         result = repo.get_global_settings()
         self.assertEqual(result.cooldown_hours, 4)
+        self.assertIsNotNone(result.immediate_schedule)
+        assert result.immediate_schedule is not None
+        self.assertFalse(result.immediate_schedule.enabled)
+        self.assertEqual(result.immediate_schedule.open_window_interval_min, 30)
         self.assertEqual(result.updated_by, "admin-user")
         self.assertEqual(result.updated_at, "2026-02-18T03:00:00+00:00")
         self.assertIn(f"{COLLECTION_GLOBAL_SETTINGS}/{GLOBAL_SETTINGS_DOC_ID}", client.db)
@@ -81,6 +96,47 @@ class FirestoreGlobalSettingsRepositoryTest(unittest.TestCase):
             db={
                 f"{COLLECTION_GLOBAL_SETTINGS}/{GLOBAL_SETTINGS_DOC_ID}": {
                     "cooldown_hours": 0,
+                }
+            }
+        )
+        repo = FirestoreGlobalSettingsRepository(client)
+        with self.assertRaises(ValueError):
+            repo.get_global_settings()
+
+    def test_upsert_immediate_schedule_only_keeps_existing_cooldown(self) -> None:
+        client = FakeFirestoreClient(
+            db={
+                f"{COLLECTION_GLOBAL_SETTINGS}/{GLOBAL_SETTINGS_DOC_ID}": {
+                    "cooldown_hours": 6,
+                    "updated_at": "2026-02-18T03:00:00+00:00",
+                    "updated_by": "seed-user",
+                }
+            }
+        )
+        repo = FirestoreGlobalSettingsRepository(client)
+
+        repo.upsert_global_settings(
+            immediate_schedule=ImmediateSchedule.default(),
+            updated_at="2026-02-18T12:00:00+09:00",
+            updated_by="admin-user",
+        )
+
+        result = repo.get_global_settings()
+        self.assertEqual(result.cooldown_hours, 6)
+        self.assertIsNotNone(result.immediate_schedule)
+
+    def test_get_raises_for_invalid_immediate_schedule(self) -> None:
+        client = FakeFirestoreClient(
+            db={
+                f"{COLLECTION_GLOBAL_SETTINGS}/{GLOBAL_SETTINGS_DOC_ID}": {
+                    "immediate_schedule_enabled": True,
+                    "immediate_schedule_timezone": "Asia/Tokyo",
+                    "immediate_open_window_start": "09:00",
+                    "immediate_open_window_end": "10:00",
+                    "immediate_open_window_interval_min": 15,
+                    "immediate_close_window_start": "09:30",
+                    "immediate_close_window_end": "10:30",
+                    "immediate_close_window_interval_min": 10,
                 }
             }
         )

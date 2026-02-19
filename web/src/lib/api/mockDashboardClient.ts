@@ -25,6 +25,8 @@ const seedSummary: DashboardSummary = {
 
 let mockExecutionSeq = 1;
 const mockJobs: AdminOpsSummary['jobs'] = [
+  { key: 'immediate_open', label: '寄り付き帯ジョブ（IMMEDIATE）', job_name: 'kabu-immediate-open', configured: true },
+  { key: 'immediate_close', label: '引け帯ジョブ（IMMEDIATE）', job_name: 'kabu-immediate-close', configured: true },
   { key: 'daily', label: '日次ジョブ（IMMEDIATE）', job_name: 'kabu-daily', configured: true },
   { key: 'daily_at21', label: '21:05ジョブ（AT_21）', job_name: 'kabu-daily-at21', configured: true },
   { key: 'earnings_weekly', label: '今週決算ジョブ', job_name: 'kabu-earnings-weekly', configured: true },
@@ -35,6 +37,16 @@ const mockJobs: AdminOpsSummary['jobs'] = [
 const mockRecentExecutions: AdminOpsExecution[] = [];
 let mockGlobalSettings: AdminGlobalSettings = {
   cooldown_hours: 2,
+  immediate_schedule: {
+    enabled: true,
+    timezone: 'Asia/Tokyo',
+    open_window_start: '09:00',
+    open_window_end: '10:00',
+    open_window_interval_min: 15,
+    close_window_start: '14:30',
+    close_window_end: '15:30',
+    close_window_interval_min: 10,
+  },
   source: 'env_default',
   updated_at: null,
   updated_by: null,
@@ -83,7 +95,13 @@ export class MockDashboardClient implements DashboardClient {
       jobs: mockJobs,
       recent_executions: mockRecentExecutions,
       latest_skip_reasons: mockRecentExecutions
-        .filter((row) => row.job_key === 'daily' || row.job_key === 'daily_at21')
+        .filter(
+          (row) =>
+            row.job_key === 'immediate_open' ||
+            row.job_key === 'immediate_close' ||
+            row.job_key === 'daily' ||
+            row.job_key === 'daily_at21',
+        )
         .slice(0, 2),
     };
   }
@@ -114,7 +132,13 @@ export class MockDashboardClient implements DashboardClient {
   async updateAdminGlobalSettings(payload: AdminGlobalSettingsUpdatePayload): Promise<AdminGlobalSettings> {
     await wait(80);
     mockGlobalSettings = {
-      cooldown_hours: payload.cooldown_hours,
+      cooldown_hours: payload.cooldown_hours ?? mockGlobalSettings.cooldown_hours,
+      immediate_schedule: payload.immediate_schedule
+        ? {
+            timezone: 'Asia/Tokyo',
+            ...payload.immediate_schedule,
+          }
+        : mockGlobalSettings.immediate_schedule,
       source: 'firestore',
       updated_at: new Date().toISOString(),
       updated_by: 'mock-admin',

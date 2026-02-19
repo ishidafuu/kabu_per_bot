@@ -22,18 +22,24 @@ JQUANTS_SECRET_NAME="${JQUANTS_SECRET_NAME:-jquants-api-key}"
 
 DAILY_JOB_NAME="${DAILY_JOB_NAME:-kabu-daily}"
 DAILY_AT21_JOB_NAME="${DAILY_AT21_JOB_NAME:-kabu-daily-at21}"
+IMMEDIATE_OPEN_JOB_NAME="${IMMEDIATE_OPEN_JOB_NAME:-kabu-immediate-open}"
+IMMEDIATE_CLOSE_JOB_NAME="${IMMEDIATE_CLOSE_JOB_NAME:-kabu-immediate-close}"
 EARNINGS_WEEKLY_JOB_NAME="${EARNINGS_WEEKLY_JOB_NAME:-kabu-earnings-weekly}"
 EARNINGS_TOMORROW_JOB_NAME="${EARNINGS_TOMORROW_JOB_NAME:-kabu-earnings-tomorrow}"
 BACKFILL_INCREMENTAL_JOB_NAME="${BACKFILL_INCREMENTAL_JOB_NAME:-kabu-backfill-incremental}"
 
 DAILY_SCHEDULER_NAME="${DAILY_SCHEDULER_NAME:-sc-kabu-daily}"
 DAILY_AT21_SCHEDULER_NAME="${DAILY_AT21_SCHEDULER_NAME:-sc-kabu-daily-at21}"
+IMMEDIATE_OPEN_SCHEDULER_NAME="${IMMEDIATE_OPEN_SCHEDULER_NAME:-sc-kabu-immediate-open}"
+IMMEDIATE_CLOSE_SCHEDULER_NAME="${IMMEDIATE_CLOSE_SCHEDULER_NAME:-sc-kabu-immediate-close}"
 WEEKLY_SCHEDULER_NAME="${WEEKLY_SCHEDULER_NAME:-sc-kabu-earnings-weekly}"
 TOMORROW_SCHEDULER_NAME="${TOMORROW_SCHEDULER_NAME:-sc-kabu-earnings-tomorrow}"
 BACKFILL_INCREMENTAL_SCHEDULER_NAME="${BACKFILL_INCREMENTAL_SCHEDULER_NAME:-sc-kabu-backfill-incremental}"
 
 DAILY_CRON="${DAILY_CRON:-0 18 * * 1-5}"
 DAILY_AT21_CRON="${DAILY_AT21_CRON:-5 21 * * 1-5}"
+IMMEDIATE_OPEN_CRON="${IMMEDIATE_OPEN_CRON:-*/1 8-11 * * 1-5}"
+IMMEDIATE_CLOSE_CRON="${IMMEDIATE_CLOSE_CRON:-*/1 13-16 * * 1-5}"
 WEEKLY_CRON="${WEEKLY_CRON:-0 21 * * 6}"
 TOMORROW_CRON="${TOMORROW_CRON:-0 21 * * *}"
 BACKFILL_INCREMENTAL_CRON="${BACKFILL_INCREMENTAL_CRON:-15 21 * * 1-5}"
@@ -72,6 +78,8 @@ Cloud Run Jobs + Cloud Scheduler の初期セットアップを一括実行し�
   --skip-build                 イメージビルドをスキップ（--image-uri 必須）
   --daily-cron "<cron>"        日次ジョブのcron（既定: 0 18 * * 1-5）
   --daily-at21-cron "<cron>"   21時日次ジョブのcron（既定: 5 21 * * 1-5）
+  --immediate-open-cron "<cron>"  寄り付き帯ジョブのcron（既定: */1 8-11 * * 1-5）
+  --immediate-close-cron "<cron>" 引け帯ジョブのcron（既定: */1 13-16 * * 1-5）
   --weekly-cron "<cron>"       週次決算ジョブのcron（既定: 0 21 * * 6）
   --tomorrow-cron "<cron>"     翌日決算ジョブのcron（既定: 0 21 * * *）
   --backfill-cron "<cron>"     増分バックフィルジョブのcron（既定: 15 21 * * 1-5）
@@ -147,6 +155,14 @@ parse_args() {
         ;;
       --daily-at21-cron)
         DAILY_AT21_CRON="$2"
+        shift 2
+        ;;
+      --immediate-open-cron)
+        IMMEDIATE_OPEN_CRON="$2"
+        shift 2
+        ;;
+      --immediate-close-cron)
+        IMMEDIATE_CLOSE_CRON="$2"
         shift 2
         ;;
       --weekly-cron)
@@ -429,6 +445,8 @@ main() {
   local common_env="PYTHONPATH=/app/src,FIRESTORE_PROJECT_ID=${PROJECT_ID},APP_TIMEZONE=${TIME_ZONE},COOLDOWN_HOURS=${COOLDOWN_HOURS}"
   local daily_env="${common_env},WINDOW_1W_DAYS=${WINDOW_1W_DAYS},WINDOW_3M_DAYS=${WINDOW_3M_DAYS},WINDOW_1Y_DAYS=${WINDOW_1Y_DAYS}"
 
+  upsert_run_job "${IMMEDIATE_OPEN_JOB_NAME}" "scripts/run_immediate_window_job.py,--window,open" "${daily_env}" "${runtime_sa_email}"
+  upsert_run_job "${IMMEDIATE_CLOSE_JOB_NAME}" "scripts/run_immediate_window_job.py,--window,close" "${daily_env}" "${runtime_sa_email}"
   upsert_run_job "${DAILY_JOB_NAME}" "scripts/run_daily_job.py,--execution-mode,daily" "${daily_env}" "${runtime_sa_email}"
   upsert_run_job "${DAILY_AT21_JOB_NAME}" "scripts/run_daily_job.py,--execution-mode,at_21" "${daily_env}" "${runtime_sa_email}"
   upsert_run_job "${EARNINGS_WEEKLY_JOB_NAME}" "scripts/run_earnings_job.py,--job,weekly" "${common_env}" "${runtime_sa_email}"
@@ -439,6 +457,8 @@ main() {
     log_warn "J-Quants Secret が未利用のため、増分バックフィルJob/Schedulerは作成しません。"
   fi
 
+  upsert_scheduler_job "${IMMEDIATE_OPEN_SCHEDULER_NAME}" "${IMMEDIATE_OPEN_CRON}" "${IMMEDIATE_OPEN_JOB_NAME}" "${scheduler_sa_email}"
+  upsert_scheduler_job "${IMMEDIATE_CLOSE_SCHEDULER_NAME}" "${IMMEDIATE_CLOSE_CRON}" "${IMMEDIATE_CLOSE_JOB_NAME}" "${scheduler_sa_email}"
   upsert_scheduler_job "${DAILY_SCHEDULER_NAME}" "${DAILY_CRON}" "${DAILY_JOB_NAME}" "${scheduler_sa_email}"
   upsert_scheduler_job "${DAILY_AT21_SCHEDULER_NAME}" "${DAILY_AT21_CRON}" "${DAILY_AT21_JOB_NAME}" "${scheduler_sa_email}"
   upsert_scheduler_job "${WEEKLY_SCHEDULER_NAME}" "${WEEKLY_CRON}" "${EARNINGS_WEEKLY_JOB_NAME}" "${scheduler_sa_email}"
@@ -455,9 +475,13 @@ main() {
   image: ${IMAGE_URI}
 
 確認コマンド:
+  gcloud run jobs executions list --job=${IMMEDIATE_OPEN_JOB_NAME} --region=${REGION} --project=${PROJECT_ID}
+  gcloud run jobs executions list --job=${IMMEDIATE_CLOSE_JOB_NAME} --region=${REGION} --project=${PROJECT_ID}
   gcloud run jobs executions list --job=${DAILY_JOB_NAME} --region=${REGION} --project=${PROJECT_ID}
   gcloud run jobs executions list --job=${DAILY_AT21_JOB_NAME} --region=${REGION} --project=${PROJECT_ID}
   gcloud scheduler jobs list --location=${SCHEDULER_LOCATION} --project=${PROJECT_ID}
+  gcloud scheduler jobs run ${IMMEDIATE_OPEN_SCHEDULER_NAME} --location=${SCHEDULER_LOCATION} --project=${PROJECT_ID}
+  gcloud scheduler jobs run ${IMMEDIATE_CLOSE_SCHEDULER_NAME} --location=${SCHEDULER_LOCATION} --project=${PROJECT_ID}
   gcloud scheduler jobs run ${DAILY_SCHEDULER_NAME} --location=${SCHEDULER_LOCATION} --project=${PROJECT_ID}
   gcloud scheduler jobs run ${DAILY_AT21_SCHEDULER_NAME} --location=${SCHEDULER_LOCATION} --project=${PROJECT_ID}
 EOF

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
+from kabu_per_bot.immediate_schedule import ImmediateSchedule, validate_immediate_schedule
 from kabu_per_bot.signal import NotificationLogEntry
 from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchlistItem, XAccountLink
 from kabu_per_bot.watchlist import WatchlistHistoryRecord
@@ -219,15 +220,74 @@ class AdminOpsBackfillRequest(BaseModel):
     dry_run: bool = True
 
 
+class AdminImmediateScheduleResponse(BaseModel):
+    enabled: bool
+    timezone: str
+    open_window_start: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    open_window_end: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    open_window_interval_min: int = Field(ge=1, le=60)
+    close_window_start: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    close_window_end: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    close_window_interval_min: int = Field(ge=1, le=60)
+
+    @classmethod
+    def from_domain(cls, value: ImmediateSchedule) -> "AdminImmediateScheduleResponse":
+        return cls(
+            enabled=value.enabled,
+            timezone=value.timezone,
+            open_window_start=value.open_window_start,
+            open_window_end=value.open_window_end,
+            open_window_interval_min=value.open_window_interval_min,
+            close_window_start=value.close_window_start,
+            close_window_end=value.close_window_end,
+            close_window_interval_min=value.close_window_interval_min,
+        )
+
+
+class AdminImmediateScheduleUpdateRequest(BaseModel):
+    enabled: bool
+    open_window_start: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    open_window_end: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    open_window_interval_min: int = Field(ge=1, le=60)
+    close_window_start: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    close_window_end: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    close_window_interval_min: int = Field(ge=1, le=60)
+
+    @model_validator(mode="after")
+    def validate_schedule(self) -> "AdminImmediateScheduleUpdateRequest":
+        validate_immediate_schedule(self.to_domain())
+        return self
+
+    def to_domain(self) -> ImmediateSchedule:
+        return ImmediateSchedule(
+            enabled=self.enabled,
+            timezone="Asia/Tokyo",
+            open_window_start=self.open_window_start,
+            open_window_end=self.open_window_end,
+            open_window_interval_min=self.open_window_interval_min,
+            close_window_start=self.close_window_start,
+            close_window_end=self.close_window_end,
+            close_window_interval_min=self.close_window_interval_min,
+        )
+
+
 class AdminGlobalSettingsResponse(BaseModel):
     cooldown_hours: int = Field(ge=1)
+    immediate_schedule: AdminImmediateScheduleResponse
     source: str
     updated_at: str | None = None
     updated_by: str | None = None
 
 
 class AdminGlobalSettingsUpdateRequest(BaseModel):
-    cooldown_hours: int = Field(ge=1)
+    cooldown_hours: int | None = Field(default=None, ge=1)
+    immediate_schedule: AdminImmediateScheduleUpdateRequest | None = None
+
+    @model_validator(mode="after")
+    def validate_has_updates(self) -> "AdminGlobalSettingsUpdateRequest":
+        if self.cooldown_hours is None and self.immediate_schedule is None:
+            raise ValueError("at least one setting update is required")
+        return self
 
 
 class WatchlistHistoryItemResponse(BaseModel):

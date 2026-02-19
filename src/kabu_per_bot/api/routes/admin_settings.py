@@ -12,7 +12,12 @@ from kabu_per_bot.api.dependencies import (
 )
 from kabu_per_bot.api.errors import InternalServerError
 from kabu_per_bot.api.openapi import error_responses
-from kabu_per_bot.api.schemas import AdminGlobalSettingsResponse, AdminGlobalSettingsUpdateRequest
+from kabu_per_bot.api.schemas import (
+    AdminGlobalSettingsResponse,
+    AdminGlobalSettingsUpdateRequest,
+    AdminImmediateScheduleResponse,
+)
+from kabu_per_bot.immediate_schedule import ImmediateSchedule
 from kabu_per_bot.runtime_settings import resolve_runtime_settings
 from kabu_per_bot.settings import load_settings
 
@@ -48,8 +53,12 @@ def update_admin_global_settings(
     repository: GlobalSettingsRepository = Depends(get_global_settings_repository),
 ) -> AdminGlobalSettingsResponse:
     try:
+        immediate_schedule: ImmediateSchedule | None = None
+        if payload.immediate_schedule is not None:
+            immediate_schedule = payload.immediate_schedule.to_domain()
         repository.upsert_global_settings(
             cooldown_hours=payload.cooldown_hours,
+            immediate_schedule=immediate_schedule,
             updated_at=datetime.now(timezone.utc).isoformat(),
             updated_by=uid,
         )
@@ -67,6 +76,7 @@ def _build_global_settings_response(*, repository: GlobalSettingsRepository) -> 
     )
     return AdminGlobalSettingsResponse(
         cooldown_hours=runtime_settings.cooldown_hours,
+        immediate_schedule=AdminImmediateScheduleResponse.from_domain(runtime_settings.immediate_schedule),
         source=runtime_settings.source,
         updated_at=runtime_settings.updated_at,
         updated_by=runtime_settings.updated_by,

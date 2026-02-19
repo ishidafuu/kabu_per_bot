@@ -237,6 +237,14 @@ th {
   width: 220px;
 }
 
+.inline-checkbox {
+  width: 240px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
 .job-grid,
 .skip-reason-grid {
   display: grid;

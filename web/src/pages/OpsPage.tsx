@@ -18,6 +18,14 @@ interface JobGuide {
 }
 
 const JOB_GUIDES: Record<VisibleJobKey, JobGuide> = {
+  immediate_open: {
+    summary: '寄り付き帯（IMMEDIATE）を手動実行します。設定した時間帯・間隔に一致する時刻のみ判定します。',
+    schedule: '通常は平日8:00-11:59に毎分起動（設定条件に合う時刻のみ実処理）',
+  },
+  immediate_close: {
+    summary: '引け帯（IMMEDIATE）を手動実行します。設定した時間帯・間隔に一致する時刻のみ判定します。',
+    schedule: '通常は平日13:00-16:59に毎分起動（設定条件に合う時刻のみ実処理）',
+  },
   daily: {
     summary: '平日18:00想定の日次評価を手動で即時実行します（IMMEDIATE銘柄向け）。',
     schedule: '通常は平日18:00に定期実行',
@@ -84,6 +92,13 @@ export const OpsPage = () => {
   const [runningJobKey, setRunningJobKey] = useState<VisibleJobKey | 'discord_test' | null>(null);
   const [globalSettings, setGlobalSettings] = useState<AdminGlobalSettings | null>(null);
   const [cooldownHoursInput, setCooldownHoursInput] = useState('');
+  const [scheduleEnabledInput, setScheduleEnabledInput] = useState(true);
+  const [openWindowStartInput, setOpenWindowStartInput] = useState('09:00');
+  const [openWindowEndInput, setOpenWindowEndInput] = useState('10:00');
+  const [openWindowIntervalInput, setOpenWindowIntervalInput] = useState('15');
+  const [closeWindowStartInput, setCloseWindowStartInput] = useState('14:30');
+  const [closeWindowEndInput, setCloseWindowEndInput] = useState('15:30');
+  const [closeWindowIntervalInput, setCloseWindowIntervalInput] = useState('10');
   const [isSavingGlobalSettings, setIsSavingGlobalSettings] = useState(false);
 
   const refreshOps = useCallback(async (): Promise<void> => {
@@ -98,6 +113,13 @@ export const OpsPage = () => {
       setOpsSummary(opsSummaryResponse);
       setGlobalSettings(globalSettingsResponse);
       setCooldownHoursInput(String(globalSettingsResponse.cooldown_hours));
+      setScheduleEnabledInput(globalSettingsResponse.immediate_schedule.enabled);
+      setOpenWindowStartInput(globalSettingsResponse.immediate_schedule.open_window_start);
+      setOpenWindowEndInput(globalSettingsResponse.immediate_schedule.open_window_end);
+      setOpenWindowIntervalInput(String(globalSettingsResponse.immediate_schedule.open_window_interval_min));
+      setCloseWindowStartInput(globalSettingsResponse.immediate_schedule.close_window_start);
+      setCloseWindowEndInput(globalSettingsResponse.immediate_schedule.close_window_end);
+      setCloseWindowIntervalInput(String(globalSettingsResponse.immediate_schedule.close_window_interval_min));
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) {
         setOpsForbidden(true);
@@ -173,21 +195,68 @@ export const OpsPage = () => {
       setOpsError('クールダウン時間は1以上の整数で入力してください。');
       return;
     }
+    const hhmm = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+    if (!hhmm.test(openWindowStartInput) || !hhmm.test(openWindowEndInput)) {
+      setOpsError('寄り付き帯の時刻は HH:MM 形式で入力してください。');
+      return;
+    }
+    if (!hhmm.test(closeWindowStartInput) || !hhmm.test(closeWindowEndInput)) {
+      setOpsError('引け帯の時刻は HH:MM 形式で入力してください。');
+      return;
+    }
+    const openInterval = Number(openWindowIntervalInput.trim());
+    const closeInterval = Number(closeWindowIntervalInput.trim());
+    if (!Number.isInteger(openInterval) || openInterval < 1 || openInterval > 60) {
+      setOpsError('寄り付き帯の間隔は1〜60の整数で入力してください。');
+      return;
+    }
+    if (!Number.isInteger(closeInterval) || closeInterval < 1 || closeInterval > 60) {
+      setOpsError('引け帯の間隔は1〜60の整数で入力してください。');
+      return;
+    }
 
     setIsSavingGlobalSettings(true);
     setOpsError('');
     setOpNotice('');
     try {
-      const response = await client.updateAdminGlobalSettings({ cooldown_hours: parsed });
+      const response = await client.updateAdminGlobalSettings({
+        cooldown_hours: parsed,
+        immediate_schedule: {
+          enabled: scheduleEnabledInput,
+          open_window_start: openWindowStartInput,
+          open_window_end: openWindowEndInput,
+          open_window_interval_min: openInterval,
+          close_window_start: closeWindowStartInput,
+          close_window_end: closeWindowEndInput,
+          close_window_interval_min: closeInterval,
+        },
+      });
       setGlobalSettings(response);
       setCooldownHoursInput(String(response.cooldown_hours));
+      setScheduleEnabledInput(response.immediate_schedule.enabled);
+      setOpenWindowStartInput(response.immediate_schedule.open_window_start);
+      setOpenWindowEndInput(response.immediate_schedule.open_window_end);
+      setOpenWindowIntervalInput(String(response.immediate_schedule.open_window_interval_min));
+      setCloseWindowStartInput(response.immediate_schedule.close_window_start);
+      setCloseWindowEndInput(response.immediate_schedule.close_window_end);
+      setCloseWindowIntervalInput(String(response.immediate_schedule.close_window_interval_min));
       setOpNotice(`全体設定を更新しました（クールダウン: ${response.cooldown_hours}時間）。`);
     } catch (error) {
       setOpsError(toUserMessage(error));
     } finally {
       setIsSavingGlobalSettings(false);
     }
-  }, [client, cooldownHoursInput]);
+  }, [
+    client,
+    closeWindowEndInput,
+    closeWindowIntervalInput,
+    closeWindowStartInput,
+    cooldownHoursInput,
+    openWindowEndInput,
+    openWindowIntervalInput,
+    openWindowStartInput,
+    scheduleEnabledInput,
+  ]);
 
   const jobRows =
     opsSummary?.jobs.filter((row): row is typeof row & { key: VisibleJobKey } => isVisibleJobKey(row.key)) ?? [];
@@ -203,6 +272,9 @@ export const OpsPage = () => {
         <p className="muted">
           同一条件通知のクールダウン時間を設定します。通常→強への昇格通知はクールダウン内でも即時通知されます。
         </p>
+        <p className="muted">
+          あわせてIMMEDIATEの寄り付き帯/引け帯の実行時間帯と間隔（分）を設定できます。タイムゾーンはJST固定です。
+        </p>
         <div className="settings-inline">
           <label className="inline-field">
             クールダウン（時間）
@@ -212,6 +284,79 @@ export const OpsPage = () => {
               step={1}
               value={cooldownHoursInput}
               onChange={(event) => setCooldownHoursInput(event.target.value)}
+              disabled={opsForbidden || isSavingGlobalSettings}
+            />
+          </label>
+          <label className="inline-checkbox">
+            <input
+              type="checkbox"
+              checked={scheduleEnabledInput}
+              onChange={(event) => setScheduleEnabledInput(event.target.checked)}
+              disabled={opsForbidden || isSavingGlobalSettings}
+            />
+            IMMEDIATE帯設定を有効化
+          </label>
+        </div>
+        <div className="settings-inline">
+          <label className="inline-field">
+            寄り付き帯 開始（HH:MM）
+            <input
+              type="text"
+              value={openWindowStartInput}
+              onChange={(event) => setOpenWindowStartInput(event.target.value)}
+              disabled={opsForbidden || isSavingGlobalSettings}
+            />
+          </label>
+          <label className="inline-field">
+            寄り付き帯 終了（HH:MM）
+            <input
+              type="text"
+              value={openWindowEndInput}
+              onChange={(event) => setOpenWindowEndInput(event.target.value)}
+              disabled={opsForbidden || isSavingGlobalSettings}
+            />
+          </label>
+          <label className="inline-field">
+            寄り付き帯 間隔（分）
+            <input
+              type="number"
+              min={1}
+              max={60}
+              step={1}
+              value={openWindowIntervalInput}
+              onChange={(event) => setOpenWindowIntervalInput(event.target.value)}
+              disabled={opsForbidden || isSavingGlobalSettings}
+            />
+          </label>
+        </div>
+        <div className="settings-inline">
+          <label className="inline-field">
+            引け帯 開始（HH:MM）
+            <input
+              type="text"
+              value={closeWindowStartInput}
+              onChange={(event) => setCloseWindowStartInput(event.target.value)}
+              disabled={opsForbidden || isSavingGlobalSettings}
+            />
+          </label>
+          <label className="inline-field">
+            引け帯 終了（HH:MM）
+            <input
+              type="text"
+              value={closeWindowEndInput}
+              onChange={(event) => setCloseWindowEndInput(event.target.value)}
+              disabled={opsForbidden || isSavingGlobalSettings}
+            />
+          </label>
+          <label className="inline-field">
+            引け帯 間隔（分）
+            <input
+              type="number"
+              min={1}
+              max={60}
+              step={1}
+              value={closeWindowIntervalInput}
+              onChange={(event) => setCloseWindowIntervalInput(event.target.value)}
               disabled={opsForbidden || isSavingGlobalSettings}
             />
           </label>
@@ -228,6 +373,16 @@ export const OpsPage = () => {
           現在値: {globalSettings ? `${globalSettings.cooldown_hours}時間` : '-'} / 反映元:{' '}
           {globalSettings?.source === 'firestore' ? '管理画面設定' : '環境変数デフォルト'}
         </p>
+        {globalSettings && (
+          <p className="muted">
+            IMMEDIATE帯: {globalSettings.immediate_schedule.enabled ? '有効' : '無効'} / 寄り付き{' '}
+            {globalSettings.immediate_schedule.open_window_start}-
+            {globalSettings.immediate_schedule.open_window_end} ({globalSettings.immediate_schedule.open_window_interval_min}
+            分) / 引け {globalSettings.immediate_schedule.close_window_start}-
+            {globalSettings.immediate_schedule.close_window_end} ({globalSettings.immediate_schedule.close_window_interval_min}
+            分)
+          </p>
+        )}
         {globalSettings?.updated_at && (
           <p className="muted">
             最終更新: {formatTime(globalSettings.updated_at)}（{globalSettings.updated_by ?? 'unknown'}）
@@ -318,7 +473,7 @@ export const OpsPage = () => {
 
           <section className="panel controls-panel">
             <div className="meta-row">
-              <span>最新スキップ理由集計（日次系）</span>
+              <span>最新スキップ理由集計（日次・IMMEDIATE系）</span>
             </div>
             {latestSkipRows.length === 0 ? (
               <p className="muted">集計対象の実行履歴がありません。</p>

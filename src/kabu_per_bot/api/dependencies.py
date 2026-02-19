@@ -11,6 +11,7 @@ from kabu_per_bot.admin_ops import (
     CloudRunAdminOpsService,
     JobExecution,
 )
+from kabu_per_bot.immediate_schedule import ImmediateSchedule
 from kabu_per_bot.api.errors import ForbiddenError, UnauthorizedError
 from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
@@ -135,7 +136,8 @@ class GlobalSettingsRepository(Protocol):
     def upsert_global_settings(
         self,
         *,
-        cooldown_hours: int,
+        cooldown_hours: int | None = None,
+        immediate_schedule: ImmediateSchedule | None = None,
         updated_at: str,
         updated_by: str | None,
     ) -> None:

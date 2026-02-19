@@ -58,8 +58,20 @@ PYTHONPATH=src python scripts/run_daily_job.py --stdout
 PYTHONPATH=src python scripts/run_daily_job.py --execution-mode at_21 --discord-webhook-url <DISCORD_WEBHOOK_URL>
 ```
 
+IMMEDIATEの寄り付き帯/引け帯ジョブを実行する場合:
+
+```bash
+PYTHONPATH=src python scripts/run_immediate_window_job.py --window open --discord-webhook-url <DISCORD_WEBHOOK_URL>
+PYTHONPATH=src python scripts/run_immediate_window_job.py --window close --discord-webhook-url <DISCORD_WEBHOOK_URL>
+```
+
+- `global_settings/runtime.immediate_schedule` の時間帯・間隔に一致した時刻のみ実処理する。
+- 帯外や間隔未一致の時刻は `processed=0 sent=0 skipped=0 errors=0` を返して正常終了する。
+
 定期実行（Cloud Run Jobs + Scheduler）での既定構成:
 
+- `kabu-immediate-open` <- `sc-kabu-immediate-open`（平日8:00-11:59 毎分起動、設定一致時のみ実処理）
+- `kabu-immediate-close` <- `sc-kabu-immediate-close`（平日13:00-16:59 毎分起動、設定一致時のみ実処理）
 - `kabu-daily` <- `sc-kabu-daily`（平日18:00 JST）
 - `kabu-daily-at21` <- `sc-kabu-daily-at21`（平日21:05 JST）
 - `kabu-backfill-incremental` <- `sc-kabu-backfill-incremental`（平日21:15 JST）
@@ -72,6 +84,8 @@ PYTHONPATH=src python scripts/run_daily_job.py --execution-mode at_21 --discord-
 確認コマンド:
 
 ```bash
+gcloud run jobs executions list --job=kabu-immediate-open --region=asia-northeast1 --project=<GCP_PROJECT_ID>
+gcloud run jobs executions list --job=kabu-immediate-close --region=asia-northeast1 --project=<GCP_PROJECT_ID>
 gcloud run jobs executions list --job=kabu-daily --region=asia-northeast1 --project=<GCP_PROJECT_ID>
 gcloud run jobs executions list --job=kabu-daily-at21 --region=asia-northeast1 --project=<GCP_PROJECT_ID>
 gcloud scheduler jobs list --location=asia-northeast1 --project=<GCP_PROJECT_ID>

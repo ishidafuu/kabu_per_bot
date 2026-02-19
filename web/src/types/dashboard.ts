@@ -6,6 +6,8 @@ export interface DashboardSummary {
 }
 
 export type AdminJobKey =
+  | 'immediate_open'
+  | 'immediate_close'
   | 'daily'
   | 'daily_at21'
   | 'earnings_weekly'
@@ -45,15 +47,36 @@ export interface AdminOpsSummary {
   latest_skip_reasons: AdminOpsExecution[];
 }
 
+export interface AdminImmediateSchedule {
+  enabled: boolean;
+  timezone: 'Asia/Tokyo';
+  open_window_start: string;
+  open_window_end: string;
+  open_window_interval_min: number;
+  close_window_start: string;
+  close_window_end: string;
+  close_window_interval_min: number;
+}
+
 export interface AdminGlobalSettings {
   cooldown_hours: number;
+  immediate_schedule: AdminImmediateSchedule;
   source: 'env_default' | 'firestore';
   updated_at?: string | null;
   updated_by?: string | null;
 }
 
 export interface AdminGlobalSettingsUpdatePayload {
-  cooldown_hours: number;
+  cooldown_hours?: number;
+  immediate_schedule?: {
+    enabled: boolean;
+    open_window_start: string;
+    open_window_end: string;
+    open_window_interval_min: number;
+    close_window_start: string;
+    close_window_end: string;
+    close_window_interval_min: number;
+  };
 }
 
 export interface BackfillRunPayload {
