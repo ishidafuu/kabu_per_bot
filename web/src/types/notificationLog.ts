@@ -7,6 +7,7 @@ export interface NotificationLogItem {
   channel: string;
   payload_hash: string;
   is_strong: boolean;
+  body?: string | null;
 }
 
 export interface NotificationLogListResponse {

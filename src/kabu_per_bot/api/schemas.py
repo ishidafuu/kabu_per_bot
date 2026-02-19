@@ -405,6 +405,14 @@ class WatchlistHistoryReasonUpdateRequest(BaseModel):
     reason: str | None = Field(default=None, max_length=200)
 
 
+class WatchlistDetailSummaryResponse(BaseModel):
+    last_notification_at: str | None = None
+    last_notification_category: str | None = None
+    notification_count_7d: int = Field(ge=0)
+    strong_notification_count_30d: int = Field(ge=0)
+    data_unknown_count_30d: int = Field(ge=0)
+
+
 class NotificationLogItemResponse(BaseModel):
     entry_id: str
     ticker: str
@@ -414,6 +422,7 @@ class NotificationLogItemResponse(BaseModel):
     channel: str
     payload_hash: str
     is_strong: bool
+    body: str | None = None
 
     @classmethod
     def from_domain(cls, entry: NotificationLogEntry) -> "NotificationLogItemResponse":
@@ -426,9 +435,17 @@ class NotificationLogItemResponse(BaseModel):
             channel=entry.channel,
             payload_hash=entry.payload_hash,
             is_strong=entry.is_strong,
+            body=entry.body,
         )
 
 
 class NotificationLogListResponse(BaseModel):
     items: list[NotificationLogItemResponse]
     total: int = Field(ge=0)
+
+
+class WatchlistDetailResponse(BaseModel):
+    item: WatchlistItemResponse
+    summary: WatchlistDetailSummaryResponse
+    notifications: NotificationLogListResponse
+    history: WatchlistHistoryListResponse

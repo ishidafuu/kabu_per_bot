@@ -7,7 +7,8 @@ import type {
   WatchlistListResponse,
   WatchlistUpdateInput,
 } from '../../types/watchlist';
-import type { ListWatchlistParams, WatchlistClient } from './watchlistClient';
+import type { WatchlistDetailResponse } from '../../types/watchlistDetail';
+import type { GetWatchlistDetailParams, ListWatchlistParams, WatchlistClient } from './watchlistClient';
 
 const MAX_WATCHLIST_COUNT = 100;
 const TICKER_PATTERN = /^\d{4}:TSE$/;
@@ -203,6 +204,90 @@ export class MockWatchlistClient implements WatchlistClient {
     return {
       items: filtered.slice(offset, offset + limit),
       total: filtered.length,
+    };
+  }
+
+  async getDetail(ticker: string, params: GetWatchlistDetailParams = {}): Promise<WatchlistDetailResponse> {
+    await wait(120);
+
+    const normalizedTicker = ticker.trim().toUpperCase();
+    const found = mockStore.find((item) => item.ticker === normalizedTicker);
+    if (!found) {
+      throw new ApiError(404, 'データなし');
+    }
+
+    const now = new Date();
+    const recentSentAt = now.toISOString();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const notificationRows = [
+      {
+        entry_id: `${normalizedTicker}-1`,
+        ticker: normalizedTicker,
+        category: '超PER割安',
+        condition_key: 'PER:1Y+3M+1W',
+        sent_at: recentSentAt,
+        channel: 'DISCORD',
+        payload_hash: 'mock-strong',
+        is_strong: true,
+        body: `【超PER割安】${normalizedTicker} ${found.name} 1Y 3M 1W under（2日連続）`,
+      },
+      {
+        entry_id: `${normalizedTicker}-2`,
+        ticker: normalizedTicker,
+        category: 'データ不明',
+        condition_key: 'UNKNOWN:eps_forecast',
+        sent_at: monthAgo,
+        channel: 'DISCORD',
+        payload_hash: 'mock-unknown',
+        is_strong: false,
+        body: `【データ不明】${normalizedTicker} ${found.name} 予想EPSが取得できませんでした`,
+      },
+    ];
+
+    const filteredNotifications = notificationRows.filter((row) => {
+      if (params.category && row.category !== params.category) {
+        return false;
+      }
+      if (params.strong_only && !row.is_strong) {
+        return false;
+      }
+      if (params.sent_at_from && row.sent_at < params.sent_at_from) {
+        return false;
+      }
+      if (params.sent_at_to && row.sent_at >= params.sent_at_to) {
+        return false;
+      }
+      return true;
+    });
+    const offset = params.offset ?? 0;
+    const limit = params.limit ?? 20;
+
+    return {
+      item: found,
+      summary: {
+        last_notification_at: recentSentAt,
+        last_notification_category: '超PER割安',
+        notification_count_7d: notificationRows.filter((row) => row.sent_at >= weekAgo).length,
+        strong_notification_count_30d: notificationRows.filter((row) => row.is_strong && row.sent_at >= monthAgo).length,
+        data_unknown_count_30d: notificationRows.filter((row) => row.category === 'データ不明' && row.sent_at >= monthAgo).length,
+      },
+      notifications: {
+        items: filteredNotifications.slice(offset, offset + limit),
+        total: filteredNotifications.length,
+      },
+      history: {
+        items: [
+          {
+            record_id: `${normalizedTicker}|ADD|${monthAgo}`,
+            ticker: normalizedTicker,
+            action: 'ADD',
+            reason: 'モック登録',
+            acted_at: monthAgo,
+          },
+        ],
+        total: 1,
+      },
     };
   }
 

@@ -111,6 +111,8 @@ class FakeNotificationLogRepository:
         self,
         *,
         ticker: str | None = None,
+        category: str | None = None,
+        is_strong: bool | None = None,
         limit: int | None = 100,
         offset: int = 0,
         sent_at_from: str | None = None,
@@ -120,6 +122,10 @@ class FakeNotificationLogRepository:
         if ticker:
             normalized = normalize_ticker(ticker)
             values = [row for row in values if row.ticker == normalized]
+        if category:
+            values = [row for row in values if row.category == category]
+        if is_strong is not None:
+            values = [row for row in values if row.is_strong is is_strong]
         if sent_at_from:
             from_dt = _parse_iso_datetime(sent_at_from)
             values = [row for row in values if _parse_iso_datetime(row.sent_at) >= from_dt]
@@ -135,12 +141,16 @@ class FakeNotificationLogRepository:
         self,
         *,
         ticker: str | None = None,
+        category: str | None = None,
+        is_strong: bool | None = None,
         sent_at_from: str | None = None,
         sent_at_to: str | None = None,
     ) -> int:
         return len(
             self.list_timeline(
                 ticker=ticker,
+                category=category,
+                is_strong=is_strong,
                 sent_at_from=sent_at_from,
                 sent_at_to=sent_at_to,
                 limit=None,
@@ -449,6 +459,7 @@ class DashboardHistoryLogsApiTest(unittest.TestCase):
                     channel="DISCORD",
                     payload_hash="h1",
                     is_strong=False,
+                    body="normal",
                 ),
                 NotificationLogEntry(
                     entry_id="b",
@@ -459,6 +470,7 @@ class DashboardHistoryLogsApiTest(unittest.TestCase):
                     channel="DISCORD",
                     payload_hash="h2",
                     is_strong=True,
+                    body="strong",
                 ),
                 NotificationLogEntry(
                     entry_id="c",
@@ -469,6 +481,7 @@ class DashboardHistoryLogsApiTest(unittest.TestCase):
                     channel="DISCORD",
                     payload_hash="h3",
                     is_strong=False,
+                    body="unknown",
                 ),
             ]
         )
@@ -483,6 +496,15 @@ class DashboardHistoryLogsApiTest(unittest.TestCase):
         self.assertEqual(body["total"], 3)
         self.assertEqual(len(body["items"]), 1)
         self.assertEqual(body["items"][0]["entry_id"], "b")
+        self.assertEqual(body["items"][0]["body"], "strong")
+
+        strong_only = client.get(
+            "/api/v1/notifications/logs?ticker=3901:tse&strong_only=true",
+            headers=_auth_header(),
+        )
+        self.assertEqual(strong_only.status_code, 200)
+        self.assertEqual(strong_only.json()["total"], 1)
+        self.assertEqual(strong_only.json()["items"][0]["entry_id"], "b")
 
     def test_validation_errors(self) -> None:
         client = _build_client()

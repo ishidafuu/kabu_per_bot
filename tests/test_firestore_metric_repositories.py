@@ -212,6 +212,7 @@ class FirestoreMetricRepositoriesTest(unittest.TestCase):
                 channel="DISCORD",
                 payload_hash="hash",
                 is_strong=True,
+                body="【超PER割安】3901:TSE 富士フイルム ...",
             )
         )
         log_repo.append(
@@ -224,12 +225,16 @@ class FirestoreMetricRepositoriesTest(unittest.TestCase):
                 channel="DISCORD",
                 payload_hash="hash2",
                 is_strong=False,
+                body="【データ不明】3901:TSE 富士フイルム ...",
             )
         )
         logs = log_repo.list_recent("3901:TSE")
         self.assertEqual(len(logs), 2)
         self.assertEqual(logs[0].category, "データ不明")
+        self.assertIn("データ不明", logs[0].body or "")
         self.assertEqual(log_repo.count_timeline(ticker="3901:TSE"), 2)
+        self.assertEqual(log_repo.count_timeline(ticker="3901:TSE", is_strong=True), 1)
+        self.assertEqual(log_repo.count_timeline(ticker="3901:TSE", category="データ不明"), 1)
         ranged = log_repo.list_timeline(
             ticker="3901:TSE",
             sent_at_from="2026-02-12T12:00:00+00:00",
@@ -239,6 +244,13 @@ class FirestoreMetricRepositoriesTest(unittest.TestCase):
         )
         self.assertEqual(len(ranged), 1)
         self.assertEqual(ranged[0].entry_id, "log2")
+        strong_only = log_repo.list_timeline(
+            ticker="3901:TSE",
+            is_strong=True,
+            limit=10,
+            offset=0,
+        )
+        self.assertEqual([row.entry_id for row in strong_only], ["log1"])
 
         log_repo.append_job_run(
             job_name="earnings_weekly",

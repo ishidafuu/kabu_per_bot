@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
 import { WatchlistForm, type WatchlistFormValues } from '../components/WatchlistForm';
@@ -27,6 +28,7 @@ const formatEarnings = (date?: string | null, time?: string | null): string => {
 };
 
 export const WatchlistPage = () => {
+  const navigate = useNavigate();
   const { getIdToken } = useAuth();
   const client = useMemo(() => createWatchlistClient({ getToken: getIdToken }), [getIdToken]);
 
@@ -288,6 +290,15 @@ export const WatchlistPage = () => {
                   <td>{formatEarnings(item.next_earnings_date, item.next_earnings_time)}</td>
                   <td>
                     <div className="inline-actions">
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => {
+                          void navigate(`/watchlist/${encodeURIComponent(item.ticker)}/detail`);
+                        }}
+                      >
+                        銘柄詳細
+                      </button>
                       <button type="button" className="ghost" onClick={() => openEditForm(item)}>
                         編集
                       </button>

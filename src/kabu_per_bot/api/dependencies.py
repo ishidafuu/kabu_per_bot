@@ -58,6 +58,8 @@ class NotificationLogReader(Protocol):
         self,
         *,
         ticker: str | None = None,
+        category: str | None = None,
+        is_strong: bool | None = None,
         limit: int | None = 100,
         offset: int = 0,
         sent_at_from: str | None = None,
@@ -69,6 +71,8 @@ class NotificationLogReader(Protocol):
         self,
         *,
         ticker: str | None = None,
+        category: str | None = None,
+        is_strong: bool | None = None,
         sent_at_from: str | None = None,
         sent_at_to: str | None = None,
     ) -> int:

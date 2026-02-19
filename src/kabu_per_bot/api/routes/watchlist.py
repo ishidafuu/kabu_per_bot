@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 import threading
@@ -13,8 +13,12 @@ from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.api.dependencies import (
+    NotificationLogReader,
+    WatchlistHistoryReader,
     create_firestore_client,
+    get_notification_log_repository,
     get_ir_url_candidate_service,
+    get_watchlist_history_repository,
     get_watchlist_service,
 )
 from kabu_per_bot.backfill_service import (
@@ -39,7 +43,13 @@ from kabu_per_bot.api.schemas import (
     IrUrlCandidateListResponse,
     IrUrlCandidateResponse,
     IrUrlCandidateSuggestRequest,
+    NotificationLogItemResponse,
+    NotificationLogListResponse,
     WatchlistCreateRequest,
+    WatchlistDetailResponse,
+    WatchlistDetailSummaryResponse,
+    WatchlistHistoryItemResponse,
+    WatchlistHistoryListResponse,
     WatchlistItemResponse,
     WatchlistListResponse,
     WatchlistUpdateRequest,
@@ -183,6 +193,106 @@ def suggest_ir_url_candidates(
         for row in candidates
     ]
     return IrUrlCandidateListResponse(items=rows, total=len(rows))
+
+
+@router.get(
+    "/{ticker}/detail",
+    response_model=WatchlistDetailResponse,
+    responses=error_responses(401, 403, 404, 422, 500),
+)
+def get_watchlist_item_detail(
+    request: Request,
+    ticker: str,
+    category: str | None = Query(default=None, max_length=64, description="通知カテゴリで絞り込み"),
+    strong_only: bool = Query(default=False, description="強通知のみを表示"),
+    sent_at_from: str | None = Query(default=None, description="通知時刻の開始ISO8601"),
+    sent_at_to: str | None = Query(default=None, description="通知時刻の終了ISO8601"),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    history_limit: int = Query(default=20, ge=1, le=100),
+    history_offset: int = Query(default=0, ge=0),
+    service: WatchlistService = Depends(get_watchlist_service),
+    notification_log_repo: NotificationLogReader = Depends(get_notification_log_repository),
+    watchlist_history_repo: WatchlistHistoryReader = Depends(get_watchlist_history_repository),
+) -> WatchlistDetailResponse:
+    with _translate_watchlist_error():
+        item = service.get_item(ticker)
+
+    item_response = _build_watchlist_item_response_with_optional_status(request=request, item=item)
+
+    now_jst = datetime.now(JST)
+    sent_at_7d_from = (now_jst - timedelta(days=7)).astimezone(timezone.utc).isoformat()
+    sent_at_30d_from = (now_jst - timedelta(days=30)).astimezone(timezone.utc).isoformat()
+    strong_filter = True if strong_only else None
+
+    latest_rows = _call_repository(
+        notification_log_repo.list_timeline,
+        ticker=item.ticker,
+        limit=1,
+        offset=0,
+    )
+    latest = latest_rows[0] if latest_rows else None
+
+    summary = WatchlistDetailSummaryResponse(
+        last_notification_at=latest.sent_at if latest is not None else None,
+        last_notification_category=latest.category if latest is not None else None,
+        notification_count_7d=_call_repository(
+            notification_log_repo.count_timeline,
+            ticker=item.ticker,
+            sent_at_from=sent_at_7d_from,
+        ),
+        strong_notification_count_30d=_call_repository(
+            notification_log_repo.count_timeline,
+            ticker=item.ticker,
+            is_strong=True,
+            sent_at_from=sent_at_30d_from,
+        ),
+        data_unknown_count_30d=_call_repository(
+            notification_log_repo.count_timeline,
+            ticker=item.ticker,
+            category="データ不明",
+            sent_at_from=sent_at_30d_from,
+        ),
+    )
+
+    notification_rows = _call_repository(
+        notification_log_repo.list_timeline,
+        ticker=item.ticker,
+        category=category,
+        is_strong=strong_filter,
+        sent_at_from=sent_at_from,
+        sent_at_to=sent_at_to,
+        limit=limit,
+        offset=offset,
+    )
+    notification_total = _call_repository(
+        notification_log_repo.count_timeline,
+        ticker=item.ticker,
+        category=category,
+        is_strong=strong_filter,
+        sent_at_from=sent_at_from,
+        sent_at_to=sent_at_to,
+    )
+    history_rows = _call_repository(
+        watchlist_history_repo.list_timeline,
+        ticker=item.ticker,
+        limit=history_limit,
+        offset=history_offset,
+    )
+    history_total = _call_repository(watchlist_history_repo.count_timeline, ticker=item.ticker)
+
+    return WatchlistDetailResponse(
+        item=item_response,
+        summary=summary,
+        notifications=NotificationLogListResponse(
+            items=[NotificationLogItemResponse.from_domain(row) for row in notification_rows],
+            total=notification_total,
+        ),
+        history=WatchlistHistoryListResponse(
+            items=[WatchlistHistoryItemResponse.from_domain(row) for row in history_rows],
+            total=history_total,
+        ),
+    )
 
 
 @router.get(
@@ -361,6 +471,51 @@ def _build_watchlist_item_response(
         signal_streak_days=signal_streak_days,
         next_earnings_date=next_earnings_date,
         next_earnings_time=next_earnings_time,
+    )
+
+
+def _build_watchlist_item_response_with_optional_status(
+    *,
+    request: Request,
+    item: WatchlistItem,
+) -> WatchlistItemResponse:
+    try:
+        daily_metrics_repo = _resolve_status_dependency(
+            request=request,
+            value_key="daily_metrics_repository",
+            factory_key="daily_metrics_repository_factory",
+        )
+        metric_medians_repo = _resolve_status_dependency(
+            request=request,
+            value_key="metric_medians_repository",
+            factory_key="metric_medians_repository_factory",
+        )
+        signal_state_repo = _resolve_status_dependency(
+            request=request,
+            value_key="signal_state_repository",
+            factory_key="signal_state_repository_factory",
+        )
+        earnings_calendar_repo = _resolve_status_dependency(
+            request=request,
+            value_key="earnings_calendar_repository",
+            factory_key="earnings_calendar_repository_factory",
+        )
+    except InternalServerError:
+        LOGGER.warning("watchlist詳細ステータス取得をスキップ: ticker=%s", item.ticker)
+        return WatchlistItemResponse.from_domain(item)
+
+    today_jst = datetime.now(JST).date().isoformat()
+    latest_metric = _load_latest_metrics_by_ticker(daily_metrics_repo, [item.ticker]).get(item.ticker)
+    latest_medians = _load_latest_medians_by_ticker(metric_medians_repo, [item.ticker]).get(item.ticker)
+    latest_signal_state = _load_latest_signal_states_by_ticker(signal_state_repo, [item.ticker]).get(item.ticker)
+    next_earnings = _load_next_earnings_by_ticker(earnings_calendar_repo, [item.ticker], from_date=today_jst).get(item.ticker)
+
+    return _build_watchlist_item_response(
+        item=item,
+        latest_metric=latest_metric,
+        latest_medians=latest_medians,
+        latest_signal_state=latest_signal_state,
+        next_earnings=next_earnings,
     )
 
 

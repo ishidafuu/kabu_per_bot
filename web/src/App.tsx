@@ -6,6 +6,9 @@ import './styles/app.css';
 const LoginPage = lazy(async () => ({ default: (await import('./pages/LoginPage')).LoginPage }));
 const DashboardPage = lazy(async () => ({ default: (await import('./pages/DashboardPage')).DashboardPage }));
 const WatchlistPage = lazy(async () => ({ default: (await import('./pages/WatchlistPage')).WatchlistPage }));
+const WatchlistDetailPage = lazy(async () => ({
+  default: (await import('./pages/WatchlistDetailPage')).WatchlistDetailPage,
+}));
 const WatchlistHistoryPage = lazy(async () => ({
   default: (await import('./pages/WatchlistHistoryPage')).WatchlistHistoryPage,
 }));
@@ -45,6 +48,16 @@ function App() {
             <ProtectedRoute>
               <Suspense fallback={routeFallback}>
                 <WatchlistPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/watchlist/:ticker/detail"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={routeFallback}>
+                <WatchlistDetailPage />
               </Suspense>
             </ProtectedRoute>
           }

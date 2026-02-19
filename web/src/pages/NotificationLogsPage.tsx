@@ -122,13 +122,14 @@ export const NotificationLogsPage = () => {
                 <th>通知先</th>
                 <th>強通知</th>
                 <th>条件キー</th>
+                <th>本文</th>
                 <th>通知ID</th>
               </tr>
             </thead>
             <tbody>
               {isLoading && items.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="empty-cell">
+                  <td colSpan={8} className="empty-cell">
                     読み込み中...
                   </td>
                 </tr>
@@ -136,7 +137,7 @@ export const NotificationLogsPage = () => {
 
               {!isLoading && items.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="empty-cell">
+                  <td colSpan={8} className="empty-cell">
                     通知ログがありません。
                   </td>
                 </tr>
@@ -150,6 +151,7 @@ export const NotificationLogsPage = () => {
                   <td>{item.channel}</td>
                   <td>{item.is_strong ? 'true' : 'false'}</td>
                   <td>{item.condition_key}</td>
+                  <td className="detail-body-cell">{item.body ?? '-'}</td>
                   <td>{item.entry_id}</td>
                 </tr>
               ))}

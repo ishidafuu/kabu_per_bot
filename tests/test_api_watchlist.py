@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import os
 from types import SimpleNamespace
 import unittest
@@ -14,10 +14,11 @@ import kabu_per_bot.api.routes.watchlist as watchlist_route
 from kabu_per_bot.api.errors import ForbiddenError, UnauthorizedError
 from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
-from kabu_per_bot.signal import SignalState
+from kabu_per_bot.signal import NotificationLogEntry, SignalState
 from kabu_per_bot.ir_url_candidates import IrUrlCandidate, IrUrlSuggestionError
+from kabu_per_bot.storage.firestore_schema import normalize_ticker
 from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming
-from kabu_per_bot.watchlist import CreateResult, WatchlistItem, WatchlistService
+from kabu_per_bot.watchlist import CreateResult, WatchlistHistoryAction, WatchlistHistoryRecord, WatchlistItem, WatchlistService
 
 
 @dataclass
@@ -52,6 +53,102 @@ class InMemoryWatchlistRepository:
             return False
         del self.docs[ticker]
         return True
+
+
+@dataclass
+class FakeWatchlistHistoryRepository:
+    rows: list[WatchlistHistoryRecord] = field(default_factory=list)
+
+    def list_timeline(
+        self,
+        *,
+        ticker: str | None = None,
+        limit: int | None = 100,
+        offset: int = 0,
+    ) -> list[WatchlistHistoryRecord]:
+        values = list(self.rows)
+        if ticker:
+            normalized = normalize_ticker(ticker)
+            values = [row for row in values if row.ticker == normalized]
+        values.sort(key=lambda row: row.acted_at, reverse=True)
+        if limit is None:
+            return values[offset:]
+        return values[offset : offset + limit]
+
+    def count_timeline(self, *, ticker: str | None = None) -> int:
+        if ticker is None:
+            return len(self.rows)
+        normalized = normalize_ticker(ticker)
+        return sum(1 for row in self.rows if row.ticker == normalized)
+
+
+@dataclass
+class FakeNotificationLogRepository:
+    rows: list[NotificationLogEntry] = field(default_factory=list)
+
+    def list_timeline(
+        self,
+        *,
+        ticker: str | None = None,
+        category: str | None = None,
+        is_strong: bool | None = None,
+        limit: int | None = 100,
+        offset: int = 0,
+        sent_at_from: str | None = None,
+        sent_at_to: str | None = None,
+    ) -> list[NotificationLogEntry]:
+        values = list(self.rows)
+        if ticker:
+            normalized = normalize_ticker(ticker)
+            values = [row for row in values if row.ticker == normalized]
+        if category:
+            values = [row for row in values if row.category == category]
+        if is_strong is not None:
+            values = [row for row in values if row.is_strong is is_strong]
+        if sent_at_from:
+            from_dt = _parse_iso_datetime(sent_at_from)
+            values = [row for row in values if _parse_iso_datetime(row.sent_at) >= from_dt]
+        if sent_at_to:
+            to_dt = _parse_iso_datetime(sent_at_to)
+            values = [row for row in values if _parse_iso_datetime(row.sent_at) < to_dt]
+        values.sort(key=lambda row: _parse_iso_datetime(row.sent_at), reverse=True)
+        if limit is None:
+            return values[offset:]
+        return values[offset : offset + limit]
+
+    def count_timeline(
+        self,
+        *,
+        ticker: str | None = None,
+        category: str | None = None,
+        is_strong: bool | None = None,
+        sent_at_from: str | None = None,
+        sent_at_to: str | None = None,
+    ) -> int:
+        return len(
+            self.list_timeline(
+                ticker=ticker,
+                category=category,
+                is_strong=is_strong,
+                sent_at_from=sent_at_from,
+                sent_at_to=sent_at_to,
+                limit=None,
+                offset=0,
+            )
+        )
+
+    def failed_job_exists(
+        self,
+        *,
+        sent_at_from: str,
+        sent_at_to: str,
+    ) -> bool:
+        _ = sent_at_from, sent_at_to
+        return False
+
+    def reset_grok_sns_cooldown(self, *, ticker: str | None = None) -> int:
+        _ = ticker
+        return 0
 
 
 class FakeTokenVerifier:
@@ -89,11 +186,34 @@ def _auth_header(token: str = "valid-token") -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _build_client(*, max_items: int = 100, ir_url_candidate_service=None) -> TestClient:
+def _parse_iso_datetime(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _build_client(
+    *,
+    max_items: int = 100,
+    ir_url_candidate_service=None,
+    watchlist_history_repository=None,
+    notification_log_repository=None,
+    daily_metrics_repository=None,
+    metric_medians_repository=None,
+    signal_state_repository=None,
+    earnings_calendar_repository=None,
+) -> TestClient:
     repository = InMemoryWatchlistRepository()
     service = WatchlistService(repository, max_items=max_items)
     app = create_app(
         watchlist_service=service,
+        watchlist_history_repository=watchlist_history_repository,
+        notification_log_repository=notification_log_repository,
+        daily_metrics_repository=daily_metrics_repository,
+        metric_medians_repository=metric_medians_repository,
+        signal_state_repository=signal_state_repository,
+        earnings_calendar_repository=earnings_calendar_repository,
         ir_url_candidate_service=ir_url_candidate_service,
         token_verifier=FakeTokenVerifier(),
     )
@@ -219,6 +339,200 @@ class WatchlistApiTest(unittest.TestCase):
         missing = client.get("/api/v1/watchlist/3901:TSE", headers=_auth_header())
         self.assertEqual(missing.status_code, 404)
         self.assertEqual(missing.json()["error"]["code"], "not_found")
+
+    def test_watchlist_detail_returns_summary_notifications_and_history(self) -> None:
+        now = datetime.now(timezone.utc)
+        recent_sent_at = now.isoformat()
+        old_sent_at = (now - timedelta(days=40)).isoformat()
+        history_at = (now - timedelta(days=1)).isoformat()
+
+        class DailyRepo:
+            def list_recent(self, ticker: str, *, limit: int) -> list[DailyMetric]:
+                _ = limit
+                return [
+                    DailyMetric(
+                        ticker=ticker,
+                        trade_date="2026-02-15",
+                        close_price=1000,
+                        eps_forecast=100,
+                        sales_forecast=200,
+                        per_value=10.0,
+                        psr_value=5.0,
+                        data_source="test",
+                        fetched_at=now.isoformat(),
+                    )
+                ]
+
+        class MedianRepo:
+            def list_recent(self, ticker: str, *, limit: int) -> list[MetricMedians]:
+                _ = limit
+                return [
+                    MetricMedians(
+                        ticker=ticker,
+                        trade_date="2026-02-15",
+                        median_1w=11.0,
+                        median_3m=12.0,
+                        median_1y=13.0,
+                        source_metric_type=MetricType.PER,
+                        calculated_at=now.isoformat(),
+                    )
+                ]
+
+        class SignalRepo:
+            def get_latest(self, ticker: str) -> SignalState | None:
+                return SignalState(
+                    ticker=ticker,
+                    trade_date="2026-02-15",
+                    metric_type=MetricType.PER,
+                    metric_value=10.0,
+                    under_1w=True,
+                    under_3m=True,
+                    under_1y=True,
+                    combo="1Y+3M+1W",
+                    is_strong=True,
+                    category="超PER割安",
+                    streak_days=3,
+                    updated_at=now.isoformat(),
+                )
+
+        class EarningsRepo:
+            def list_by_ticker(self, ticker: str) -> list[EarningsCalendarEntry]:
+                return [
+                    EarningsCalendarEntry(
+                        ticker=ticker,
+                        earnings_date="2099-01-10",
+                        earnings_time="15:00",
+                        quarter="3Q",
+                        source="test",
+                        fetched_at=now.isoformat(),
+                    )
+                ]
+
+        client = _build_client(
+            watchlist_history_repository=FakeWatchlistHistoryRepository(
+                rows=[
+                    WatchlistHistoryRecord(
+                        record_id="3901:TSE|ADD|1",
+                        ticker="3901:TSE",
+                        action=WatchlistHistoryAction.ADD,
+                        reason="初回登録",
+                        acted_at=history_at,
+                    )
+                ]
+            ),
+            notification_log_repository=FakeNotificationLogRepository(
+                rows=[
+                    NotificationLogEntry(
+                        entry_id="log-1",
+                        ticker="3901:TSE",
+                        category="超PER割安",
+                        condition_key="PER:1Y+3M+1W",
+                        sent_at=recent_sent_at,
+                        channel="DISCORD",
+                        payload_hash="h1",
+                        is_strong=True,
+                        body="【超PER割安】3901:TSE 富士フイルム ...",
+                    ),
+                    NotificationLogEntry(
+                        entry_id="log-2",
+                        ticker="3901:TSE",
+                        category="データ不明",
+                        condition_key="UNKNOWN:eps",
+                        sent_at=old_sent_at,
+                        channel="DISCORD",
+                        payload_hash="h2",
+                        is_strong=False,
+                        body="【データ不明】3901:TSE 富士フイルム 予想EPSが取得できませんでした",
+                    ),
+                ]
+            ),
+            daily_metrics_repository=DailyRepo(),
+            metric_medians_repository=MedianRepo(),
+            signal_state_repository=SignalRepo(),
+            earnings_calendar_repository=EarningsRepo(),
+        )
+        create = client.post(
+            "/api/v1/watchlist",
+            headers=_auth_header(),
+            json={
+                "ticker": "3901:TSE",
+                "name": "富士フイルム",
+                "metric_type": "PER",
+                "notify_channel": "DISCORD",
+                "notify_timing": "IMMEDIATE",
+            },
+        )
+        self.assertEqual(create.status_code, 201)
+
+        response = client.get("/api/v1/watchlist/3901:TSE/detail", headers=_auth_header())
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["item"]["ticker"], "3901:TSE")
+        self.assertEqual(body["item"]["current_metric_value"], 10.0)
+        self.assertEqual(body["summary"]["last_notification_category"], "超PER割安")
+        self.assertEqual(body["summary"]["notification_count_7d"], 1)
+        self.assertEqual(body["summary"]["strong_notification_count_30d"], 1)
+        self.assertEqual(body["summary"]["data_unknown_count_30d"], 0)
+        self.assertEqual(body["notifications"]["total"], 2)
+        self.assertEqual(body["notifications"]["items"][0]["body"], "【超PER割安】3901:TSE 富士フイルム ...")
+        self.assertEqual(body["history"]["total"], 1)
+        self.assertEqual(body["history"]["items"][0]["reason"], "初回登録")
+
+    def test_watchlist_detail_supports_notification_filters(self) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        client = _build_client(
+            notification_log_repository=FakeNotificationLogRepository(
+                rows=[
+                    NotificationLogEntry(
+                        entry_id="log-1",
+                        ticker="3901:TSE",
+                        category="超PER割安",
+                        condition_key="PER:1Y+3M+1W",
+                        sent_at=now,
+                        channel="DISCORD",
+                        payload_hash="h1",
+                        is_strong=True,
+                        body="strong",
+                    ),
+                    NotificationLogEntry(
+                        entry_id="log-2",
+                        ticker="3901:TSE",
+                        category="データ不明",
+                        condition_key="UNKNOWN:eps",
+                        sent_at=now,
+                        channel="DISCORD",
+                        payload_hash="h2",
+                        is_strong=False,
+                        body="unknown",
+                    ),
+                ]
+            ),
+            watchlist_history_repository=FakeWatchlistHistoryRepository(),
+        )
+        create = client.post(
+            "/api/v1/watchlist",
+            headers=_auth_header(),
+            json={
+                "ticker": "3901:TSE",
+                "name": "富士フイルム",
+                "metric_type": "PER",
+                "notify_channel": "DISCORD",
+                "notify_timing": "IMMEDIATE",
+            },
+        )
+        self.assertEqual(create.status_code, 201)
+
+        response = client.get(
+            "/api/v1/watchlist/3901:TSE/detail?category=超PER割安&strong_only=true",
+            headers=_auth_header(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["notifications"]["total"], 1)
+        self.assertEqual(body["notifications"]["items"][0]["entry_id"], "log-1")
+        self.assertTrue(body["notifications"]["items"][0]["is_strong"])
 
     def test_suggest_ir_url_candidates_returns_validated_rows(self) -> None:
         candidate_service = StaticIrUrlCandidateService(
@@ -551,6 +865,7 @@ class WatchlistApiTest(unittest.TestCase):
         schema = client.get("/openapi.json")
         self.assertEqual(schema.status_code, 200)
         paths = schema.json()["paths"]
+        self.assertIn("/api/v1/watchlist/{ticker}/detail", paths)
         post_responses = paths["/api/v1/watchlist"]["post"]["responses"]
         for status_code in ("401", "403", "409", "422", "429", "500"):
             self.assertIn(status_code, post_responses)

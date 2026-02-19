@@ -92,6 +92,7 @@ class NotificationLogEntry:
     channel: str
     payload_hash: str
     is_strong: bool
+    body: str | None = None
 
     @classmethod
     def from_document(cls, data: dict[str, Any]) -> "NotificationLogEntry":
@@ -104,10 +105,11 @@ class NotificationLogEntry:
             channel=str(data["channel"]),
             payload_hash=str(data.get("payload_hash", "")),
             is_strong=bool(data.get("is_strong", False)),
+            body=str(data["body"]) if data.get("body") is not None else None,
         )
 
     def to_document(self) -> dict[str, Any]:
-        return {
+        row = {
             "id": self.entry_id,
             "ticker": self.ticker,
             "category": self.category,
@@ -117,6 +119,9 @@ class NotificationLogEntry:
             "payload_hash": self.payload_hash,
             "is_strong": self.is_strong,
         }
+        if self.body is not None:
+            row["body"] = self.body
+        return row
 
 
 @dataclass(frozen=True)

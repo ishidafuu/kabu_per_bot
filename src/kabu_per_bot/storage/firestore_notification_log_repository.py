@@ -61,12 +61,15 @@ class FirestoreNotificationLogRepository:
         self,
         *,
         ticker: str | None = None,
+        category: str | None = None,
+        is_strong: bool | None = None,
         limit: int | None = 100,
         offset: int = 0,
         sent_at_from: str | None = None,
         sent_at_to: str | None = None,
     ) -> list[NotificationLogEntry]:
         normalized_ticker = normalize_ticker(ticker) if ticker is not None else None
+        normalized_category = _normalize_category(category)
         from_dt = _parse_iso_datetime(sent_at_from) if sent_at_from else None
         to_dt = _parse_iso_datetime(sent_at_to) if sent_at_to else None
         if hasattr(self._collection, "where") and hasattr(self._collection, "order_by"):
@@ -74,6 +77,10 @@ class FirestoreNotificationLogRepository:
                 query = self._collection
                 if normalized_ticker:
                     query = query.where("ticker", "==", normalized_ticker)
+                if normalized_category:
+                    query = query.where("category", "==", normalized_category)
+                if is_strong is not None:
+                    query = query.where("is_strong", "==", is_strong)
                 if sent_at_from is not None:
                     query = query.where("sent_at", ">=", sent_at_from)
                 if sent_at_to is not None:
@@ -83,7 +90,16 @@ class FirestoreNotificationLogRepository:
                     query = query.offset(offset)
                 if limit is not None and hasattr(query, "limit"):
                     query = query.limit(limit)
-                return [NotificationLogEntry.from_document(snapshot.to_dict() or {}) for snapshot in query.stream()]
+                rows = [NotificationLogEntry.from_document(snapshot.to_dict() or {}) for snapshot in query.stream()]
+                return _filter_sort_paginate_rows(
+                    rows=rows,
+                    from_dt=from_dt,
+                    to_dt=to_dt,
+                    limit=limit,
+                    offset=offset,
+                    normalized_category=normalized_category,
+                    is_strong=is_strong,
+                )
             except Exception as exc:
                 if not _is_missing_index_error(exc):
                     raise
@@ -92,6 +108,8 @@ class FirestoreNotificationLogRepository:
                 reduced_rows = _try_list_timeline_with_reduced_query(
                     collection=self._collection,
                     normalized_ticker=normalized_ticker,
+                    normalized_category=normalized_category,
+                    is_strong=is_strong,
                     sent_at_from=sent_at_from,
                     sent_at_to=sent_at_to,
                     from_dt=from_dt,
@@ -105,6 +123,8 @@ class FirestoreNotificationLogRepository:
         return _list_timeline_in_memory(
             collection=self._collection,
             normalized_ticker=normalized_ticker,
+            normalized_category=normalized_category,
+            is_strong=is_strong,
             from_dt=from_dt,
             to_dt=to_dt,
             limit=limit,
@@ -115,10 +135,13 @@ class FirestoreNotificationLogRepository:
         self,
         *,
         ticker: str | None = None,
+        category: str | None = None,
+        is_strong: bool | None = None,
         sent_at_from: str | None = None,
         sent_at_to: str | None = None,
     ) -> int:
         normalized_ticker = normalize_ticker(ticker) if ticker is not None else None
+        normalized_category = _normalize_category(category)
         from_dt = _parse_iso_datetime(sent_at_from) if sent_at_from else None
         to_dt = _parse_iso_datetime(sent_at_to) if sent_at_to else None
         if hasattr(self._collection, "where"):
@@ -126,11 +149,25 @@ class FirestoreNotificationLogRepository:
                 query = self._collection
                 if normalized_ticker:
                     query = query.where("ticker", "==", normalized_ticker)
+                if normalized_category:
+                    query = query.where("category", "==", normalized_category)
+                if is_strong is not None:
+                    query = query.where("is_strong", "==", is_strong)
                 if sent_at_from is not None:
                     query = query.where("sent_at", ">=", sent_at_from)
                 if sent_at_to is not None:
                     query = query.where("sent_at", "<", sent_at_to)
-                return sum(1 for _ in query.stream())
+                rows = [NotificationLogEntry.from_document(snapshot.to_dict() or {}) for snapshot in query.stream()]
+                filtered = _filter_sort_paginate_rows(
+                    rows=rows,
+                    from_dt=from_dt,
+                    to_dt=to_dt,
+                    limit=None,
+                    offset=0,
+                    normalized_category=normalized_category,
+                    is_strong=is_strong,
+                )
+                return len(filtered)
             except Exception as exc:
                 if not _is_missing_index_error(exc):
                     raise
@@ -139,6 +176,8 @@ class FirestoreNotificationLogRepository:
         return _count_timeline_in_memory(
             collection=self._collection,
             normalized_ticker=normalized_ticker,
+            normalized_category=normalized_category,
+            is_strong=is_strong,
             from_dt=from_dt,
             to_dt=to_dt,
         )
@@ -256,6 +295,15 @@ def _is_missing_index_error(exc: Exception) -> bool:
     return "requires an index" in lowered
 
 
+def _normalize_category(category: str | None) -> str | None:
+    if category is None:
+        return None
+    normalized = category.strip()
+    if not normalized:
+        return None
+    return normalized
+
+
 def _log_missing_index_warning_once(*, key: str, exc: Exception) -> None:
     if key in _MISSING_INDEX_WARNING_KEYS:
         return
@@ -267,6 +315,8 @@ def _try_list_timeline_with_reduced_query(
     *,
     collection: Any,
     normalized_ticker: str | None,
+    normalized_category: str | None,
+    is_strong: bool | None,
     sent_at_from: str | None,
     sent_at_to: str | None,
     from_dt: datetime | None,
@@ -280,12 +330,24 @@ def _try_list_timeline_with_reduced_query(
         query = collection
         if normalized_ticker:
             query = query.where("ticker", "==", normalized_ticker)
+        if normalized_category:
+            query = query.where("category", "==", normalized_category)
+        if is_strong is not None:
+            query = query.where("is_strong", "==", is_strong)
         if sent_at_from is not None:
             query = query.where("sent_at", ">=", sent_at_from)
         if sent_at_to is not None:
             query = query.where("sent_at", "<", sent_at_to)
         rows = [NotificationLogEntry.from_document(snapshot.to_dict() or {}) for snapshot in query.stream()]
-        rows = _filter_sort_paginate_rows(rows=rows, from_dt=from_dt, to_dt=to_dt, limit=limit, offset=offset)
+        rows = _filter_sort_paginate_rows(
+            rows=rows,
+            from_dt=from_dt,
+            to_dt=to_dt,
+            limit=limit,
+            offset=offset,
+            normalized_category=normalized_category,
+            is_strong=is_strong,
+        )
         return rows
     except Exception as exc:
         if not _is_missing_index_error(exc):
@@ -298,6 +360,8 @@ def _list_timeline_in_memory(
     *,
     collection: Any,
     normalized_ticker: str | None,
+    normalized_category: str | None,
+    is_strong: bool | None,
     from_dt: datetime | None,
     to_dt: datetime | None,
     limit: int | None,
@@ -309,19 +373,32 @@ def _list_timeline_in_memory(
         if normalized_ticker and str(data.get("ticker", "")).upper() != normalized_ticker:
             continue
         row = NotificationLogEntry.from_document(data)
-        sent_at = _parse_iso_datetime(row.sent_at)
-        if from_dt is not None and sent_at < from_dt:
-            continue
-        if to_dt is not None and sent_at >= to_dt:
+        if not _matches_notification_row(
+            row=row,
+            from_dt=from_dt,
+            to_dt=to_dt,
+            normalized_category=normalized_category,
+            is_strong=is_strong,
+        ):
             continue
         rows.append(row)
-    return _filter_sort_paginate_rows(rows=rows, from_dt=from_dt, to_dt=to_dt, limit=limit, offset=offset)
+    return _filter_sort_paginate_rows(
+        rows=rows,
+        from_dt=from_dt,
+        to_dt=to_dt,
+        limit=limit,
+        offset=offset,
+        normalized_category=normalized_category,
+        is_strong=is_strong,
+    )
 
 
 def _count_timeline_in_memory(
     *,
     collection: Any,
     normalized_ticker: str | None,
+    normalized_category: str | None,
+    is_strong: bool | None,
     from_dt: datetime | None,
     to_dt: datetime | None,
 ) -> int:
@@ -330,13 +407,14 @@ def _count_timeline_in_memory(
         data = snapshot.to_dict() or {}
         if normalized_ticker and str(data.get("ticker", "")).upper() != normalized_ticker:
             continue
-        sent_at_raw = data.get("sent_at")
-        if sent_at_raw is None:
-            continue
-        sent_at = _parse_iso_datetime(str(sent_at_raw))
-        if from_dt is not None and sent_at < from_dt:
-            continue
-        if to_dt is not None and sent_at >= to_dt:
+        row = NotificationLogEntry.from_document(data)
+        if not _matches_notification_row(
+            row=row,
+            from_dt=from_dt,
+            to_dt=to_dt,
+            normalized_category=normalized_category,
+            is_strong=is_strong,
+        ):
             continue
         count += 1
     return count
@@ -349,16 +427,41 @@ def _filter_sort_paginate_rows(
     to_dt: datetime | None,
     limit: int | None,
     offset: int,
+    normalized_category: str | None,
+    is_strong: bool | None,
 ) -> list[NotificationLogEntry]:
     filtered: list[NotificationLogEntry] = []
     for row in rows:
-        sent_at = _parse_iso_datetime(row.sent_at)
-        if from_dt is not None and sent_at < from_dt:
-            continue
-        if to_dt is not None and sent_at >= to_dt:
+        if not _matches_notification_row(
+            row=row,
+            from_dt=from_dt,
+            to_dt=to_dt,
+            normalized_category=normalized_category,
+            is_strong=is_strong,
+        ):
             continue
         filtered.append(row)
     filtered.sort(key=lambda row: _parse_iso_datetime(row.sent_at), reverse=True)
     if limit is None:
         return filtered[offset:]
     return filtered[offset : offset + limit]
+
+
+def _matches_notification_row(
+    *,
+    row: NotificationLogEntry,
+    from_dt: datetime | None,
+    to_dt: datetime | None,
+    normalized_category: str | None,
+    is_strong: bool | None,
+) -> bool:
+    if normalized_category and row.category != normalized_category:
+        return False
+    if is_strong is not None and row.is_strong is not is_strong:
+        return False
+    sent_at = _parse_iso_datetime(row.sent_at)
+    if from_dt is not None and sent_at < from_dt:
+        return False
+    if to_dt is not None and sent_at >= to_dt:
+        return False
+    return True

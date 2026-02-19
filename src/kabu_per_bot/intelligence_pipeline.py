@@ -253,6 +253,7 @@ def _dispatch_with_cooldown(
         channel=channel,
         payload_hash=message.payload_hash,
         is_strong=is_strong,
+        body=message.body,
     )
     notification_log_repo.append(log_entry)
     return (1, 0)
