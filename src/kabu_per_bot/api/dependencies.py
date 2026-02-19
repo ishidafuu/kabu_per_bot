@@ -13,6 +13,7 @@ from kabu_per_bot.admin_ops import (
 )
 from kabu_per_bot.grok_sns_settings import GrokSnsSettings
 from kabu_per_bot.immediate_schedule import ImmediateSchedule
+from kabu_per_bot.ir_url_candidates import IrUrlCandidate, IrUrlCandidateService, IrUrlCandidateValidator, VertexAiIrUrlSuggestor
 from kabu_per_bot.api.errors import ForbiddenError, InternalServerError, UnauthorizedError
 from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
@@ -162,6 +163,11 @@ class GlobalSettingsRepository(Protocol):
         """Upsert global runtime settings."""
 
 
+class IrUrlCandidateReader(Protocol):
+    def suggest_candidates(self, *, ticker: str, company_name: str, max_candidates: int = 5) -> list[IrUrlCandidate]:
+        """Suggest and validate IR URL candidates."""
+
+
 DependencyT = TypeVar("DependencyT")
 
 
@@ -227,6 +233,17 @@ def create_intel_seen_repository() -> IntelSeenReader:
 def create_global_settings_repository() -> GlobalSettingsRepository:
     client = create_firestore_client()
     return FirestoreGlobalSettingsRepository(client)
+
+
+def create_ir_url_candidate_service() -> IrUrlCandidateReader:
+    settings = load_settings()
+    suggestor = VertexAiIrUrlSuggestor(
+        project_id=settings.firestore_project_id,
+        location=settings.vertex_ai_location,
+        model=settings.vertex_ai_model,
+    )
+    validator = IrUrlCandidateValidator()
+    return IrUrlCandidateService(suggestor=suggestor, validator=validator)
 
 
 def _resolve_dependency(
@@ -302,6 +319,15 @@ def get_global_settings_repository(request: Request) -> GlobalSettingsRepository
         value_key="global_settings_repository",
         factory_key="global_settings_repository_factory",
         missing_message="global_settings_repository が初期化されていません。",
+    )
+
+
+def get_ir_url_candidate_service(request: Request) -> IrUrlCandidateReader:
+    return _resolve_dependency(
+        request,
+        value_key="ir_url_candidate_service",
+        factory_key="ir_url_candidate_service_factory",
+        missing_message="ir_url_candidate_service が初期化されていません。",
     )
 
 

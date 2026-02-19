@@ -163,6 +163,29 @@ class WatchlistUpdateRequest(BaseModel):
         )
 
 
+class IrUrlCandidateSuggestRequest(BaseModel):
+    ticker: str = Field(pattern=r"^\d{4}:[A-Za-z]+$")
+    company_name: str = Field(min_length=1, max_length=120)
+    max_candidates: int = Field(default=5, ge=1, le=10)
+
+
+class IrUrlCandidateResponse(BaseModel):
+    url: str
+    title: str
+    reason: str
+    confidence: str = Field(pattern=r"^(High|Med|Low)$")
+    validation_status: str = Field(pattern=r"^(VALID|WARNING|INVALID)$")
+    score: int
+    http_status: int | None = None
+    content_type: str = ""
+
+
+class IrUrlCandidateListResponse(BaseModel):
+    items: list[IrUrlCandidateResponse]
+    total: int = Field(ge=0)
+    source: str = "VERTEX_AI"
+
+
 class DashboardSummaryResponse(BaseModel):
     watchlist_count: int = Field(ge=0, description="監視銘柄数")
     today_notification_count: int = Field(ge=0, description="当日PER/PSR通知件数")

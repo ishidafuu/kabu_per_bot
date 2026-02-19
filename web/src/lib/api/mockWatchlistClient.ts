@@ -1,5 +1,7 @@
 import { ApiError } from './errors';
 import type {
+  IrUrlCandidateListResponse,
+  IrUrlCandidateSuggestInput,
   WatchlistCreateInput,
   WatchlistItem,
   WatchlistListResponse,
@@ -201,6 +203,61 @@ export class MockWatchlistClient implements WatchlistClient {
     return {
       items: filtered.slice(offset, offset + limit),
       total: filtered.length,
+    };
+  }
+
+  async suggestIrUrlCandidates(input: IrUrlCandidateSuggestInput): Promise<IrUrlCandidateListResponse> {
+    await wait(180);
+    const normalizedTicker = input.ticker.trim().toUpperCase();
+    const normalizedName = input.company_name.trim();
+    if (!TICKER_PATTERN.test(normalizedTicker) || normalizedName.length === 0) {
+      throw new ApiError(422, '入力不正');
+    }
+    const maxCandidates = Math.min(Math.max(input.max_candidates ?? 5, 1), 10);
+    const domain = normalizedName
+      .toLowerCase()
+      .replace(/\s+/g, '')
+      .replace(/株式会社/g, '')
+      .replace(/[^a-z0-9]/g, '')
+      || 'example';
+    const allRows: IrUrlCandidateListResponse['items'] = [
+      {
+        url: `https://www.${domain}.co.jp/ir/`,
+        title: `${normalizedName} IR情報`,
+        reason: 'モック候補: 公式IRトップ想定',
+        confidence: 'High',
+        validation_status: 'VALID',
+        score: 8,
+        http_status: 200,
+        content_type: 'text/html',
+      },
+      {
+        url: `https://www.${domain}.co.jp/ir/library/`,
+        title: `${normalizedName} IRライブラリ`,
+        reason: 'モック候補: 資料一覧想定',
+        confidence: 'Med',
+        validation_status: 'WARNING',
+        score: 5,
+        http_status: 200,
+        content_type: 'text/html',
+      },
+      {
+        url: `https://www.${domain}.co.jp/contact/`,
+        title: `${normalizedName} お問い合わせ`,
+        reason: 'モック候補: 非IRページ例',
+        confidence: 'Low',
+        validation_status: 'INVALID',
+        score: 1,
+        http_status: 200,
+        content_type: 'text/html',
+      },
+    ];
+    const rows = allRows.slice(0, maxCandidates);
+
+    return {
+      items: rows,
+      total: rows.length,
+      source: 'MOCK_AI',
     };
   }
 

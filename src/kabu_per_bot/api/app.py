@@ -9,6 +9,7 @@ from kabu_per_bot.api.dependencies import (
     DailyMetricsReader,
     EarningsCalendarReader,
     GlobalSettingsRepository,
+    IrUrlCandidateReader,
     IntelSeenReader,
     MetricMediansReader,
     NotificationLogReader,
@@ -18,6 +19,7 @@ from kabu_per_bot.api.dependencies import (
     create_earnings_calendar_repository,
     create_admin_ops_service,
     create_intel_seen_repository,
+    create_ir_url_candidate_service,
     create_metric_medians_repository,
     create_notification_log_repository,
     create_global_settings_repository,
@@ -43,6 +45,7 @@ def create_app(
     earnings_calendar_repository: EarningsCalendarReader | None = None,
     admin_ops_service: AdminOpsReader | None = None,
     global_settings_repository: GlobalSettingsRepository | None = None,
+    ir_url_candidate_service: IrUrlCandidateReader | None = None,
     token_verifier: TokenVerifier | None = None,
 ) -> FastAPI:
     app = FastAPI(
@@ -93,6 +96,9 @@ def create_app(
 
     app.state.global_settings_repository = global_settings_repository
     app.state.global_settings_repository_factory = create_global_settings_repository
+
+    app.state.ir_url_candidate_service = ir_url_candidate_service
+    app.state.ir_url_candidate_service_factory = create_ir_url_candidate_service
 
     app.state.token_verifier = token_verifier
     app.state.token_verifier_factory = _default_token_verifier_factory

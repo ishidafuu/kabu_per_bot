@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import type {
+  IrUrlCandidate,
   MetricType,
   NotifyTiming,
   XAccountLink,
@@ -25,6 +26,7 @@ interface WatchlistFormProps {
   submitting: boolean;
   apiErrorMessage?: string;
   titleId?: string;
+  onSuggestIrUrls?: (input: { ticker: string; company_name: string; max_candidates?: number }) => Promise<IrUrlCandidate[]>;
   onSubmit: (values: WatchlistFormValues) => Promise<void>;
   onCancel: () => void;
 }
@@ -55,6 +57,27 @@ const formatExecutiveAccounts = (rows: XAccountLink[]): string => {
     .join('\n');
 };
 
+const mergeIrUrlText = (currentText: string, urls: string[]): string => {
+  const existing = currentText
+    .split(/\r?\n/)
+    .map((row) => row.trim())
+    .filter((row) => row.length > 0);
+  const merged = [...existing];
+  const seen = new Set(existing);
+  urls.forEach((url) => {
+    const normalized = url.trim();
+    if (normalized.length === 0) {
+      return;
+    }
+    if (seen.has(normalized)) {
+      return;
+    }
+    seen.add(normalized);
+    merged.push(normalized);
+  });
+  return merged.join('\n');
+};
+
 export const WatchlistForm = ({
   mode,
   initialValue,
@@ -62,10 +85,14 @@ export const WatchlistForm = ({
   apiErrorMessage,
   titleId,
   onSubmit,
+  onSuggestIrUrls,
   onCancel,
 }: WatchlistFormProps) => {
   const [values, setValues] = useState<WatchlistFormValues>(buildInitialValues(initialValue));
   const [localError, setLocalError] = useState<string>('');
+  const [suggestionError, setSuggestionError] = useState<string>('');
+  const [isSuggestingIr, setIsSuggestingIr] = useState<boolean>(false);
+  const [irCandidates, setIrCandidates] = useState<IrUrlCandidate[]>([]);
 
   const title = mode === 'create' ? '銘柄を追加' : '銘柄を編集';
   const canEditTicker = mode === 'create';
@@ -76,6 +103,49 @@ export const WatchlistForm = ({
     value: WatchlistFormValues[K],
   ): void => {
     setValues((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const appendIrUrls = (urls: string[]): void => {
+    setValues((prev) => ({
+      ...prev,
+      ir_urls_text: mergeIrUrlText(prev.ir_urls_text, urls),
+    }));
+  };
+
+  const handleSuggestIrUrls = async (): Promise<void> => {
+    if (!onSuggestIrUrls) {
+      return;
+    }
+    setSuggestionError('');
+    const normalizedTicker = values.ticker.trim().toUpperCase();
+    const normalizedName = values.name.trim();
+    if (!TICKER_PATTERN.test(normalizedTicker)) {
+      setSuggestionError('候補取得の前に ticker を 1234:TSE 形式で入力してください。');
+      return;
+    }
+    if (normalizedName.length === 0) {
+      setSuggestionError('候補取得の前に会社名を入力してください。');
+      return;
+    }
+
+    setIsSuggestingIr(true);
+    try {
+      const rows = await onSuggestIrUrls({
+        ticker: normalizedTicker,
+        company_name: normalizedName,
+        max_candidates: 5,
+      });
+      setIrCandidates(rows);
+      if (rows.length === 0) {
+        setSuggestionError('候補URLが見つかりませんでした。手入力で登録してください。');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '候補取得に失敗しました。';
+      setSuggestionError(message);
+      setIrCandidates([]);
+    } finally {
+      setIsSuggestingIr(false);
+    }
   };
 
   const handleSubmit = async (event: FormEvent): Promise<void> => {
@@ -188,6 +258,53 @@ export const WatchlistForm = ({
             placeholder={'https://example.com/ir\nhttps://example.com/ir/news'}
           />
         </label>
+        {onSuggestIrUrls && (
+          <div className="ir-candidate-block">
+            <div className="inline-actions">
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => void handleSuggestIrUrls()}
+                disabled={isSuggestingIr || submitting}
+              >
+                {isSuggestingIr ? 'IR候補を取得中...' : 'IR候補を取得'}
+              </button>
+              {irCandidates.length > 0 && (
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => appendIrUrls(irCandidates.map((row) => row.url))}
+                  disabled={isSuggestingIr || submitting}
+                >
+                  候補を全件追加
+                </button>
+              )}
+            </div>
+            {suggestionError && <p className="error-text">{suggestionError}</p>}
+            {irCandidates.length > 0 && (
+              <div className="ir-candidate-list">
+                {irCandidates.map((row) => (
+                  <div key={row.url} className="ir-candidate-item">
+                    <p>
+                      <strong>{row.title || row.url}</strong>
+                    </p>
+                    <p className="muted">{row.url}</p>
+                    <p className="muted">{`${row.validation_status} / score=${row.score} / confidence=${row.confidence}`}</p>
+                    <p className="muted">{row.reason}</p>
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => appendIrUrls([row.url])}
+                      disabled={isSuggestingIr || submitting}
+                    >
+                      このURLを追加
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <label>
           X公式アカウント（任意）

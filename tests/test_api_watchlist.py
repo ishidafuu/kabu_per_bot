@@ -15,6 +15,7 @@ from kabu_per_bot.api.errors import ForbiddenError, UnauthorizedError
 from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
 from kabu_per_bot.signal import SignalState
+from kabu_per_bot.ir_url_candidates import IrUrlCandidate, IrUrlSuggestionError
 from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming
 from kabu_per_bot.watchlist import CreateResult, WatchlistItem, WatchlistService
 
@@ -62,14 +63,40 @@ class FakeTokenVerifier:
         raise UnauthorizedError("認証に失敗しました。")
 
 
+class StaticIrUrlCandidateService:
+    def __init__(self, rows: list[IrUrlCandidate]) -> None:
+        self._rows = rows
+        self.calls: list[dict[str, str | int]] = []
+
+    def suggest_candidates(self, *, ticker: str, company_name: str, max_candidates: int = 5) -> list[IrUrlCandidate]:
+        self.calls.append(
+            {
+                "ticker": ticker,
+                "company_name": company_name,
+                "max_candidates": max_candidates,
+            }
+        )
+        return self._rows[:max_candidates]
+
+
+class FailingIrUrlCandidateService:
+    def suggest_candidates(self, *, ticker: str, company_name: str, max_candidates: int = 5) -> list[IrUrlCandidate]:
+        del ticker, company_name, max_candidates
+        raise IrUrlSuggestionError("vertex failed")
+
+
 def _auth_header(token: str = "valid-token") -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _build_client(*, max_items: int = 100) -> TestClient:
+def _build_client(*, max_items: int = 100, ir_url_candidate_service=None) -> TestClient:
     repository = InMemoryWatchlistRepository()
     service = WatchlistService(repository, max_items=max_items)
-    app = create_app(watchlist_service=service, token_verifier=FakeTokenVerifier())
+    app = create_app(
+        watchlist_service=service,
+        ir_url_candidate_service=ir_url_candidate_service,
+        token_verifier=FakeTokenVerifier(),
+    )
     return TestClient(app)
 
 
@@ -192,6 +219,84 @@ class WatchlistApiTest(unittest.TestCase):
         missing = client.get("/api/v1/watchlist/3901:TSE", headers=_auth_header())
         self.assertEqual(missing.status_code, 404)
         self.assertEqual(missing.json()["error"]["code"], "not_found")
+
+    def test_suggest_ir_url_candidates_returns_validated_rows(self) -> None:
+        candidate_service = StaticIrUrlCandidateService(
+            [
+                IrUrlCandidate(
+                    url="https://example.com/ir/news",
+                    title="IRニュース",
+                    reason="IR一覧ページ",
+                    confidence="High",
+                    validation_status="VALID",
+                    score=9,
+                    http_status=200,
+                    content_type="text/html",
+                ),
+                IrUrlCandidate(
+                    url="https://example.com/contact",
+                    title="お問い合わせ",
+                    reason="関連ページ",
+                    confidence="Low",
+                    validation_status="WARNING",
+                    score=2,
+                    http_status=200,
+                    content_type="text/html",
+                ),
+            ]
+        )
+        client = _build_client(ir_url_candidate_service=candidate_service)
+
+        response = client.post(
+            "/api/v1/watchlist/ir-url-candidates",
+            headers=_auth_header(),
+            json={
+                "ticker": "3901:TSE",
+                "company_name": "富士フイルム",
+                "max_candidates": 2,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["total"], 2)
+        self.assertEqual(body["items"][0]["url"], "https://example.com/ir/news")
+        self.assertEqual(body["items"][0]["validation_status"], "VALID")
+        self.assertEqual(candidate_service.calls[0]["ticker"], "3901:TSE")
+        self.assertEqual(candidate_service.calls[0]["company_name"], "富士フイルム")
+        self.assertEqual(candidate_service.calls[0]["max_candidates"], 2)
+
+    def test_suggest_ir_url_candidates_returns_422_for_invalid_payload(self) -> None:
+        client = _build_client(ir_url_candidate_service=StaticIrUrlCandidateService([]))
+
+        response = client.post(
+            "/api/v1/watchlist/ir-url-candidates",
+            headers=_auth_header(),
+            json={
+                "ticker": "3901",
+                "company_name": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["error"]["code"], "validation_error")
+
+    def test_suggest_ir_url_candidates_returns_500_when_source_fails(self) -> None:
+        client = _build_client(ir_url_candidate_service=FailingIrUrlCandidateService())
+
+        response = client.post(
+            "/api/v1/watchlist/ir-url-candidates",
+            headers=_auth_header(),
+            json={
+                "ticker": "3901:TSE",
+                "company_name": "富士フイルム",
+            },
+        )
+
+        self.assertEqual(response.status_code, 500)
+        body = response.json()
+        self.assertEqual(body["error"]["code"], "internal_error")
+        self.assertIn("IR候補URLの生成に失敗しました", body["error"]["message"])
 
     def test_update_accepts_ai_enabled_only_for_backward_compatibility(self) -> None:
         client = _build_client()

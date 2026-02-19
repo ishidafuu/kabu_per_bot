@@ -95,9 +95,11 @@
   - 監視方式
   - 通知時間
   - 常時通知ON/OFF（割安でない場合の状況通知）
-  - AI通知ON/OFF
+  - IR URL（改行区切り）
+  - IR候補URL取得（AI候補 + 機械検証結果を表示し、選択追加）
 - 補足:
   - 通知チャネルは Discord 固定（画面での切替は提供しない）
+  - AI要約通知は銘柄単位で常時有効（画面での個別ON/OFFは提供しない）
   - 一覧の「編集」押下時はモーダルで編集フォームを開く（ページ下部へのインライン展開は行わない）
 - バリデーション:
   - ticker形式 `1234:TSE`
@@ -154,7 +156,28 @@
   - 目的: 詳細取得
   - 404: 該当なし
 
-3. `POST /watchlist`
+3. `POST /watchlist/ir-url-candidates`
+  - 目的: IR候補URLの提案と検証結果取得
+  - リクエスト:
+    - `ticker`
+    - `company_name`
+    - `max_candidates`（任意: 1〜10、既定5）
+  - 200レスポンス:
+    - `items[]`
+      - `url`
+      - `title`
+      - `reason`
+      - `confidence`（High/Med/Low）
+      - `validation_status`（VALID/WARNING/INVALID）
+      - `score`
+      - `http_status`
+      - `content_type`
+    - `total`
+    - `source`
+  - 422: 入力不正
+  - 500: AI生成/検証失敗
+
+4. `POST /watchlist`
   - 目的: 追加
   - リクエスト:
     - `ticker`
@@ -170,7 +193,7 @@
   - 422: 入力不正
   - 429: 上限超過（100件）
 
-4. `PATCH /watchlist/{ticker}`
+5. `PATCH /watchlist/{ticker}`
   - 目的: 更新
   - リクエスト:
     - `name`（任意）
@@ -182,7 +205,7 @@
   - 200: 更新成功
   - 404: 該当なし
 
-5. `DELETE /watchlist/{ticker}`
+6. `DELETE /watchlist/{ticker}`
   - 目的: 削除
   - 204: 削除成功
   - 404: 該当なし

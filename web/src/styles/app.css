@@ -448,6 +448,29 @@ th {
   gap: 8px;
 }
 
+.ir-candidate-block {
+  border: 1px dashed #b6c6da;
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  background: rgba(248, 250, 252, 0.8);
+}
+
+.ir-candidate-list {
+  display: grid;
+  gap: 8px;
+}
+
+.ir-candidate-item {
+  border: 1px solid #d2deec;
+  border-radius: 10px;
+  padding: 8px;
+  background: #fff;
+  display: grid;
+  gap: 4px;
+}
+
 .notice-text {
   margin: 8px 0;
   color: #065f46;

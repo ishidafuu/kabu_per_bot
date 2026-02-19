@@ -65,3 +65,26 @@ export interface WatchlistUpdateInput {
   is_active?: boolean;
   ai_enabled?: boolean;
 }
+
+export interface IrUrlCandidate {
+  url: string;
+  title: string;
+  reason: string;
+  confidence: 'High' | 'Med' | 'Low';
+  validation_status: 'VALID' | 'WARNING' | 'INVALID';
+  score: number;
+  http_status?: number | null;
+  content_type?: string;
+}
+
+export interface IrUrlCandidateSuggestInput {
+  ticker: string;
+  company_name: string;
+  max_candidates?: number;
+}
+
+export interface IrUrlCandidateListResponse {
+  items: IrUrlCandidate[];
+  total: number;
+  source: string;
+}

@@ -1,4 +1,6 @@
 import type {
+  IrUrlCandidateListResponse,
+  IrUrlCandidateSuggestInput,
   WatchlistCreateInput,
   WatchlistItem,
   WatchlistListResponse,
@@ -15,6 +17,7 @@ export interface ListWatchlistParams {
 
 export interface WatchlistClient {
   list(params?: ListWatchlistParams): Promise<WatchlistListResponse>;
+  suggestIrUrlCandidates(input: IrUrlCandidateSuggestInput): Promise<IrUrlCandidateListResponse>;
   create(input: WatchlistCreateInput): Promise<WatchlistItem>;
   update(ticker: string, input: WatchlistUpdateInput): Promise<WatchlistItem>;
   remove(ticker: string, reason?: string): Promise<void>;
@@ -55,6 +58,13 @@ export class HttpWatchlistClient implements WatchlistClient {
 
   async create(input: WatchlistCreateInput): Promise<WatchlistItem> {
     return this.httpClient.request<WatchlistItem>('/watchlist', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async suggestIrUrlCandidates(input: IrUrlCandidateSuggestInput): Promise<IrUrlCandidateListResponse> {
+    return this.httpClient.request<IrUrlCandidateListResponse>('/watchlist/ir-url-candidates', {
       method: 'POST',
       body: JSON.stringify(input),
     });

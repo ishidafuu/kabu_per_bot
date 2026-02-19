@@ -6,7 +6,7 @@ import { createWatchlistClient } from '../lib/api';
 import { toUserMessage } from '../lib/api/errors';
 import { buildWatchlistPayload } from '../lib/watchlistFormPayload';
 import { appConfig } from '../lib/config';
-import type { WatchlistItem } from '../types/watchlist';
+import type { IrUrlCandidate, WatchlistItem } from '../types/watchlist';
 
 const getPageLabel = (offset: number, limit: number): number => {
   return Math.floor(offset / limit) + 1;
@@ -160,6 +160,19 @@ export const WatchlistPage = () => {
       setFormError(toUserMessage(error));
     } finally {
       setIsSubmittingForm(false);
+    }
+  };
+
+  const handleSuggestIrUrls = async (input: {
+    ticker: string;
+    company_name: string;
+    max_candidates?: number;
+  }): Promise<IrUrlCandidate[]> => {
+    try {
+      const response = await client.suggestIrUrlCandidates(input);
+      return response.items;
+    } catch (error) {
+      throw new Error(toUserMessage(error));
     }
   };
 
@@ -340,6 +353,7 @@ export const WatchlistPage = () => {
               initialValue={editingItem ?? undefined}
               submitting={isSubmittingForm}
               apiErrorMessage={formError}
+              onSuggestIrUrls={handleSuggestIrUrls}
               onSubmit={handleFormSubmit}
               onCancel={closeForm}
               titleId="watchlist-form-title"

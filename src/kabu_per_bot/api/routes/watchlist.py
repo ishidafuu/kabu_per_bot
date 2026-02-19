@@ -12,7 +12,11 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from kabu_per_bot.earnings import EarningsCalendarEntry
-from kabu_per_bot.api.dependencies import create_firestore_client, get_watchlist_service
+from kabu_per_bot.api.dependencies import (
+    create_firestore_client,
+    get_ir_url_candidate_service,
+    get_watchlist_service,
+)
 from kabu_per_bot.backfill_service import (
     DEFAULT_INITIAL_LOOKBACK_DAYS,
     backfill_ticker_from_jquants,
@@ -32,11 +36,15 @@ from kabu_per_bot.api.errors import (
 )
 from kabu_per_bot.api.openapi import error_responses
 from kabu_per_bot.api.schemas import (
+    IrUrlCandidateListResponse,
+    IrUrlCandidateResponse,
+    IrUrlCandidateSuggestRequest,
     WatchlistCreateRequest,
     WatchlistItemResponse,
     WatchlistListResponse,
     WatchlistUpdateRequest,
 )
+from kabu_per_bot.ir_url_candidates import IrUrlSuggestionError
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
 from kabu_per_bot.settings import load_settings
 from kabu_per_bot.signal import SignalState
@@ -139,6 +147,42 @@ def list_watchlist(
         for item in paged_items
     ]
     return WatchlistListResponse(items=response_items, total=total)
+
+
+@router.post(
+    "/ir-url-candidates",
+    response_model=IrUrlCandidateListResponse,
+    responses=error_responses(401, 403, 422, 500),
+)
+def suggest_ir_url_candidates(
+    payload: IrUrlCandidateSuggestRequest,
+    service=Depends(get_ir_url_candidate_service),
+) -> IrUrlCandidateListResponse:
+    try:
+        candidates = service.suggest_candidates(
+            ticker=payload.ticker,
+            company_name=payload.company_name,
+            max_candidates=payload.max_candidates,
+        )
+    except IrUrlSuggestionError as exc:
+        raise InternalServerError(f"IR候補URLの生成に失敗しました: {exc}") from exc
+    except ValueError as exc:
+        raise UnprocessableEntityError(str(exc)) from exc
+
+    rows = [
+        IrUrlCandidateResponse(
+            url=row.url,
+            title=row.title,
+            reason=row.reason,
+            confidence=row.confidence,
+            validation_status=row.validation_status,
+            score=row.score,
+            http_status=row.http_status,
+            content_type=row.content_type,
+        )
+        for row in candidates
+    ]
+    return IrUrlCandidateListResponse(items=rows, total=len(rows))
 
 
 @router.get(
