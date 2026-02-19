@@ -136,8 +136,12 @@ def _read_optional_bool(value: Any, *, key: str) -> bool | None:
         return None
     if isinstance(value, bool):
         return value
-    if isinstance(value, (int, float)):
-        return bool(value)
+    if isinstance(value, int):
+        if value in (0, 1):
+            return bool(value)
+        raise ValueError(f"{key} must be boolean: {value}")
+    if isinstance(value, float):
+        raise ValueError(f"{key} must be boolean: {value}")
     normalized = str(value).strip().lower()
     if normalized in {"true", "1", "yes", "on"}:
         return True
