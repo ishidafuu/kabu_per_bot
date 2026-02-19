@@ -354,6 +354,7 @@ class GrokPromptIntelSource:
         api_base_url: str = "https://api.x.ai/v1",
         timeout_sec: float = 30.0,
         max_events_per_ticker: int = 5,
+        fetch_gate: Callable[[WatchlistItem, str], bool] | None = None,
         http_client: Any | None = None,
     ) -> None:
         self._api_key = api_key.strip()
@@ -363,6 +364,7 @@ class GrokPromptIntelSource:
         self._api_base_url = api_base_url.rstrip("/")
         self._timeout_sec = timeout_sec
         self._max_events_per_ticker = max_events_per_ticker
+        self._fetch_gate = fetch_gate
         self._client = http_client or httpx.Client(
             headers={
                 "Authorization": f"Bearer {self._api_key}" if self._api_key else "",
@@ -376,6 +378,8 @@ class GrokPromptIntelSource:
             raise IntelSourceError("SNS取得失敗: GROK_API_KEY が未設定です")
         if not self._model:
             raise IntelSourceError("SNS取得失敗: GROK_MODEL_FAST が未設定です")
+        if self._fetch_gate is not None and not self._fetch_gate(item, now_iso):
+            return []
 
         # 1st: non-reasoning model for cost efficiency
         content = self._call_chat(model=self._model, item=item, now_iso=now_iso)

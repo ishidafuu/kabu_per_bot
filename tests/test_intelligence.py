@@ -564,6 +564,36 @@ class IntelligenceTest(unittest.TestCase):
         self.assertEqual(client.calls[0]["json"]["model"], "grok-4-1-fast-non-reasoning")
         self.assertEqual(client.calls[1]["json"]["model"], "grok-4-1")
 
+    def test_grok_prompt_source_skips_fetch_by_gate(self) -> None:
+        client = FakeGrokClient(
+            [
+                FakeGrokResponse(
+                    payload={
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": '{"posts":[{"url":"https://x.com/fuji/status/1","summary":"dummy"}]}'
+                                }
+                            }
+                        ]
+                    }
+                )
+            ]
+        )
+        source = GrokPromptIntelSource(
+            api_key="dummy-key",
+            model="grok-4-1-fast-non-reasoning",
+            reasoning_model="grok-4-1",
+            prompt_template="対象 {ticker}",
+            fetch_gate=lambda item, now_iso: False,
+            http_client=client,
+        )
+
+        events = source.fetch_events(self._watch_item(), now_iso="2026-02-15T00:00:00+00:00")
+
+        self.assertEqual(events, [])
+        self.assertEqual(client.calls, [])
+
 
 if __name__ == "__main__":
     unittest.main()

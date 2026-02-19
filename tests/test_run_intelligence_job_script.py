@@ -30,6 +30,12 @@ class DummySeenRepo:
     pass
 
 
+@dataclass
+class DummyRecentLog:
+    category: str
+    sent_at: str
+
+
 class RunIntelligenceJobScriptTest(TestCase):
     def test_main_stdout_outputs_summary_json(self) -> None:
         args = run_intelligence_job.argparse.Namespace(
@@ -218,6 +224,23 @@ class RunIntelligenceJobScriptTest(TestCase):
             )
 
         self.assertEqual(source.sources, ("ir-source",))
+
+    def test_grok_fetch_gate_blocks_when_recent_sns_notification_exists(self) -> None:
+        repo = type(
+            "Repo",
+            (),
+            {
+                "list_recent": lambda self, ticker, limit=100: [
+                    DummyRecentLog(category="SNS注目", sent_at="2026-02-19T11:30:00+00:00")
+                ]
+            },
+        )()
+        gate = run_intelligence_job._create_grok_fetch_gate(notification_log_repo=repo, cooldown_hours=3)
+        item = type("Item", (), {"ticker": "3901:TSE"})()
+
+        result = gate(item, "2026-02-19T12:00:00+00:00")
+
+        self.assertFalse(result)
 
 
 if __name__ == "__main__":

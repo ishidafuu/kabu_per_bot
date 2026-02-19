@@ -5,7 +5,7 @@ import argparse
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from kabu_per_bot.discord_notifier import DiscordNotifier
@@ -130,11 +130,23 @@ def _resolve_runtime_config(*, settings, client):
         )
 
 
-def _build_intel_source(*, settings, runtime_settings, now_iso: str | None = None) -> CompositeIntelSource:
+def _build_intel_source(
+    *,
+    settings,
+    runtime_settings,
+    now_iso: str | None = None,
+    notification_log_repo=None,
+) -> CompositeIntelSource:
     sources = [IRWebsiteIntelSource()]
     if runtime_settings.grok_sns_settings.enabled:
         scheduled_time = runtime_settings.grok_sns_settings.scheduled_time
         if _is_scheduled_grok_time(now_iso=now_iso, scheduled_time=scheduled_time):
+            fetch_gate = None
+            if notification_log_repo is not None:
+                fetch_gate = _create_grok_fetch_gate(
+                    notification_log_repo=notification_log_repo,
+                    cooldown_hours=runtime_settings.grok_sns_settings.per_ticker_cooldown_hours,
+                )
             sources.append(
                 GrokPromptIntelSource(
                     api_key=settings.grok_api_key,
@@ -142,6 +154,7 @@ def _build_intel_source(*, settings, runtime_settings, now_iso: str | None = Non
                     model=settings.grok_model_fast,
                     reasoning_model=settings.grok_model_reasoning,
                     prompt_template=runtime_settings.grok_sns_settings.prompt_template,
+                    fetch_gate=fetch_gate,
                 )
             )
         else:
@@ -161,6 +174,51 @@ def _is_scheduled_grok_time(*, now_iso: str | None, scheduled_time: str) -> bool
     return f"{jst.hour:02d}:{jst.minute:02d}" == scheduled_time
 
 
+def _create_grok_fetch_gate(*, notification_log_repo, cooldown_hours: int):
+    def gate(item, now_iso: str) -> bool:
+        if cooldown_hours <= 0:
+            return True
+        now_dt = _parse_iso_utc(now_iso)
+        try:
+            recent_logs = notification_log_repo.list_recent(item.ticker, limit=100)
+        except Exception as exc:
+            LOGGER.warning("Grok取得抑制判定に失敗したため取得を継続: ticker=%s error=%s", item.ticker, exc)
+            return True
+
+        for entry in recent_logs:
+            category = str(getattr(entry, "category", "")).strip()
+            if category != "SNS注目":
+                continue
+            sent_at = _parse_iso_utc_or_none(getattr(entry, "sent_at", None))
+            if sent_at is None:
+                continue
+            if now_dt - sent_at < timedelta(hours=cooldown_hours):
+                LOGGER.info("Grok SNS取得をスキップ: ticker=%s reason=%s時間クールダウン中", item.ticker, cooldown_hours)
+                return False
+        return True
+
+    return gate
+
+
+def _parse_iso_utc(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _parse_iso_utc_or_none(value) -> datetime | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return _parse_iso_utc(text)
+    except ValueError:
+        return None
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args()
@@ -172,7 +230,12 @@ def main() -> int:
     watchlist_repo = FirestoreWatchlistRepository(client)
     log_repo = FirestoreNotificationLogRepository(client)
     seen_repo = FirestoreIntelSeenRepository(client)
-    source = _build_intel_source(settings=settings, runtime_settings=runtime_settings, now_iso=now_iso)
+    source = _build_intel_source(
+        settings=settings,
+        runtime_settings=runtime_settings,
+        now_iso=now_iso,
+        notification_log_repo=log_repo,
+    )
     result = run_intelligence_pipeline(
         watchlist_items=watchlist_repo.list_all(),
         source=source,
