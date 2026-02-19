@@ -426,10 +426,6 @@ export const OpsPage = () => {
             </button>
           )}
         </div>
-        <p className="muted">
-          Grok残高: {formatGrokBalance(globalSettings, isLoading)}
-          {globalSettings?.grok_balance.fetched_at ? `（${formatTime(globalSettings.grok_balance.fetched_at)} 取得）` : ''}
-        </p>
       </section>
 
       {opsForbidden && (
@@ -455,6 +451,10 @@ export const OpsPage = () => {
             あわせてIMMEDIATEの寄り付き帯/引け帯の実行時間帯と間隔（分）を設定できます。タイムゾーンはJST固定です。
           </p>
           <p className="muted">GrokによるSNS取得の定時時刻・再取得間隔・プロンプトテンプレートもここで設定できます。</p>
+          <p className="muted">
+            Grok残高: {formatGrokBalance(globalSettings, isLoading)}
+            {globalSettings?.grok_balance.fetched_at ? `（${formatTime(globalSettings.grok_balance.fetched_at)} 取得）` : ''}
+          </p>
           <p className="muted">IR/SNS通知は初回実行時のみ既読化し、公開日が対象期間内のものだけ通知されます。</p>
           <div className="settings-inline">
             <label className="inline-field">
