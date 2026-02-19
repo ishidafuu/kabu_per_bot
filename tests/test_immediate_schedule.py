@@ -38,6 +38,15 @@ class ImmediateScheduleTest(unittest.TestCase):
         )
         self.assertFalse(decision.should_run)
 
+    def test_evaluate_window_schedule_rejects_unknown_window_kind(self) -> None:
+        schedule = ImmediateSchedule.default()
+        with self.assertRaises(ValueError):
+            evaluate_window_schedule(
+                schedule=schedule,
+                window_kind="intraday",  # type: ignore[arg-type]
+                now_iso="2026-02-19T09:30:00+09:00",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
