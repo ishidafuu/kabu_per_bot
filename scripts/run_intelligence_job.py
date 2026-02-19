@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from kabu_per_bot.discord_notifier import DiscordNotifier
 from kabu_per_bot.grok_sns_settings import GrokSnsSettings
@@ -129,21 +130,35 @@ def _resolve_runtime_config(*, settings, client):
         )
 
 
-def _build_intel_source(*, settings, runtime_settings) -> CompositeIntelSource:
+def _build_intel_source(*, settings, runtime_settings, now_iso: str | None = None) -> CompositeIntelSource:
     sources = [IRWebsiteIntelSource()]
     if runtime_settings.grok_sns_settings.enabled:
-        sources.append(
-            GrokPromptIntelSource(
-                api_key=settings.grok_api_key,
-                api_base_url=settings.grok_api_base_url,
-                model=settings.grok_model_fast,
-                reasoning_model=settings.grok_model_reasoning,
-                prompt_template=runtime_settings.grok_sns_settings.prompt_template,
+        scheduled_time = runtime_settings.grok_sns_settings.scheduled_time
+        if _is_scheduled_grok_time(now_iso=now_iso, scheduled_time=scheduled_time):
+            sources.append(
+                GrokPromptIntelSource(
+                    api_key=settings.grok_api_key,
+                    api_base_url=settings.grok_api_base_url,
+                    model=settings.grok_model_fast,
+                    reasoning_model=settings.grok_model_reasoning,
+                    prompt_template=runtime_settings.grok_sns_settings.prompt_template,
+                )
             )
-        )
+        else:
+            LOGGER.info("Grok SNS取得はスケジュール外のためスキップします（scheduled_time=%s JST）", scheduled_time)
     else:
         LOGGER.info("Grok SNS取得は無効です（global settings）。")
     return CompositeIntelSource(tuple(sources))
+
+
+def _is_scheduled_grok_time(*, now_iso: str | None, scheduled_time: str) -> bool:
+    if now_iso is None:
+        return True
+    parsed = datetime.fromisoformat(now_iso)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    jst = parsed.astimezone(ZoneInfo("Asia/Tokyo"))
+    return f"{jst.hour:02d}:{jst.minute:02d}" == scheduled_time
 
 
 def main() -> int:
@@ -157,7 +172,7 @@ def main() -> int:
     watchlist_repo = FirestoreWatchlistRepository(client)
     log_repo = FirestoreNotificationLogRepository(client)
     seen_repo = FirestoreIntelSeenRepository(client)
-    source = _build_intel_source(settings=settings, runtime_settings=runtime_settings)
+    source = _build_intel_source(settings=settings, runtime_settings=runtime_settings, now_iso=now_iso)
     result = run_intelligence_pipeline(
         watchlist_items=watchlist_repo.list_all(),
         source=source,
