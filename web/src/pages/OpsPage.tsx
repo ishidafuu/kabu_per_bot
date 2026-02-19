@@ -183,8 +183,6 @@ export const OpsPage = () => {
         const [settingsResult, summaryResult] = await Promise.allSettled([client.getAdminGlobalSettings(), summaryPromise]);
         if (settingsResult.status === 'fulfilled') {
           applyGlobalSettings(settingsResult.value);
-        } else if (globalSettings == null) {
-          setOpsError(`全体設定の取得に失敗しました: ${toUserMessage(settingsResult.reason)}`);
         }
         if (summaryResult.status === 'rejected') {
           throw summaryResult.reason;
@@ -202,7 +200,7 @@ export const OpsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [activeSection, applyGlobalSettings, client, globalSettings]);
+  }, [activeSection, applyGlobalSettings, client]);
 
   useEffect(() => {
     void refreshOps();
