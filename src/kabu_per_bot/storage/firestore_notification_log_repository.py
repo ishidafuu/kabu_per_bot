@@ -86,17 +86,21 @@ class FirestoreNotificationLogRepository:
                 if sent_at_to is not None:
                     query = query.where("sent_at", "<", sent_at_to)
                 query = query.order_by("sent_at", direction="DESCENDING")
+                offset_applied = False
                 if offset > 0 and hasattr(query, "offset"):
                     query = query.offset(offset)
+                    offset_applied = True
+                limit_applied = False
                 if limit is not None and hasattr(query, "limit"):
                     query = query.limit(limit)
+                    limit_applied = True
                 rows = [NotificationLogEntry.from_document(snapshot.to_dict() or {}) for snapshot in query.stream()]
                 return _filter_sort_paginate_rows(
                     rows=rows,
                     from_dt=from_dt,
                     to_dt=to_dt,
-                    limit=limit,
-                    offset=offset,
+                    limit=None if limit_applied else limit,
+                    offset=0 if offset_applied else offset,
                     normalized_category=normalized_category,
                     is_strong=is_strong,
                 )
@@ -407,14 +411,19 @@ def _count_timeline_in_memory(
         data = snapshot.to_dict() or {}
         if normalized_ticker and str(data.get("ticker", "")).upper() != normalized_ticker:
             continue
-        row = NotificationLogEntry.from_document(data)
-        if not _matches_notification_row(
-            row=row,
-            from_dt=from_dt,
-            to_dt=to_dt,
-            normalized_category=normalized_category,
-            is_strong=is_strong,
-        ):
+        category_value = str(data.get("category", "")).strip()
+        if normalized_category and category_value != normalized_category:
+            continue
+        strong_value = bool(data.get("is_strong", False))
+        if is_strong is not None and strong_value is not is_strong:
+            continue
+        sent_at_raw = data.get("sent_at")
+        if sent_at_raw is None:
+            continue
+        sent_at = _parse_iso_datetime(str(sent_at_raw))
+        if from_dt is not None and sent_at < from_dt:
+            continue
+        if to_dt is not None and sent_at >= to_dt:
             continue
         count += 1
     return count
