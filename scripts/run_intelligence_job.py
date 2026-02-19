@@ -44,6 +44,12 @@ def parse_args() -> argparse.Namespace:
         help="Dispatch filter mode. all=daily+21, daily=IMMEDIATE only, at_21=AT_21 only.",
     )
     parser.add_argument(
+        "--intel-source",
+        choices=("all", "ir_only", "grok_only"),
+        default="all",
+        help="Intelligence source scope. all=IR+Grok, ir_only=IR only, grok_only=Grok only.",
+    )
+    parser.add_argument(
         "--respect-grok-schedule",
         action="store_true",
         help=(
@@ -142,11 +148,17 @@ def _build_intel_source(
     *,
     settings,
     runtime_settings,
+    intel_source: str,
     now_iso: str | None = None,
     notification_log_repo=None,
 ) -> CompositeIntelSource:
-    sources = [IRWebsiteIntelSource()]
-    if runtime_settings.grok_sns_settings.enabled:
+    include_ir = intel_source in ("all", "ir_only")
+    include_grok = intel_source in ("all", "grok_only")
+    sources = []
+    if include_ir:
+        sources.append(IRWebsiteIntelSource())
+
+    if include_grok and runtime_settings.grok_sns_settings.enabled:
         scheduled_time = runtime_settings.grok_sns_settings.scheduled_time
         if _is_scheduled_grok_time(now_iso=now_iso, scheduled_time=scheduled_time):
             fetch_gate = None
@@ -167,9 +179,13 @@ def _build_intel_source(
             )
         else:
             LOGGER.info("Grok SNS取得はスケジュール外のためスキップします（scheduled_time=%s JST）", scheduled_time)
-    else:
+    elif include_grok:
         LOGGER.info("Grok SNS取得は無効です（global settings）。")
     return CompositeIntelSource(tuple(sources))
+
+
+def _is_grok_in_scope(intel_source: str) -> bool:
+    return intel_source in ("all", "grok_only")
 
 
 def _is_scheduled_grok_time(*, now_iso: str | None, scheduled_time: str) -> bool:
@@ -245,7 +261,7 @@ def main() -> int:
     now_iso = _resolve_now_utc_iso(now_iso=args.now_iso)
     client = _create_firestore_client(project_id=settings.firestore_project_id)
     runtime_settings = _resolve_runtime_config(settings=settings, client=client)
-    if getattr(args, "respect_grok_schedule", False):
+    if getattr(args, "respect_grok_schedule", False) and _is_grok_in_scope(args.intel_source):
         if not _should_run_by_grok_schedule(now_iso=now_iso, runtime_settings=runtime_settings):
             print(json.dumps(PipelineResult().__dict__, ensure_ascii=False))
             return 0
@@ -257,6 +273,7 @@ def main() -> int:
     source = _build_intel_source(
         settings=settings,
         runtime_settings=runtime_settings,
+        intel_source=args.intel_source,
         now_iso=now_iso,
         notification_log_repo=log_repo,
     )

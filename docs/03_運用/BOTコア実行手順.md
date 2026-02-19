@@ -74,7 +74,8 @@ PYTHONPATH=src python scripts/run_immediate_window_job.py --window close --disco
 - `kabu-immediate-close` <- `sc-kabu-immediate-close`（平日13:00-16:59 毎分起動、設定一致時のみ実処理）
 - `kabu-daily` <- `sc-kabu-daily`（平日18:00 JST）
 - `kabu-daily-at21` <- `sc-kabu-daily-at21`（平日21:05 JST）
-- `kabu-intelligence` <- `sc-kabu-intelligence`（毎分起動、管理画面の Grok定時取得時刻と一致した分のみ実処理）
+- `kabu-intelligence` <- `sc-kabu-intelligence`（平日21:05 JST、IR中心）
+- `kabu-grok` <- `sc-kabu-grok`（毎分起動、管理画面の Grok定時取得時刻と一致した分のみ実処理）
 - `kabu-backfill-incremental` <- `sc-kabu-backfill-incremental`（平日21:15 JST）
 - `kabu-earnings-weekly` <- `sc-kabu-earnings-weekly`（土曜21:00 JST）
 - `kabu-earnings-tomorrow` <- `sc-kabu-earnings-tomorrow`（毎日21:00 JST）
@@ -90,6 +91,7 @@ gcloud run jobs executions list --job=kabu-immediate-close --region=asia-northea
 gcloud run jobs executions list --job=kabu-daily --region=asia-northeast1 --project=<GCP_PROJECT_ID>
 gcloud run jobs executions list --job=kabu-daily-at21 --region=asia-northeast1 --project=<GCP_PROJECT_ID>
 gcloud run jobs executions list --job=kabu-intelligence --region=asia-northeast1 --project=<GCP_PROJECT_ID>
+gcloud run jobs executions list --job=kabu-grok --region=asia-northeast1 --project=<GCP_PROJECT_ID>
 gcloud scheduler jobs list --location=asia-northeast1 --project=<GCP_PROJECT_ID>
 ```
 
@@ -120,13 +122,15 @@ PYTHONPATH=src python scripts/run_earnings_job.py --job tomorrow --discord-webho
 ## 7. IR/SNS/AI通知ジョブ
 
 ```bash
-PYTHONPATH=src python scripts/run_intelligence_job.py --discord-webhook-url <DISCORD_WEBHOOK_URL>
+PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source ir_only --discord-webhook-url <DISCORD_WEBHOOK_URL>
+PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source grok_only --respect-grok-schedule --discord-webhook-url <DISCORD_WEBHOOK_URL>
 ```
 
 - `AI_NOTIFICATIONS_ENABLED=true` かつ銘柄設定 `ai_enabled=true` で `【AI注目】` を送信。
 - SNS監視（Grok）には `GROK_API_KEY` が必要（未設定時は `【データ不明】` 通知）。
 - モデルは `GROK_MODEL_FAST` を優先し、抽出失敗時は `GROK_MODEL_REASONING` へフォールバック。
-- `GROK_SNS_ENABLED=true` かつ実行時刻（JST）が `GROK_SNS_SCHEDULED_TIME` と一致する時のみ、SNS取得を実行する。
+- `--intel-source ir_only|grok_only|all` でIR/Grokの実行範囲を分離できる。
+- `--intel-source grok_only --respect-grok-schedule` 指定時は `GROK_SNS_ENABLED=true` かつ実行時刻（JST）が `GROK_SNS_SCHEDULED_TIME` と一致した分のみ処理する。
 - `GROK_SNS_PER_TICKER_COOLDOWN_HOURS` の間は、同一銘柄の `SNS注目` 通知が直近にある場合は再取得をスキップする。
 - AI要約は `Vertex AI Gemini` を利用し、`VERTEX_AI_LOCATION` / `VERTEX_AI_MODEL` で変更できる。
 - IRリンク先の HTML/PDF 本文を取得し、本文テキストを要約対象として扱う。
