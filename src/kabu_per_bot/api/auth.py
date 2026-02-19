@@ -104,8 +104,11 @@ def get_token_verifier(request: Request) -> TokenVerifier:
         return verifier
     factory = getattr(request.app.state, "token_verifier_factory", None)
     if factory is None:
-        raise RuntimeError("token_verifier が初期化されていません。")
-    verifier = factory()
+        raise InternalServerError("token_verifier が初期化されていません。")
+    try:
+        verifier = factory()
+    except Exception as exc:
+        raise InternalServerError("token_verifier の初期化に失敗しました。") from exc
     request.app.state.token_verifier = verifier
     return verifier
 

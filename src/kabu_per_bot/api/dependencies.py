@@ -12,7 +12,7 @@ from kabu_per_bot.admin_ops import (
     JobExecution,
 )
 from kabu_per_bot.immediate_schedule import ImmediateSchedule
-from kabu_per_bot.api.errors import ForbiddenError, UnauthorizedError
+from kabu_per_bot.api.errors import ForbiddenError, InternalServerError, UnauthorizedError
 from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
 from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
@@ -219,8 +219,11 @@ def _resolve_dependency(
 
     factory: Callable[[], DependencyT] | None = getattr(request.app.state, factory_key, None)
     if factory is None:
-        raise RuntimeError(missing_message)
-    dependency = factory()
+        raise InternalServerError(missing_message)
+    try:
+        dependency = factory()
+    except Exception as exc:
+        raise InternalServerError(f"{value_key} の初期化に失敗しました。") from exc
     setattr(request.app.state, value_key, dependency)
     return dependency
 

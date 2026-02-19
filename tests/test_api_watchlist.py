@@ -94,6 +94,38 @@ class WatchlistApiTest(unittest.TestCase):
         body = response.json()
         self.assertEqual(body["error"]["code"], "forbidden")
 
+    def test_watchlist_returns_internal_error_when_token_verifier_factory_missing(self) -> None:
+        repository = InMemoryWatchlistRepository()
+        service = WatchlistService(repository, max_items=100)
+        app = create_app(watchlist_service=service, token_verifier=None)
+        app.state.token_verifier_factory = None
+        client = TestClient(app)
+
+        response = client.get("/api/v1/watchlist", headers=_auth_header())
+
+        self.assertEqual(response.status_code, 500)
+        body = response.json()
+        self.assertEqual(body["error"]["code"], "internal_error")
+        self.assertIn("token_verifier", body["error"]["message"])
+
+    def test_watchlist_returns_internal_error_when_token_verifier_factory_fails(self) -> None:
+        repository = InMemoryWatchlistRepository()
+        service = WatchlistService(repository, max_items=100)
+        app = create_app(watchlist_service=service, token_verifier=None)
+
+        def _failing_factory():
+            raise RuntimeError("boom")
+
+        app.state.token_verifier_factory = _failing_factory
+        client = TestClient(app)
+
+        response = client.get("/api/v1/watchlist", headers=_auth_header())
+
+        self.assertEqual(response.status_code, 500)
+        body = response.json()
+        self.assertEqual(body["error"]["code"], "internal_error")
+        self.assertIn("token_verifier", body["error"]["message"])
+
     def test_watchlist_crud_and_search(self) -> None:
         client = _build_client()
 
