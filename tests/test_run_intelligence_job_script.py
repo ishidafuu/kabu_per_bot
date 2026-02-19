@@ -123,6 +123,7 @@ class RunIntelligenceJobScriptTest(TestCase):
         config = mocked_pipeline.call_args.kwargs["config"]
         self.assertEqual(config.cooldown_hours, 7)
         self.assertEqual(config.intel_notification_max_age_days, 30)
+        self.assertEqual(config.channel, run_intelligence_job.DISCORD_INTELLIGENCE_CHANNEL)
 
     def test_main_respect_grok_schedule_skips_when_not_scheduled_minute(self) -> None:
         args = run_intelligence_job.argparse.Namespace(

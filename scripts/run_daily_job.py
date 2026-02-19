@@ -24,6 +24,9 @@ from kabu_per_bot.storage.firestore_watchlist_repository import FirestoreWatchli
 
 LOGGER = logging.getLogger(__name__)
 JST_TIMEZONE = "Asia/Tokyo"
+DISCORD_WEBHOOK_DEFAULT_ENV = "DISCORD_WEBHOOK_URL"
+DISCORD_WEBHOOK_DAILY_ENV = "DISCORD_WEBHOOK_URL_DAILY"
+DISCORD_DAILY_CHANNEL = "DISCORD_DAILY"
 
 
 class StdoutSender:
@@ -54,8 +57,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--discord-webhook-url",
-        default=os.environ.get("DISCORD_WEBHOOK_URL", "").strip(),
-        help="Discord webhook URL. Required unless --stdout is set.",
+        default=_resolve_discord_webhook_default(DISCORD_WEBHOOK_DAILY_ENV),
+        help=(
+            "Discord webhook URL. Required unless --stdout is set. "
+            f"Default: {DISCORD_WEBHOOK_DAILY_ENV} (fallback: {DISCORD_WEBHOOK_DEFAULT_ENV})."
+        ),
     )
     parser.add_argument(
         "--jquants-api-key",
@@ -75,6 +81,13 @@ def parse_args() -> argparse.Namespace:
         help="Use with --stdout for notification preview. Bypass cooldown and do not read/write notification_log.",
     )
     return parser.parse_args()
+
+
+def _resolve_discord_webhook_default(primary_env_key: str) -> str:
+    primary = os.environ.get(primary_env_key, "").strip()
+    if primary:
+        return primary
+    return os.environ.get(DISCORD_WEBHOOK_DEFAULT_ENV, "").strip()
 
 
 def _create_firestore_client(*, project_id: str):
@@ -117,8 +130,11 @@ def _resolve_sender(args: argparse.Namespace):
         return StdoutSender()
     webhook_url = args.discord_webhook_url.strip()
     if not webhook_url:
-        raise ValueError("Discord webhook URL が必要です。--discord-webhook-url か DISCORD_WEBHOOK_URL を設定してください。")
-    LOGGER.info("送信先: Discord webhook")
+        raise ValueError(
+            "Discord webhook URL が必要です。"
+            f"--discord-webhook-url または {DISCORD_WEBHOOK_DAILY_ENV}/{DISCORD_WEBHOOK_DEFAULT_ENV} を設定してください。"
+        )
+    LOGGER.info("送信先: Discord webhook (channel=%s)", DISCORD_DAILY_CHANNEL)
     return DiscordNotifier(webhook_url)
 
 
@@ -205,6 +221,7 @@ def main() -> int:
             window_1y_days=settings.window_1y_days,
             cooldown_hours=cooldown_hours,
             now_iso=now_iso,
+            channel=DISCORD_DAILY_CHANNEL,
             execution_mode=_resolve_execution_mode(args.execution_mode),
         ),
     )

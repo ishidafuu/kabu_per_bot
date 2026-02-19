@@ -274,7 +274,7 @@ def _is_channel_enabled(item: WatchlistItem, channel: str) -> bool:
     normalized = channel.strip().upper()
     if item.notify_channel is NotifyChannel.OFF:
         return False
-    if normalized == "DISCORD":
+    if normalized.startswith("DISCORD"):
         return item.notify_channel is NotifyChannel.DISCORD
     return False
 

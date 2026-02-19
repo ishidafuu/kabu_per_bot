@@ -22,6 +22,9 @@ from kabu_per_bot.storage.firestore_watchlist_repository import FirestoreWatchli
 
 
 LOGGER = logging.getLogger(__name__)
+DISCORD_WEBHOOK_DEFAULT_ENV = "DISCORD_WEBHOOK_URL"
+DISCORD_WEBHOOK_INTELLIGENCE_ENV = "DISCORD_WEBHOOK_URL_INTELLIGENCE"
+DISCORD_INTELLIGENCE_CHANNEL = "DISCORD_INTELLIGENCE"
 
 
 class StdoutSender:
@@ -59,11 +62,21 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--discord-webhook-url",
-        default=os.environ.get("DISCORD_WEBHOOK_URL", "").strip(),
-        help="Discord webhook URL. Required unless --stdout is set.",
+        default=_resolve_discord_webhook_default(DISCORD_WEBHOOK_INTELLIGENCE_ENV),
+        help=(
+            "Discord webhook URL. Required unless --stdout is set. "
+            f"Default: {DISCORD_WEBHOOK_INTELLIGENCE_ENV} (fallback: {DISCORD_WEBHOOK_DEFAULT_ENV})."
+        ),
     )
     parser.add_argument("--stdout", action="store_true", help="Send notifications to stdout.")
     return parser.parse_args()
+
+
+def _resolve_discord_webhook_default(primary_env_key: str) -> str:
+    primary = os.environ.get(primary_env_key, "").strip()
+    if primary:
+        return primary
+    return os.environ.get(DISCORD_WEBHOOK_DEFAULT_ENV, "").strip()
 
 
 def _create_firestore_client(*, project_id: str):
@@ -82,8 +95,12 @@ def _resolve_sender(args: argparse.Namespace):
         return StdoutSender()
     webhook_url = args.discord_webhook_url.strip()
     if not webhook_url:
-        raise ValueError("Discord webhook URL が必要です。--discord-webhook-url か DISCORD_WEBHOOK_URL を設定してください。")
-    LOGGER.info("送信先: Discord webhook")
+        raise ValueError(
+            "Discord webhook URL が必要です。"
+            f"--discord-webhook-url または {DISCORD_WEBHOOK_INTELLIGENCE_ENV}/{DISCORD_WEBHOOK_DEFAULT_ENV} "
+            "を設定してください。"
+        )
+    LOGGER.info("送信先: Discord webhook (channel=%s)", DISCORD_INTELLIGENCE_CHANNEL)
     return DiscordNotifier(webhook_url)
 
 
@@ -295,6 +312,7 @@ def _run_source_scoped_pipeline(
             cooldown_hours=runtime_settings.cooldown_hours,
             now_iso=now_iso,
             intel_notification_max_age_days=runtime_settings.intel_notification_max_age_days,
+            channel=DISCORD_INTELLIGENCE_CHANNEL,
             execution_mode=execution_mode,
             ai_global_enabled=settings.ai_notifications_enabled,
         ),

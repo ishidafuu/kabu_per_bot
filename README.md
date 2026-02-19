@@ -57,7 +57,11 @@ uvicorn kabu_per_bot.api.app:app --reload
 - `OPS_EARNINGS_WEEKLY_JOB_NAME`（既定: `kabu-earnings-weekly`）
 - `OPS_EARNINGS_TOMORROW_JOB_NAME`（既定: `kabu-earnings-tomorrow`）
 - `INTEL_NOTIFICATION_MAX_AGE_DAYS`（IR/SNS通知対象期間の環境変数デフォルト。既定: `30`）
-- `DISCORD_WEBHOOK_URL`（Discord疎通テストAPIで使用）
+- `DISCORD_WEBHOOK_URL`（全ジョブ共通の通知先。未分割時に使用）
+- `DISCORD_WEBHOOK_URL_DAILY`（日次/IMMEDIATEジョブ専用。未設定時は `DISCORD_WEBHOOK_URL` を使用）
+- `DISCORD_WEBHOOK_URL_EARNINGS`（決算ジョブ専用。未設定時は `DISCORD_WEBHOOK_URL` を使用）
+- `DISCORD_WEBHOOK_URL_INTELLIGENCE`（IR/SNS/AIジョブ専用。未設定時は `DISCORD_WEBHOOK_URL` を使用）
+- `DISCORD_WEBHOOK_URL_OPS`（管理画面疎通テスト/テスト送信専用。未設定時は `DISCORD_WEBHOOK_URL` を使用）
 - `GROK_API_KEY`（SNS取得で使用）
 - `GROK_MANAGEMENT_API_KEY` / `GROK_MANAGEMENT_TEAM_ID`（運用画面のGrok残高表示で使用）
 - `GROK_MANAGEMENT_API_BASE_URL`（既定: `https://management-api.x.ai`）
@@ -94,7 +98,7 @@ Firestore `watchlist` を読み込んで、`daily_metrics` / `metric_medians` / 
 PYTHONPATH=src python scripts/run_daily_job.py
 ```
 
-- `--stdout` 未指定時は `--discord-webhook-url` または `DISCORD_WEBHOOK_URL` が必須です。
+- `--stdout` 未指定時は `--discord-webhook-url` または `DISCORD_WEBHOOK_URL_DAILY`（fallback: `DISCORD_WEBHOOK_URL`）が必須です。
 - `--execution-mode daily|at_21|all` を指定可能です（既定は `daily`）。
   - `daily`: `notify_timing=IMMEDIATE` の銘柄だけ通知対象
   - `at_21`: `notify_timing=AT_21` の銘柄だけ通知対象
@@ -103,13 +107,13 @@ PYTHONPATH=src python scripts/run_daily_job.py
 Discord送信を明示する場合:
 
 ```bash
-PYTHONPATH=src python scripts/run_daily_job.py --discord-webhook-url <DISCORD_WEBHOOK_URL>
+PYTHONPATH=src python scripts/run_daily_job.py --discord-webhook-url <DISCORD_WEBHOOK_URL_DAILY>
 ```
 
 21時向け銘柄だけ実行する場合:
 
 ```bash
-PYTHONPATH=src python scripts/run_daily_job.py --execution-mode at_21 --discord-webhook-url <DISCORD_WEBHOOK_URL>
+PYTHONPATH=src python scripts/run_daily_job.py --execution-mode at_21 --discord-webhook-url <DISCORD_WEBHOOK_URL_DAILY>
 ```
 
 stdout送信を明示する場合:
@@ -156,13 +160,13 @@ PYTHONPATH=src python scripts/run_daily_job.py --stdout --no-notification-log
 Firestoreの `watchlist` / `earnings_calendar` を使って通知する実行コマンド:
 
 ```bash
-PYTHONPATH=src python scripts/run_earnings_job.py --job weekly --discord-webhook-url <DISCORD_WEBHOOK_URL>
-PYTHONPATH=src python scripts/run_earnings_job.py --job tomorrow --discord-webhook-url <DISCORD_WEBHOOK_URL>
+PYTHONPATH=src python scripts/run_earnings_job.py --job weekly --discord-webhook-url <DISCORD_WEBHOOK_URL_EARNINGS>
+PYTHONPATH=src python scripts/run_earnings_job.py --job tomorrow --discord-webhook-url <DISCORD_WEBHOOK_URL_EARNINGS>
 ```
 
 - `weekly`: 土曜21時（JST）想定。来週分を `今週決算` カテゴリで通知。
 - `tomorrow`: 毎日21時（JST）想定。翌日分を `明日決算` カテゴリで通知。
-- `--discord-webhook-url` 未指定時は `DISCORD_WEBHOOK_URL` を利用。
+- `--discord-webhook-url` 未指定時は `DISCORD_WEBHOOK_URL_EARNINGS`（fallback: `DISCORD_WEBHOOK_URL`）を利用。
 
 ## J-Quants v2 バックフィル
 
@@ -193,7 +197,7 @@ PYTHONPATH=src python scripts/run_incremental_backfill_job.py
 ウォッチリストの `ir_urls` / `x_official_account` / `x_executive_accounts` を監視し、`IR更新` / `SNS注目` / `AI注目` を通知する実行コマンド:
 
 ```bash
-PYTHONPATH=src python scripts/run_intelligence_job.py --discord-webhook-url <DISCORD_WEBHOOK_URL>
+PYTHONPATH=src python scripts/run_intelligence_job.py --discord-webhook-url <DISCORD_WEBHOOK_URL_INTELLIGENCE>
 ```
 
 - `AI_NOTIFICATIONS_ENABLED=true` かつ銘柄設定 `ai_enabled=true` の場合に `AI注目` を送信。
@@ -223,10 +227,10 @@ E2E_API_PYTHON=../.venv/bin/python npm run test:e2e:api
 ## Discord疎通テスト
 
 ```bash
-PYTHONPATH=src python scripts/send_discord_test_notification.py --webhook-url <DISCORD_WEBHOOK_URL>
+PYTHONPATH=src python scripts/send_discord_test_notification.py --webhook-url <DISCORD_WEBHOOK_URL_OPS>
 ```
 
-`--webhook-url` 未指定時は `DISCORD_WEBHOOK_URL` 環境変数を利用します。
+`--webhook-url` 未指定時は `DISCORD_WEBHOOK_URL_OPS`（fallback: `DISCORD_WEBHOOK_URL`）を利用します。
 
 ## ドキュメント運用
 

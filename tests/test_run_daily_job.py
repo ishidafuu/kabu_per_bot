@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 from dataclasses import dataclass, field
 from unittest import TestCase
 from unittest.mock import patch
@@ -203,6 +204,23 @@ class RunDailyJobTest(TestCase):
         self.assertEqual(run_daily_job._resolve_execution_mode("at_21").value, "AT_21")
         self.assertEqual(run_daily_job._resolve_execution_mode("all").value, "ALL")
 
+    def test_resolve_discord_webhook_default_prefers_daily_env(self) -> None:
+        env = {
+            run_daily_job.DISCORD_WEBHOOK_DAILY_ENV: "https://example.com/daily",
+            run_daily_job.DISCORD_WEBHOOK_DEFAULT_ENV: "https://example.com/default",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            value = run_daily_job._resolve_discord_webhook_default(run_daily_job.DISCORD_WEBHOOK_DAILY_ENV)
+        self.assertEqual(value, "https://example.com/daily")
+
+    def test_resolve_discord_webhook_default_fallbacks_default_env(self) -> None:
+        env = {
+            run_daily_job.DISCORD_WEBHOOK_DEFAULT_ENV: "https://example.com/default",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            value = run_daily_job._resolve_discord_webhook_default(run_daily_job.DISCORD_WEBHOOK_DAILY_ENV)
+        self.assertEqual(value, "https://example.com/default")
+
     def test_main_passes_execution_mode_to_pipeline_config(self) -> None:
         args = run_daily_job.argparse.Namespace(
             trade_date="2026-02-12",
@@ -236,6 +254,7 @@ class RunDailyJobTest(TestCase):
 
         self.assertEqual(code, 0)
         config = mocked_pipeline.call_args.kwargs["config"]
+        self.assertEqual(config.channel, run_daily_job.DISCORD_DAILY_CHANNEL)
         self.assertEqual(config.execution_mode.value, "AT_21")
 
     def test_main_prefers_firestore_global_settings_for_cooldown(self) -> None:

@@ -102,6 +102,30 @@ warn_if_missing() {
   fi
 }
 
+warn_if_all_missing() {
+  local env_file="$1"
+  shift
+  local keys=("$@")
+  local key
+  local value
+  local found=0
+
+  for key in "${keys[@]}"; do
+    value="$(get_var_value "${key}" "${env_file}")"
+    if ! is_missing_or_placeholder "${value}"; then
+      found=1
+      break
+    fi
+  done
+
+  if [ "${found}" -eq 1 ]; then
+    log_info "Environment value looks set: one of [${keys[*]}]"
+  else
+    log_warn "Environment value is missing or placeholder: one of [${keys[*]}] (${env_file})"
+    increment_warning
+  fi
+}
+
 log_info "Preflight deploy checks started"
 log_info "Repository root: ${ROOT_DIR}"
 
@@ -129,7 +153,12 @@ if [ ! -f "${WEB_ENV_FILE}" ]; then
 fi
 
 warn_if_missing "FIRESTORE_PROJECT_ID" "${ROOT_ENV_FILE}"
-warn_if_missing "DISCORD_WEBHOOK_URL" "${ROOT_ENV_FILE}"
+warn_if_all_missing "${ROOT_ENV_FILE}" \
+  "DISCORD_WEBHOOK_URL" \
+  "DISCORD_WEBHOOK_URL_DAILY" \
+  "DISCORD_WEBHOOK_URL_EARNINGS" \
+  "DISCORD_WEBHOOK_URL_INTELLIGENCE" \
+  "DISCORD_WEBHOOK_URL_OPS"
 warn_if_missing "VITE_API_BASE_URL" "${WEB_ENV_FILE}"
 warn_if_missing "VITE_USE_MOCK_API" "${WEB_ENV_FILE}"
 warn_if_missing "VITE_USE_MOCK_AUTH" "${WEB_ENV_FILE}"

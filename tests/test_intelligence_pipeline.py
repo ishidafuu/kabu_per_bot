@@ -165,6 +165,31 @@ class IntelligencePipelineTest(unittest.TestCase):
         self.assertEqual(result.errors, 1)
         self.assertIn("【データ不明】", sender.messages[0])
 
+    def test_source_failure_emits_data_unknown_with_discord_variant_channel(self) -> None:
+        sender = CollectSender()
+        log_repo = InMemoryLogRepo()
+        seen_repo = InMemorySeenRepo()
+        result = run_intelligence_pipeline(
+            watchlist_items=[self._watch_item(ai_enabled=False)],
+            source=FailingSource(),
+            analyzer=StaticAnalyzer(),
+            seen_repo=seen_repo,
+            notification_log_repo=log_repo,
+            sender=sender,
+            config=IntelligencePipelineConfig(
+                cooldown_hours=2,
+                now_iso="2026-02-15T00:10:00+09:00",
+                intel_notification_max_age_days=14,
+                channel="DISCORD_INTELLIGENCE",
+                execution_mode=NotificationExecutionMode.ALL,
+                ai_global_enabled=True,
+            ),
+        )
+        self.assertEqual(result.processed_tickers, 1)
+        self.assertEqual(result.sent_notifications, 1)
+        self.assertEqual(result.errors, 1)
+        self.assertIn("【データ不明】", sender.messages[0])
+
     def test_initial_run_marks_seen_without_sending_notifications(self) -> None:
         source = StaticSource(
             events=[

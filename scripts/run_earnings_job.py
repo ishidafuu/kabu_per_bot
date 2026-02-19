@@ -18,6 +18,9 @@ from kabu_per_bot.storage.firestore_watchlist_repository import FirestoreWatchli
 
 
 LOGGER = logging.getLogger(__name__)
+DISCORD_WEBHOOK_DEFAULT_ENV = "DISCORD_WEBHOOK_URL"
+DISCORD_WEBHOOK_EARNINGS_ENV = "DISCORD_WEBHOOK_URL_EARNINGS"
+DISCORD_EARNINGS_CHANNEL = "DISCORD_EARNINGS"
 
 
 class StdoutSender:
@@ -42,8 +45,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--discord-webhook-url",
-        default=os.environ.get("DISCORD_WEBHOOK_URL", "").strip(),
-        help="Discord webhook URL. Required unless --stdout is set.",
+        default=_resolve_discord_webhook_default(DISCORD_WEBHOOK_EARNINGS_ENV),
+        help=(
+            "Discord webhook URL. Required unless --stdout is set. "
+            f"Default: {DISCORD_WEBHOOK_EARNINGS_ENV} (fallback: {DISCORD_WEBHOOK_DEFAULT_ENV})."
+        ),
     )
     parser.add_argument(
         "--stdout",
@@ -51,6 +57,13 @@ def parse_args() -> argparse.Namespace:
         help="Send notifications to stdout instead of Discord webhook.",
     )
     return parser.parse_args()
+
+
+def _resolve_discord_webhook_default(primary_env_key: str) -> str:
+    primary = os.environ.get(primary_env_key, "").strip()
+    if primary:
+        return primary
+    return os.environ.get(DISCORD_WEBHOOK_DEFAULT_ENV, "").strip()
 
 
 def _create_firestore_client(*, project_id: str):
@@ -103,9 +116,13 @@ def main() -> int:
         else:
             webhook_url = args.discord_webhook_url.strip()
             if not webhook_url:
-                raise ValueError("Discord webhook URL が必要です。--discord-webhook-url か DISCORD_WEBHOOK_URL を設定してください。")
+                raise ValueError(
+                    "Discord webhook URL が必要です。"
+                    f"--discord-webhook-url または {DISCORD_WEBHOOK_EARNINGS_ENV}/{DISCORD_WEBHOOK_DEFAULT_ENV} "
+                    "を設定してください。"
+                )
             sender = DiscordNotifier(webhook_url)
-            LOGGER.info("送信先: Discord webhook")
+            LOGGER.info("送信先: Discord webhook (channel=%s)", DISCORD_EARNINGS_CHANNEL)
 
         result = run_earnings_job(
             job_type=args.job,
@@ -116,7 +133,7 @@ def main() -> int:
             cooldown_hours=cooldown_hours,
             now_iso=args.now_iso,
             timezone_name=JST_TIMEZONE,
-            channel="DISCORD",
+            channel=DISCORD_EARNINGS_CHANNEL,
         )
         status = "FAILED" if result.errors > 0 else "SUCCESS"
         error_count = result.errors

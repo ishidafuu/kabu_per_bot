@@ -51,7 +51,7 @@ PYTHONPATH=src python scripts/run_daily_job.py
 
 - Firestore `watchlist` を読み込み、日次パイプラインを実行する。
 - 実行結果は `daily_metrics` / `metric_medians` / `signal_state` / `notification_log` に保存される。
-- `--stdout` 未指定時は `--discord-webhook-url` または `DISCORD_WEBHOOK_URL` が必要。
+- `--stdout` 未指定時は `--discord-webhook-url` または `DISCORD_WEBHOOK_URL_DAILY`（fallback: `DISCORD_WEBHOOK_URL`）が必要。
 - `JQUANTS_API_KEY` または `--jquants-api-key` を指定した場合、市場データ取得で `J-Quants v2` を最優先で試行し、その後に `株探 → Yahoo!ファイナンス` へフォールバックする。
 - `--execution-mode daily|at_21|all` で通知タイミング対象を選択できる（既定: `daily`）。
   - `daily`: `notify_timing=IMMEDIATE` の銘柄のみ
@@ -70,14 +70,14 @@ PYTHONPATH=src python scripts/run_daily_job.py --stdout
 21時向け銘柄（`notify_timing=AT_21`）だけ実行する場合:
 
 ```bash
-PYTHONPATH=src python scripts/run_daily_job.py --execution-mode at_21 --discord-webhook-url <DISCORD_WEBHOOK_URL>
+PYTHONPATH=src python scripts/run_daily_job.py --execution-mode at_21 --discord-webhook-url <DISCORD_WEBHOOK_URL_DAILY>
 ```
 
 IMMEDIATEの寄り付き帯/引け帯ジョブを実行する場合:
 
 ```bash
-PYTHONPATH=src python scripts/run_immediate_window_job.py --window open --discord-webhook-url <DISCORD_WEBHOOK_URL>
-PYTHONPATH=src python scripts/run_immediate_window_job.py --window close --discord-webhook-url <DISCORD_WEBHOOK_URL>
+PYTHONPATH=src python scripts/run_immediate_window_job.py --window open --discord-webhook-url <DISCORD_WEBHOOK_URL_DAILY>
+PYTHONPATH=src python scripts/run_immediate_window_job.py --window close --discord-webhook-url <DISCORD_WEBHOOK_URL_DAILY>
 ```
 
 - `global_settings/runtime.immediate_schedule` の時間帯・間隔に一致した時刻のみ実処理する。
@@ -134,32 +134,32 @@ gcloud scheduler jobs list --location=asia-northeast1 --project=<GCP_PROJECT_ID>
 ## 5. Discord疎通
 
 ```bash
-PYTHONPATH=src python scripts/send_discord_test_notification.py --webhook-url <DISCORD_WEBHOOK_URL>
+PYTHONPATH=src python scripts/send_discord_test_notification.py --webhook-url <DISCORD_WEBHOOK_URL_OPS>
 ```
 
 または:
 
 ```bash
-export DISCORD_WEBHOOK_URL=<DISCORD_WEBHOOK_URL>
+export DISCORD_WEBHOOK_URL_OPS=<DISCORD_WEBHOOK_URL_OPS>
 PYTHONPATH=src python scripts/send_discord_test_notification.py
 ```
 
 ## 6. 決算通知ジョブ（Issue 15）
 
 ```bash
-PYTHONPATH=src python scripts/run_earnings_job.py --job weekly --discord-webhook-url <DISCORD_WEBHOOK_URL>
-PYTHONPATH=src python scripts/run_earnings_job.py --job tomorrow --discord-webhook-url <DISCORD_WEBHOOK_URL>
+PYTHONPATH=src python scripts/run_earnings_job.py --job weekly --discord-webhook-url <DISCORD_WEBHOOK_URL_EARNINGS>
+PYTHONPATH=src python scripts/run_earnings_job.py --job tomorrow --discord-webhook-url <DISCORD_WEBHOOK_URL_EARNINGS>
 ```
 
 - `weekly`: 土曜21時（JST）想定。来週決算を `今週決算` として通知。
 - `tomorrow`: 毎日21時（JST）想定。翌日決算を `明日決算` として通知。
-- `FIRESTORE_PROJECT_ID` と `DISCORD_WEBHOOK_URL` を利用する。
+- `FIRESTORE_PROJECT_ID` と `DISCORD_WEBHOOK_URL_EARNINGS`（fallback: `DISCORD_WEBHOOK_URL`）を利用する。
 
 ## 7. IR/SNS/AI通知ジョブ
 
 ```bash
-PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source ir_only --discord-webhook-url <DISCORD_WEBHOOK_URL>
-PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source grok_only --respect-grok-schedule --discord-webhook-url <DISCORD_WEBHOOK_URL>
+PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source ir_only --discord-webhook-url <DISCORD_WEBHOOK_URL_INTELLIGENCE>
+PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source grok_only --respect-grok-schedule --discord-webhook-url <DISCORD_WEBHOOK_URL_INTELLIGENCE>
 ```
 
 - `AI_NOTIFICATIONS_ENABLED=true` かつ銘柄設定 `ai_enabled=true` で `【AI注目】` を送信。
@@ -174,6 +174,14 @@ PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source grok_only -
 - IR通知は銘柄ごとの初回実行時に既読化のみを行い、通知は送信しない（Grok SNSは初回から通知対象）。
 - IR/SNS通知対象期間は `INTEL_NOTIFICATION_MAX_AGE_DAYS`（既定30日）または管理画面 `/ops` の全体設定 `intel_notification_max_age_days` で変更できる。
 - `--execution-mode daily|at_21` で通知時間フィルタを指定可能。
+
+Webhook分割（任意）:
+
+- 日次/IMMEDIATE: `DISCORD_WEBHOOK_URL_DAILY`
+- 決算: `DISCORD_WEBHOOK_URL_EARNINGS`
+- IR/SNS/AI: `DISCORD_WEBHOOK_URL_INTELLIGENCE`
+- 疎通テスト/運用操作: `DISCORD_WEBHOOK_URL_OPS`
+- いずれも未設定時は `DISCORD_WEBHOOK_URL` をフォールバック利用
 
 ## 8. マイグレーション
 

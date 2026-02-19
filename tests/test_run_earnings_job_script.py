@@ -66,11 +66,12 @@ class RunEarningsJobScriptTest(unittest.TestCase):
             patch.object(target, "FirestoreWatchlistRepository", return_value=object()),
             patch.object(target, "FirestoreEarningsCalendarRepository", return_value=object()),
             patch.object(target, "FirestoreNotificationLogRepository", return_value=fake_log_repo),
-            patch.object(target, "run_earnings_job", return_value=result),
+            patch.object(target, "run_earnings_job", return_value=result) as mocked_job,
         ):
             exit_code = target.main()
 
         self.assertEqual(exit_code, 0)
+        self.assertEqual(mocked_job.call_args.kwargs["channel"], target.DISCORD_EARNINGS_CHANNEL)
         self.assertEqual(len(fake_log_repo.append_calls or []), 1)
         call = (fake_log_repo.append_calls or [])[0]
         self.assertEqual(call["status"], "SUCCESS")

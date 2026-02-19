@@ -151,6 +151,7 @@ class RunImmediateWindowJobTest(TestCase):
         self.assertEqual(mocked_pipeline.call_count, 1)
         config = mocked_pipeline.call_args.kwargs["config"]
         self.assertEqual(config.cooldown_hours, 5)
+        self.assertEqual(config.channel, run_immediate_window_job.DISCORD_DAILY_CHANNEL)
         self.assertEqual(config.execution_mode.value, "DAILY")
         lines = [line for line in stdout.getvalue().splitlines() if line.strip()]
         summary = json.loads(lines[-1])

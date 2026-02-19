@@ -465,6 +465,49 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(len(sender.messages), 1)
         self.assertIn("3901:TSE", sender.messages[0])
 
+    def test_daily_pipeline_allows_discord_variant_channel(self) -> None:
+        market_source = FakeMarketDataSource(
+            snapshots={
+                "3901:TSE": MarketDataSnapshot.create(
+                    ticker="3901:TSE",
+                    close_price=100.0,
+                    eps_forecast=None,
+                    sales_forecast=100.0,
+                    source="株探",
+                    earnings_date="2026-05-10",
+                )
+            }
+        )
+        daily_repo = InMemoryDailyMetricsRepo()
+        medians_repo = InMemoryMediansRepo()
+        signal_repo = InMemorySignalStateRepo()
+        log_repo = InMemoryNotificationLogRepo()
+        sender = SpySender()
+
+        result = run_daily_pipeline(
+            watchlist_items=[_watch_item("3901:TSE", "A")],
+            market_data_source=market_source,
+            daily_metrics_repo=daily_repo,
+            medians_repo=medians_repo,
+            signal_state_repo=signal_repo,
+            notification_log_repo=log_repo,
+            sender=sender,
+            config=DailyPipelineConfig(
+                trade_date="2026-02-12",
+                window_1w_days=2,
+                window_3m_days=2,
+                window_1y_days=2,
+                cooldown_hours=2,
+                now_iso="2026-02-12T09:00:00+00:00",
+                channel="DISCORD_DAILY",
+            ),
+        )
+
+        self.assertEqual(result.processed_tickers, 1)
+        self.assertEqual(result.sent_notifications, 1)
+        self.assertEqual(len(sender.messages), 1)
+        self.assertIn("【データ不明】", sender.messages[0])
+
     def test_daily_pipeline_continues_on_failure(self) -> None:
         market_source = FakeMarketDataSource(
             snapshots={

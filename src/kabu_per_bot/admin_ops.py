@@ -214,9 +214,12 @@ class CloudRunAdminOpsService:
         )
 
     def send_discord_test(self, *, requested_uid: str) -> str:
-        webhook_url = os.getenv("DISCORD_WEBHOOK_URL", "").strip()
+        webhook_url = (
+            os.getenv("DISCORD_WEBHOOK_URL_OPS", "").strip()
+            or os.getenv("DISCORD_WEBHOOK_URL", "").strip()
+        )
         if not webhook_url:
-            raise AdminOpsConfigError("DISCORD_WEBHOOK_URL が未設定です。")
+            raise AdminOpsConfigError("DISCORD_WEBHOOK_URL_OPS または DISCORD_WEBHOOK_URL が未設定です。")
         now_iso = datetime.now(timezone.utc).isoformat()
         message = (
             "【疎通テスト】\n"
