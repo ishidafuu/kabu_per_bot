@@ -446,6 +446,38 @@ export const OpsPage = () => {
             </label>
           </div>
           <div className="settings-inline">
+            <label className="inline-field">
+              引け帯 開始（HH:MM）
+              <input
+                type="text"
+                value={closeWindowStartInput}
+                onChange={(event) => setCloseWindowStartInput(event.target.value)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+            </label>
+            <label className="inline-field">
+              引け帯 終了（HH:MM）
+              <input
+                type="text"
+                value={closeWindowEndInput}
+                onChange={(event) => setCloseWindowEndInput(event.target.value)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+            </label>
+            <label className="inline-field">
+              引け帯 間隔（分）
+              <input
+                type="number"
+                min={1}
+                max={60}
+                step={1}
+                value={closeWindowIntervalInput}
+                onChange={(event) => setCloseWindowIntervalInput(event.target.value)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+            </label>
+          </div>
+          <div className="settings-inline">
             <label className="inline-checkbox">
               <input
                 type="checkbox"
@@ -487,36 +519,6 @@ export const OpsPage = () => {
             />
           </label>
           <div className="settings-inline">
-            <label className="inline-field">
-              引け帯 開始（HH:MM）
-              <input
-                type="text"
-                value={closeWindowStartInput}
-                onChange={(event) => setCloseWindowStartInput(event.target.value)}
-                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
-              />
-            </label>
-            <label className="inline-field">
-              引け帯 終了（HH:MM）
-              <input
-                type="text"
-                value={closeWindowEndInput}
-                onChange={(event) => setCloseWindowEndInput(event.target.value)}
-                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
-              />
-            </label>
-            <label className="inline-field">
-              引け帯 間隔（分）
-              <input
-                type="number"
-                min={1}
-                max={60}
-                step={1}
-                value={closeWindowIntervalInput}
-                onChange={(event) => setCloseWindowIntervalInput(event.target.value)}
-                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
-              />
-            </label>
             <button
               type="button"
               className="primary"
