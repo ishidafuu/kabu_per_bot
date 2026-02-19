@@ -124,16 +124,53 @@ const getFirstTraderDocId = (index: HelpDocIndex | null): string => {
   return traderCategories[0]?.items[0]?.id ?? '';
 };
 
+const pad2 = (value: string): string => value.padStart(2, '0');
+
+const formatJstDateTime = (value: Date): string => {
+  const parts = new Intl.DateTimeFormat('ja-JP', {
+    hour12: false,
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(value);
+
+  const getPart = (type: Intl.DateTimeFormatPartTypes): string => {
+    return parts.find((part) => part.type === type)?.value ?? '';
+  };
+
+  return `${getPart('year')}-${getPart('month')}-${getPart('day')} ${getPart('hour')}:${getPart('minute')} JST`;
+};
+
 const formatGeneratedAt = (value: string): string => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
     return value;
   }
 
-  return parsed.toLocaleString('ja-JP', {
-    hour12: false,
-    timeZone: 'Asia/Tokyo',
-  });
+  return formatJstDateTime(parsed);
+};
+
+const normalizeUpdatedAt = (value: string): string => {
+  const raw = value.trim();
+  if (!raw) {
+    return '';
+  }
+
+  const matched = raw.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?/);
+  if (matched) {
+    const [, year, month, day, hour = '00', minute = '00'] = matched;
+    return `${year}-${pad2(month)}-${pad2(day)} ${pad2(hour)}:${pad2(minute)} JST`;
+  }
+
+  const parsed = new Date(raw.replace(/（JST）|\(JST\)/gi, '').trim());
+  if (!Number.isNaN(parsed.getTime())) {
+    return formatJstDateTime(parsed);
+  }
+
+  return raw;
 };
 
 export const UserGuidePage = () => {
@@ -244,11 +281,11 @@ export const UserGuidePage = () => {
   const selectedDocUpdatedAt = useMemo(() => {
     const fromMarkdown = extractUpdatedAtFromMarkdown(markdown);
     if (fromMarkdown) {
-      return fromMarkdown;
+      return normalizeUpdatedAt(fromMarkdown);
     }
     const fromSummary = extractUpdatedAtFromSummary(selectedDoc?.summary ?? '');
     if (fromSummary) {
-      return fromSummary;
+      return normalizeUpdatedAt(fromSummary);
     }
     return `未記載（同期: ${generatedAt}）`;
   }, [generatedAt, markdown, selectedDoc?.summary]);
