@@ -130,6 +130,7 @@ PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source grok_only -
 - SNS監視（Grok）には `GROK_API_KEY` が必要（未設定時は `【データ不明】` 通知）。
 - モデルは `GROK_MODEL_FAST` を優先し、抽出失敗時は `GROK_MODEL_REASONING` へフォールバック。
 - `--intel-source ir_only|grok_only|all` でIR/Grokの実行範囲を分離できる。
+- `--intel-source all` 指定時も内部では `ir_only` と `grok_only` を別パイプラインで実行し、結果を集約する。
 - `--intel-source grok_only --respect-grok-schedule` 指定時は `GROK_SNS_ENABLED=true` かつ実行時刻（JST）が `GROK_SNS_SCHEDULED_TIME` と一致した分のみ処理する。
 - `GROK_SNS_PER_TICKER_COOLDOWN_HOURS` の間は、同一銘柄の `SNS注目` 通知が直近にある場合は再取得をスキップする。
 - AI要約は `Vertex AI Gemini` を利用し、`VERTEX_AI_LOCATION` / `VERTEX_AI_MODEL` で変更できる。

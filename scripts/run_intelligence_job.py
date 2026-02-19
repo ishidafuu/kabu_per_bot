@@ -260,6 +260,67 @@ def _parse_iso_utc_or_none(value) -> datetime | None:
         return None
 
 
+def _run_source_scoped_pipeline(
+    *,
+    scope: str,
+    settings,
+    runtime_settings,
+    now_iso: str,
+    watchlist_items,
+    analyzer,
+    seen_repo,
+    notification_log_repo,
+    sender,
+    execution_mode: NotificationExecutionMode,
+) -> PipelineResult:
+    source = _build_intel_source(
+        settings=settings,
+        runtime_settings=runtime_settings,
+        intel_source=scope,
+        now_iso=now_iso,
+        notification_log_repo=notification_log_repo,
+    )
+    if not source.sources:
+        LOGGER.info("IR/SNSパイプラインをスキップ: scope=%s reason=sourceなし", scope)
+        return PipelineResult()
+
+    result = run_intelligence_pipeline(
+        watchlist_items=watchlist_items,
+        source=source,
+        analyzer=analyzer,
+        seen_repo=seen_repo,
+        notification_log_repo=notification_log_repo,
+        sender=sender,
+        config=IntelligencePipelineConfig(
+            cooldown_hours=runtime_settings.cooldown_hours,
+            now_iso=now_iso,
+            intel_notification_max_age_days=runtime_settings.intel_notification_max_age_days,
+            execution_mode=execution_mode,
+            ai_global_enabled=settings.ai_notifications_enabled,
+        ),
+    )
+    LOGGER.info(
+        "IR/SNSパイプライン結果: scope=%s processed=%s sent=%s skipped=%s errors=%s",
+        scope,
+        result.processed_tickers,
+        result.sent_notifications,
+        result.skipped_notifications,
+        result.errors,
+    )
+    return result
+
+
+def _merge_scoped_results(results: list[PipelineResult]) -> PipelineResult:
+    if not results:
+        return PipelineResult()
+    return PipelineResult(
+        processed_tickers=max(result.processed_tickers for result in results),
+        sent_notifications=sum(result.sent_notifications for result in results),
+        skipped_notifications=sum(result.skipped_notifications for result in results),
+        errors=sum(result.errors for result in results),
+    )
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args()
@@ -276,32 +337,32 @@ def main() -> int:
     watchlist_repo = FirestoreWatchlistRepository(client)
     log_repo = FirestoreNotificationLogRepository(client)
     seen_repo = FirestoreIntelSeenRepository(client)
-    source = _build_intel_source(
-        settings=settings,
-        runtime_settings=runtime_settings,
-        intel_source=args.intel_source,
-        now_iso=now_iso,
-        notification_log_repo=log_repo,
+    watchlist_items = watchlist_repo.list_all()
+    analyzer = VertexGeminiAiAnalyzer(
+        project_id=settings.firestore_project_id,
+        location=settings.vertex_ai_location,
+        model=settings.vertex_ai_model,
     )
-    result = run_intelligence_pipeline(
-        watchlist_items=watchlist_repo.list_all(),
-        source=source,
-        analyzer=VertexGeminiAiAnalyzer(
-            project_id=settings.firestore_project_id,
-            location=settings.vertex_ai_location,
-            model=settings.vertex_ai_model,
-        ),
-        seen_repo=seen_repo,
-        notification_log_repo=log_repo,
-        sender=sender,
-        config=IntelligencePipelineConfig(
-            cooldown_hours=runtime_settings.cooldown_hours,
-            now_iso=now_iso,
-            intel_notification_max_age_days=runtime_settings.intel_notification_max_age_days,
-            execution_mode=_resolve_execution_mode(args.execution_mode),
-            ai_global_enabled=settings.ai_notifications_enabled,
-        ),
-    )
+    execution_mode = _resolve_execution_mode(args.execution_mode)
+
+    scopes = ("ir_only", "grok_only") if args.intel_source == "all" else (args.intel_source,)
+    scoped_results: list[PipelineResult] = []
+    for scope in scopes:
+        scoped_results.append(
+            _run_source_scoped_pipeline(
+                scope=scope,
+                settings=settings,
+                runtime_settings=runtime_settings,
+                now_iso=now_iso,
+                watchlist_items=watchlist_items,
+                analyzer=analyzer,
+                seen_repo=seen_repo,
+                notification_log_repo=log_repo,
+                sender=sender,
+                execution_mode=execution_mode,
+            )
+        )
+    result = _merge_scoped_results(scoped_results)
     print(json.dumps(result.__dict__, ensure_ascii=False))
     return 0
 

@@ -14,6 +14,7 @@ from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, Watc
 class InMemorySeenRepo:
     seen: set[str] = field(default_factory=set)
     seen_tickers: set[str] = field(default_factory=set)
+    seen_ticker_kinds: set[tuple[str, IntelKind]] = field(default_factory=set)
 
     def exists(self, fingerprint: str) -> bool:
         return fingerprint in self.seen
@@ -21,10 +22,14 @@ class InMemorySeenRepo:
     def has_any_for_ticker(self, ticker: str) -> bool:
         return ticker in self.seen_tickers
 
+    def has_any_for_ticker_and_kind(self, ticker: str, kind: IntelKind) -> bool:
+        return (ticker, kind) in self.seen_ticker_kinds
+
     def mark_seen(self, event: IntelEvent, *, seen_at: str) -> None:
         del seen_at
         self.seen.add(event.fingerprint)
         self.seen_tickers.add(event.ticker)
+        self.seen_ticker_kinds.add((event.ticker, event.kind))
 
 
 @dataclass
@@ -111,7 +116,10 @@ class IntelligencePipelineTest(unittest.TestCase):
         )
         sender = CollectSender()
         log_repo = InMemoryLogRepo()
-        seen_repo = InMemorySeenRepo(seen_tickers={"3901:TSE"})
+        seen_repo = InMemorySeenRepo(
+            seen_tickers={"3901:TSE"},
+            seen_ticker_kinds={("3901:TSE", IntelKind.IR)},
+        )
         result = run_intelligence_pipeline(
             watchlist_items=[self._watch_item(ai_enabled=True)],
             source=source,
@@ -236,6 +244,48 @@ class IntelligencePipelineTest(unittest.TestCase):
         self.assertIn("【SNS注目】", sender.messages[0])
         self.assertEqual(len(seen_repo.seen), 1)
 
+    def test_ir_initial_run_uses_ir_history_only(self) -> None:
+        source = StaticSource(
+            events=[
+                IntelEvent(
+                    ticker="3901:TSE",
+                    kind=IntelKind.IR,
+                    title="決算資料を公開",
+                    url="https://example.com/ir/1",
+                    published_at="2026-02-15T00:00:00+09:00",
+                    source_label="IRサイト",
+                    content="決算資料を公開しました",
+                )
+            ]
+        )
+        sender = CollectSender()
+        log_repo = InMemoryLogRepo()
+        seen_repo = InMemorySeenRepo(
+            seen_tickers={"3901:TSE"},
+            seen_ticker_kinds={("3901:TSE", IntelKind.SNS)},
+        )
+        result = run_intelligence_pipeline(
+            watchlist_items=[self._watch_item(ai_enabled=False)],
+            source=source,
+            analyzer=StaticAnalyzer(),
+            seen_repo=seen_repo,
+            notification_log_repo=log_repo,
+            sender=sender,
+            config=IntelligencePipelineConfig(
+                cooldown_hours=2,
+                now_iso="2026-02-15T00:10:00+09:00",
+                intel_notification_max_age_days=14,
+                execution_mode=NotificationExecutionMode.ALL,
+                ai_global_enabled=True,
+            ),
+        )
+
+        self.assertEqual(result.processed_tickers, 1)
+        self.assertEqual(result.sent_notifications, 0)
+        self.assertEqual(result.skipped_notifications, 1)
+        self.assertEqual(len(sender.messages), 0)
+        self.assertIn(("3901:TSE", IntelKind.IR), seen_repo.seen_ticker_kinds)
+
     def test_old_event_is_marked_seen_and_skipped_when_out_of_range(self) -> None:
         source = StaticSource(
             events=[
@@ -252,7 +302,10 @@ class IntelligencePipelineTest(unittest.TestCase):
         )
         sender = CollectSender()
         log_repo = InMemoryLogRepo()
-        seen_repo = InMemorySeenRepo(seen_tickers={"3901:TSE"})
+        seen_repo = InMemorySeenRepo(
+            seen_tickers={"3901:TSE"},
+            seen_ticker_kinds={("3901:TSE", IntelKind.IR)},
+        )
         result = run_intelligence_pipeline(
             watchlist_items=[self._watch_item(ai_enabled=True)],
             source=source,
@@ -291,7 +344,10 @@ class IntelligencePipelineTest(unittest.TestCase):
         )
         sender = CollectSender()
         log_repo = InMemoryLogRepo()
-        seen_repo = InMemorySeenRepo(seen_tickers={"3901:TSE"})
+        seen_repo = InMemorySeenRepo(
+            seen_tickers={"3901:TSE"},
+            seen_ticker_kinds={("3901:TSE", IntelKind.IR)},
+        )
         result = run_intelligence_pipeline(
             watchlist_items=[self._watch_item(ai_enabled=False)],
             source=source,

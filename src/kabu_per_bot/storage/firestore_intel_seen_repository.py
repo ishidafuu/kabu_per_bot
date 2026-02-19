@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from kabu_per_bot.intelligence import IntelEvent
+from kabu_per_bot.intelligence import IntelEvent, IntelKind
 from kabu_per_bot.storage.firestore_schema import COLLECTION_INTEL_SEEN, normalize_ticker
 
 
@@ -16,8 +16,18 @@ class FirestoreIntelSeenRepository:
 
     def has_any_for_ticker(self, ticker: str) -> bool:
         normalized_ticker = normalize_ticker(ticker)
+        return self._has_any(ticker=normalized_ticker)
+
+    def has_any_for_ticker_and_kind(self, ticker: str, kind: IntelKind | str) -> bool:
+        normalized_ticker = normalize_ticker(ticker)
+        normalized_kind = kind.value if isinstance(kind, IntelKind) else str(kind).strip().upper()
+        return self._has_any(ticker=normalized_ticker, kind=normalized_kind)
+
+    def _has_any(self, *, ticker: str, kind: str | None = None) -> bool:
         if hasattr(self._collection, "where"):
-            query = self._collection.where("ticker", "==", normalized_ticker)
+            query = self._collection.where("ticker", "==", ticker)
+            if kind is not None:
+                query = query.where("kind", "==", kind)
             if hasattr(query, "limit"):
                 query = query.limit(1)
             for _ in query.stream():
@@ -26,8 +36,11 @@ class FirestoreIntelSeenRepository:
         if hasattr(self._collection, "stream"):
             for snapshot in self._collection.stream():
                 data = snapshot.to_dict() or {}
-                if str(data.get("ticker", "")).strip().upper() == normalized_ticker:
-                    return True
+                if str(data.get("ticker", "")).strip().upper() != ticker:
+                    continue
+                if kind is not None and str(data.get("kind", "")).strip().upper() != kind:
+                    continue
+                return True
         return False
 
     def mark_seen(self, event: IntelEvent, *, seen_at: str) -> None:

@@ -41,6 +41,9 @@ class IntelSeenRepository(Protocol):
     def has_any_for_ticker(self, ticker: str) -> bool:
         """Return whether ticker already has processed events."""
 
+    def has_any_for_ticker_and_kind(self, ticker: str, kind: IntelKind) -> bool:
+        """Return whether ticker already has processed events for kind."""
+
     def mark_seen(self, event: IntelEvent, *, seen_at: str) -> None:
         """Mark event as processed."""
 
@@ -106,7 +109,11 @@ def _process_ticker(
     sent = 0
     skipped = 0
     errors = 0
-    is_initial_run = not seen_repo.has_any_for_ticker(item.ticker)
+    is_initial_ir_run = not _has_any_for_ticker_and_kind(
+        seen_repo=seen_repo,
+        ticker=item.ticker,
+        kind=IntelKind.IR,
+    )
     try:
         events = source.fetch_events(item, now_iso=config.now_iso)
     except IntelSourceError as exc:
@@ -137,7 +144,7 @@ def _process_ticker(
         if seen_repo.exists(event.fingerprint):
             continue
 
-        if is_initial_run and event.kind is IntelKind.IR:
+        if is_initial_ir_run and event.kind is IntelKind.IR:
             LOGGER.info("IR初回既読化: ticker=%s url=%s", item.ticker, event.url)
             seen_repo.mark_seen(event, seen_at=config.now_iso)
             skipped += 1
@@ -249,6 +256,13 @@ def _dispatch_with_cooldown(
     )
     notification_log_repo.append(log_entry)
     return (1, 0)
+
+
+def _has_any_for_ticker_and_kind(*, seen_repo: IntelSeenRepository, ticker: str, kind: IntelKind) -> bool:
+    typed_lookup = getattr(seen_repo, "has_any_for_ticker_and_kind", None)
+    if callable(typed_lookup):
+        return bool(typed_lookup(ticker, kind))
+    return seen_repo.has_any_for_ticker(ticker)
 
 
 def _notification_id(*, message: NotificationMessage, channel: str, sent_at: str) -> str:
