@@ -32,6 +32,7 @@ class MetricsTest(unittest.TestCase):
             close_price=1200.0,
             eps_forecast=100.0,
             sales_forecast=4000.0,
+            market_cap=1_200_000.0,
             source="株探",
             earnings_date="2026-05-10",
         )
@@ -42,7 +43,25 @@ class MetricsTest(unittest.TestCase):
             snapshot=snapshot,
         )
         self.assertEqual(metric.per_value, 12.0)
-        self.assertAlmostEqual(metric.psr_value or 0.0, 0.3)
+        self.assertAlmostEqual(metric.psr_value or 0.0, 300.0)
+
+    def test_build_daily_metric_psr_is_none_when_market_cap_missing(self) -> None:
+        snapshot = MarketDataSnapshot.create(
+            ticker="3901:TSE",
+            close_price=1200.0,
+            eps_forecast=100.0,
+            sales_forecast=4000.0,
+            source="株探",
+            earnings_date="2026-05-10",
+        )
+        metric = build_daily_metric(
+            ticker="3901:TSE",
+            trade_date="2026-02-12",
+            metric_type=MetricType.PSR,
+            snapshot=snapshot,
+        )
+        self.assertIsNone(metric.psr_value)
+        self.assertEqual(metric.missing_fields(metric_type=MetricType.PSR), ["market_cap"])
 
     def test_build_daily_metric_per_is_none_when_eps_invalid(self) -> None:
         snapshot = MarketDataSnapshot.create(

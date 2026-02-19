@@ -48,13 +48,13 @@ class BackfillTest(unittest.TestCase):
         self.assertEqual(rows[1].eps_forecast, 11.0)
         self.assertEqual(rows[1].sales_forecast, 220.0)
         self.assertAlmostEqual(rows[1].per_value or 0.0, 10.0)
-        self.assertAlmostEqual(rows[1].psr_value or 0.0, 0.5)
+        self.assertIsNone(rows[1].psr_value)
 
         # 2/19はEPSのみ更新、売上予想は直前値を維持する
         self.assertEqual(rows[2].eps_forecast, 12.0)
         self.assertEqual(rows[2].sales_forecast, 220.0)
         self.assertAlmostEqual(rows[2].per_value or 0.0, 10.0)
-        self.assertAlmostEqual(rows[2].psr_value or 0.0, 120.0 / 220.0)
+        self.assertIsNone(rows[2].psr_value)
 
     def test_build_daily_metrics_respects_2105_cutoff(self) -> None:
         bars = [

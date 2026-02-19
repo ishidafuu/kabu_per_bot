@@ -238,6 +238,7 @@ def _missing_field_to_label(field: str) -> str:
     mapping = {
         "eps_forecast": "予想EPS",
         "sales_forecast": "売上",
+        "market_cap": "時価総額",
         "earnings_date": "決算日時",
         "close_price": "終値",
         "market_data_source": "市場データ",

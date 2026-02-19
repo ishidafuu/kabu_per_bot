@@ -55,8 +55,12 @@ class DailyMetric:
             missing.append("close_price")
         if metric_type is MetricType.PER and (self.eps_forecast is None or self.eps_forecast <= 0):
             missing.append("eps_forecast")
-        if metric_type is MetricType.PSR and (self.sales_forecast is None or self.sales_forecast <= 0):
-            missing.append("sales_forecast")
+        if metric_type is MetricType.PSR:
+            if self.sales_forecast is None or self.sales_forecast <= 0:
+                missing.append("sales_forecast")
+            elif self.psr_value is None:
+                # PSRは時価総額/売上で算出するため、値が作れない場合は時価総額不足として扱う。
+                missing.append("market_cap")
         return missing
 
 
@@ -123,8 +127,6 @@ def build_daily_metric(
         if snapshot.sales_forecast is not None and snapshot.sales_forecast > 0:
             if snapshot.market_cap is not None and snapshot.market_cap > 0:
                 psr_value = snapshot.market_cap / snapshot.sales_forecast
-            else:
-                psr_value = snapshot.close_price / snapshot.sales_forecast
 
     # metric_type is validated upstream, but we keep this guard to prevent silent mistakes.
     if metric_type not in {MetricType.PER, MetricType.PSR}:
