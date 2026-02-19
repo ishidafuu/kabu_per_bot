@@ -79,6 +79,8 @@ def evaluate_window_schedule(
     now_iso: str | None = None,
 ) -> ImmediateWindowDecision:
     validate_immediate_schedule(schedule)
+    if window_kind not in {"open", "close"}:
+        raise ValueError("window_kind must be either 'open' or 'close'.")
     if not schedule.enabled:
         return ImmediateWindowDecision(should_run=False, reason="immediate_schedule is disabled")
 

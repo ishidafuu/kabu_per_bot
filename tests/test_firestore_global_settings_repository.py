@@ -186,6 +186,30 @@ class FirestoreGlobalSettingsRepositoryTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             repo.get_global_settings()
 
+    def test_get_raises_for_invalid_numeric_boolean_in_immediate_schedule(self) -> None:
+        client = FakeFirestoreClient(
+            db={
+                f"{COLLECTION_GLOBAL_SETTINGS}/{GLOBAL_SETTINGS_DOC_ID}": {
+                    "immediate_schedule_enabled": 2,
+                }
+            }
+        )
+        repo = FirestoreGlobalSettingsRepository(client)
+        with self.assertRaises(ValueError):
+            repo.get_global_settings()
+
+    def test_get_raises_for_invalid_numeric_boolean_in_grok_settings(self) -> None:
+        client = FakeFirestoreClient(
+            db={
+                f"{COLLECTION_GLOBAL_SETTINGS}/{GLOBAL_SETTINGS_DOC_ID}": {
+                    "grok_sns_enabled": -1,
+                }
+            }
+        )
+        repo = FirestoreGlobalSettingsRepository(client)
+        with self.assertRaises(ValueError):
+            repo.get_global_settings()
+
 
 if __name__ == "__main__":
     unittest.main()
