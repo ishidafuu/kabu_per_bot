@@ -185,7 +185,7 @@ PYTHONPATH=src python scripts/run_intelligence_job.py --discord-webhook-url <DIS
 
 - `AI_NOTIFICATIONS_ENABLED=true` かつ銘柄設定 `ai_enabled=true` の場合に `AI注目` を送信。
 - SNS監視（Grok）には `GROK_API_KEY` が必要（未設定時は `【データ不明】` 通知）。
-- モデルは `GROK_MODEL_FAST`（既定: `grok-4-1-fast-non-reasoning`）を優先し、抽出失敗時に `GROK_MODEL_REASONING` をフォールバック利用。
+- モデルは `GROK_MODEL_FAST`（既定: `grok-4-1-fast-non-reasoning`）を優先し、抽出失敗時に `GROK_MODEL_REASONING`（既定: `grok-4-1-fast-reasoning`）をフォールバック利用。
 - `GROK_SNS_ENABLED=true` の場合のみGrok取得を実行し、`GROK_SNS_SCHEDULED_TIME`（JST）と実行時刻が一致した時だけSNS取得を行います。
 - `GROK_SNS_PER_TICKER_COOLDOWN_HOURS` の間は、同一銘柄の直近 `SNS注目` 通知がある場合に再取得をスキップします。
 - AI要約は `Vertex AI Gemini` を利用（既定: `VERTEX_AI_LOCATION=global`, `VERTEX_AI_MODEL=gemini-2.0-flash-001`）。

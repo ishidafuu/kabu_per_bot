@@ -268,7 +268,7 @@ class RunIntelligenceJobScriptTest(TestCase):
             x_api_bearer_token="",
             grok_api_key="dummy-key",
             grok_model_fast="grok-4-1-fast-non-reasoning",
-            grok_model_reasoning="grok-4-1",
+            grok_model_reasoning="grok-4-1-fast-reasoning",
         )
         runtime_settings = RuntimeSettings(
             cooldown_hours=2,
@@ -343,7 +343,7 @@ class RunIntelligenceJobScriptTest(TestCase):
             x_api_bearer_token="",
             grok_api_key="dummy-key",
             grok_model_fast="grok-4-1-fast-non-reasoning",
-            grok_model_reasoning="grok-4-1",
+            grok_model_reasoning="grok-4-1-fast-reasoning",
         )
         runtime_settings = RuntimeSettings(
             cooldown_hours=2,
@@ -383,7 +383,7 @@ class RunIntelligenceJobScriptTest(TestCase):
             x_api_bearer_token="",
             grok_api_key="dummy-key",
             grok_model_fast="grok-4-1-fast-non-reasoning",
-            grok_model_reasoning="grok-4-1",
+            grok_model_reasoning="grok-4-1-fast-reasoning",
         )
         runtime_settings = RuntimeSettings(
             cooldown_hours=2,
@@ -422,7 +422,7 @@ class RunIntelligenceJobScriptTest(TestCase):
             x_api_bearer_token="",
             grok_api_key="dummy-key",
             grok_model_fast="grok-4-1-fast-non-reasoning",
-            grok_model_reasoning="grok-4-1",
+            grok_model_reasoning="grok-4-1-fast-reasoning",
         )
         runtime_settings = RuntimeSettings(
             cooldown_hours=2,

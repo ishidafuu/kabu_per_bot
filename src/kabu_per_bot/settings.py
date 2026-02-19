@@ -41,7 +41,7 @@ class AppSettings:
     grok_api_key: str = ""
     grok_api_base_url: str = "https://api.x.ai/v1"
     grok_model_fast: str = "grok-4-1-fast-non-reasoning"
-    grok_model_reasoning: str = "grok-4-1"
+    grok_model_reasoning: str = "grok-4-1-fast-reasoning"
     vertex_ai_location: str = "global"
     vertex_ai_model: str = "gemini-2.0-flash-001"
     grok_sns_enabled: bool = False
@@ -159,7 +159,7 @@ def load_settings(
         grok_api_key=merged.get("GROK_API_KEY", "").strip(),
         grok_api_base_url=_get_str(merged, "GROK_API_BASE_URL", "https://api.x.ai/v1"),
         grok_model_fast=_get_str(merged, "GROK_MODEL_FAST", "grok-4-1-fast-non-reasoning"),
-        grok_model_reasoning=_get_str(merged, "GROK_MODEL_REASONING", "grok-4-1"),
+        grok_model_reasoning=_get_str(merged, "GROK_MODEL_REASONING", "grok-4-1-fast-reasoning"),
         vertex_ai_location=_get_str(merged, "VERTEX_AI_LOCATION", "global"),
         vertex_ai_model=_get_str(merged, "VERTEX_AI_MODEL", "gemini-2.0-flash-001"),
         grok_sns_enabled=grok_sns_settings.enabled,
