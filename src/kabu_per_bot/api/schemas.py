@@ -153,6 +153,8 @@ class WatchlistUpdateRequest(BaseModel):
                 self.notify_channel is not None,
                 self.notify_timing is not None,
                 self.always_notify_enabled is not None,
+                # 互換性維持: 旧クライアントの ai_enabled 単独PATCHを受け付ける。
+                self.ai_enabled is not None,
                 self.is_active is not None,
                 self.ir_urls is not None,
                 self.x_official_account is not None,

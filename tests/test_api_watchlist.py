@@ -193,6 +193,30 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(missing.status_code, 404)
         self.assertEqual(missing.json()["error"]["code"], "not_found")
 
+    def test_update_accepts_ai_enabled_only_for_backward_compatibility(self) -> None:
+        client = _build_client()
+        create = client.post(
+            "/api/v1/watchlist",
+            headers=_auth_header(),
+            json={
+                "ticker": "3901:tse",
+                "name": "富士フイルム",
+                "metric_type": "PER",
+                "notify_channel": "DISCORD",
+                "notify_timing": "IMMEDIATE",
+            },
+        )
+        self.assertEqual(create.status_code, 201)
+
+        update = client.patch(
+            "/api/v1/watchlist/3901:TSE",
+            headers=_auth_header(),
+            json={"ai_enabled": False},
+        )
+        self.assertEqual(update.status_code, 200)
+        # 現行運用ではai_enabledは常時有効として扱う。
+        self.assertTrue(update.json()["ai_enabled"])
+
     def test_create_triggers_registration_warmup(self) -> None:
         client = _build_client()
         with patch("kabu_per_bot.api.routes.watchlist._run_watchlist_registration_warmup") as mocked_warmup:
