@@ -52,6 +52,7 @@ uvicorn kabu_per_bot.api.app:app --reload
 - `OPS_EARNINGS_WEEKLY_JOB_NAME`（既定: `kabu-earnings-weekly`）
 - `OPS_EARNINGS_TOMORROW_JOB_NAME`（既定: `kabu-earnings-tomorrow`）
 - `DISCORD_WEBHOOK_URL`（Discord疎通テストAPIで使用）
+- `WATCHLIST_REGISTRATION_BACKFILL_ENABLED`（既定: 無効。`true` の場合のみウォッチリスト登録直後バックフィルを実行）
 
 必要な権限（API実行SA）:
 

@@ -2,17 +2,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import os
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from kabu_per_bot.api.app import create_app
+import kabu_per_bot.api.routes.watchlist as watchlist_route
 from kabu_per_bot.api.errors import ForbiddenError, UnauthorizedError
 from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
 from kabu_per_bot.signal import SignalState
-from kabu_per_bot.watchlist import MetricType
+from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming
 from kabu_per_bot.watchlist import CreateResult, WatchlistItem, WatchlistService
 
 
@@ -248,6 +251,64 @@ class WatchlistApiTest(unittest.TestCase):
         detail_response = client.get("/api/v1/watchlist/3901:TSE", headers=_auth_header())
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(detail_response.json()["ticker"], "3901:TSE")
+
+    def test_registration_warmup_worker_skips_backfill_by_default(self) -> None:
+        item = WatchlistItem(
+            ticker="3901:TSE",
+            name="富士フイルム",
+            metric_type=MetricType.PER,
+            notify_channel=NotifyChannel.DISCORD,
+            notify_timing=NotifyTiming.IMMEDIATE,
+        )
+        app = SimpleNamespace(state=SimpleNamespace())
+        with patch.dict(os.environ, {"WATCHLIST_REGISTRATION_BACKFILL_ENABLED": ""}, clear=False):
+            with patch.object(
+                watchlist_route,
+                "_resolve_status_dependency_from_app",
+                side_effect=[object(), object(), object()],
+            ):
+                with patch.object(watchlist_route, "upsert_latest_snapshot_metric"):
+                    with patch.object(watchlist_route, "refresh_latest_medians_and_signal"):
+                        with patch.object(watchlist_route, "_run_watchlist_registration_backfill_worker") as mocked_backfill:
+                            watchlist_route._run_watchlist_registration_warmup_worker(
+                                app=app,
+                                item=item,
+                                timezone_name="Asia/Tokyo",
+                                window_1w_days=5,
+                                window_3m_days=63,
+                                window_1y_days=252,
+                                api_key="dummy",
+                            )
+        mocked_backfill.assert_not_called()
+
+    def test_registration_warmup_worker_runs_backfill_when_enabled(self) -> None:
+        item = WatchlistItem(
+            ticker="3901:TSE",
+            name="富士フイルム",
+            metric_type=MetricType.PER,
+            notify_channel=NotifyChannel.DISCORD,
+            notify_timing=NotifyTiming.IMMEDIATE,
+        )
+        app = SimpleNamespace(state=SimpleNamespace())
+        with patch.dict(os.environ, {"WATCHLIST_REGISTRATION_BACKFILL_ENABLED": "true"}, clear=False):
+            with patch.object(
+                watchlist_route,
+                "_resolve_status_dependency_from_app",
+                side_effect=[object(), object(), object()],
+            ):
+                with patch.object(watchlist_route, "upsert_latest_snapshot_metric"):
+                    with patch.object(watchlist_route, "refresh_latest_medians_and_signal"):
+                        with patch.object(watchlist_route, "_run_watchlist_registration_backfill_worker") as mocked_backfill:
+                            watchlist_route._run_watchlist_registration_warmup_worker(
+                                app=app,
+                                item=item,
+                                timezone_name="Asia/Tokyo",
+                                window_1w_days=5,
+                                window_3m_days=63,
+                                window_1y_days=252,
+                                api_key="dummy",
+                            )
+        mocked_backfill.assert_called_once()
 
     def test_duplicate_and_limit_error(self) -> None:
         client = _build_client(max_items=1)

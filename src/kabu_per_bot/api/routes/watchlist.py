@@ -473,6 +473,10 @@ def _run_watchlist_registration_warmup_worker(
         LOGGER.warning("JQUANTS_API_KEY 未設定のため、登録直後バックフィルをスキップ: ticker=%s", item.ticker)
         return
 
+    if not _is_watchlist_registration_backfill_enabled():
+        LOGGER.info("登録直後バックフィルは無効設定のためスキップ: ticker=%s", item.ticker)
+        return
+
     _run_watchlist_registration_backfill_worker(
         item=item,
         api_key=api_key,
@@ -537,3 +541,8 @@ def _run_watchlist_registration_backfill_worker(
             to_date,
             exc,
         )
+
+
+def _is_watchlist_registration_backfill_enabled() -> bool:
+    raw_value = os.environ.get("WATCHLIST_REGISTRATION_BACKFILL_ENABLED", "").strip().lower()
+    return raw_value in {"1", "true", "yes", "on"}
