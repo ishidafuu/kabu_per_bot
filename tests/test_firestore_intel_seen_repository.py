@@ -11,6 +11,7 @@ from kabu_per_bot.storage.firestore_intel_seen_repository import FirestoreIntelS
 class FakeSnapshot:
     exists: bool
     data: dict | None = None
+    reference: "FakeDocumentRef | None" = None
 
     def to_dict(self) -> dict | None:
         return self.data
@@ -31,8 +32,11 @@ class FakeDocumentRef:
 
     def get(self) -> FakeSnapshot:
         if self.path not in self.db:
-            return FakeSnapshot(exists=False, data=None)
-        return FakeSnapshot(exists=True, data=dict(self.db[self.path]))
+            return FakeSnapshot(exists=False, data=None, reference=self)
+        return FakeSnapshot(exists=True, data=dict(self.db[self.path]), reference=self)
+
+    def delete(self) -> None:
+        self.db.pop(self.path, None)
 
 
 @dataclass
@@ -51,7 +55,7 @@ class FakeCollectionRef:
         for key, value in self.db.items():
             if not key.startswith(prefix):
                 continue
-            yield FakeSnapshot(exists=True, data=dict(value))
+            yield FakeSnapshot(exists=True, data=dict(value), reference=FakeDocumentRef(path=key, db=self.db))
 
 
 @dataclass
@@ -74,22 +78,22 @@ class FakeQuery:
 
     def stream(self):
         prefix = f"{self.path}/"
-        rows: list[dict] = []
+        rows: list[tuple[str, dict]] = []
         for key, value in self.db.items():
             if not key.startswith(prefix):
                 continue
-            rows.append(dict(value))
+            rows.append((key, dict(value)))
 
         for field, op, expected in self.filters:
             if op != "==":
                 continue
-            rows = [row for row in rows if str(row.get(field, "")) == expected]
+            rows = [row for row in rows if str(row[1].get(field, "")) == expected]
 
         if self._limit is not None:
             rows = rows[: self._limit]
 
-        for row in rows:
-            yield FakeSnapshot(exists=True, data=row)
+        for key, row in rows:
+            yield FakeSnapshot(exists=True, data=row, reference=FakeDocumentRef(path=key, db=self.db))
 
 
 @dataclass
@@ -179,6 +183,35 @@ class FirestoreIntelSeenRepositoryTest(unittest.TestCase):
         repo.mark_seen(event, seen_at="2026-02-16T00:10:00+09:00")
         self.assertTrue(repo.has_any_for_ticker_and_kind("3901:TSE", IntelKind.IR))
         self.assertFalse(repo.has_any_for_ticker_and_kind("3901:TSE", IntelKind.SNS))
+
+    def test_reset_sns_seen_fallback_when_query_requires_index(self) -> None:
+        repo = FirestoreIntelSeenRepository(FakeBrokenQueryFirestoreClient())
+        sns_event = IntelEvent(
+            ticker="3901:TSE",
+            kind=IntelKind.SNS,
+            title="@official",
+            url="https://x.com/official/status/1",
+            published_at="2026-02-15T00:00:00+09:00",
+            source_label="公式",
+            content="投稿",
+        )
+        ir_event = IntelEvent(
+            ticker="3901:TSE",
+            kind=IntelKind.IR,
+            title="決算資料",
+            url="https://example.com/ir/2",
+            published_at="2026-02-16T00:00:00+09:00",
+            source_label="IRサイト",
+            content="本文",
+        )
+        repo.mark_seen(sns_event, seen_at="2026-02-15T00:10:00+09:00")
+        repo.mark_seen(ir_event, seen_at="2026-02-16T00:10:00+09:00")
+
+        deleted = repo.reset_sns_seen(ticker="3901:TSE")
+
+        self.assertEqual(deleted, 1)
+        self.assertFalse(repo.exists(sns_event.fingerprint))
+        self.assertTrue(repo.exists(ir_event.fingerprint))
 
 
 if __name__ == "__main__":

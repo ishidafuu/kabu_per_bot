@@ -69,10 +69,13 @@ class FirestoreIntelSeenRepository:
         normalized_ticker = normalize_ticker(ticker) if ticker is not None else None
         targets: list[Any] = []
         if hasattr(self._collection, "where"):
-            query = self._collection.where("kind", "==", "SNS")
-            if normalized_ticker:
-                query = query.where("ticker", "==", normalized_ticker)
-            targets = list(query.stream())
+            try:
+                query = self._collection.where("kind", "==", "SNS")
+                if normalized_ticker:
+                    query = query.where("ticker", "==", normalized_ticker)
+                targets = list(query.stream())
+            except Exception as exc:
+                LOGGER.warning("intel_seen reset query失敗のためフォールバック: %s", exc)
         if not targets:
             for snapshot in self._collection.stream():
                 data = snapshot.to_dict() or {}
