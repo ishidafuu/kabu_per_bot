@@ -81,6 +81,7 @@ export const NotificationLogsPage = () => {
   return (
     <AppLayout title="通知ログ">
       <section className="panel controls-panel">
+        <p className="muted">🔔 通知の発生条件を追跡したいときは、まず ticker で絞り込んで確認してください。</p>
         <div className="search-row compact">
           <input
             type="search"

@@ -91,6 +91,7 @@ export const WatchlistHistoryPage = () => {
   return (
     <AppLayout title="ウォッチリスト履歴">
       <section className="panel controls-panel">
+        <p className="muted">🕒 設定変更の振り返りは、ticker で絞り込むと確認しやすくなります。</p>
         <div className="search-row compact">
           <input
             type="search"

@@ -193,7 +193,7 @@ export const WatchlistPage = () => {
       <section className="panel watchlist-toolbar">
         <div className="watchlist-toolbar-header">
           <p className="dashboard-badge">銘柄設定</p>
-          <p className="muted">ticker または会社名で検索し、必要時に編集・削除を実行します。</p>
+          <p className="muted">🔎 ticker または会社名で検索し、必要時に編集・削除を実行します。</p>
         </div>
         <div className="search-row">
           <input
@@ -217,6 +217,8 @@ export const WatchlistPage = () => {
             新規追加
           </button>
         </div>
+
+        <p className="muted">💡 迷ったら「検索 → 一覧確認 → 必要時のみ編集/追加」の順で操作してください。</p>
 
         <div className="watchlist-meta-grid">
           <div className="watchlist-meta-item">

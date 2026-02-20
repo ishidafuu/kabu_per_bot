@@ -308,9 +308,14 @@ export const UserGuidePage = () => {
         <p className="guide-hero-badge">トレーダー向け</p>
         <h2>管理ページの使い方とプロジェクト概要</h2>
         <p className="muted">
-          運用コマンドや技術詳細ではなく、毎日の確認順と判断に必要な情報を中心にまとめています。
+          運用コマンドや技術詳細ではなく、日々の確認順と「次に何を見ればよいか」がすぐ分かる内容を中心にまとめています。
         </p>
         <p className="muted">最終同期: {generatedAt}（JST）</p>
+        <ul className="guide-list">
+          <li>🚀 まずは「最短スタート」から読むと、毎日の確認ルーティンを3分で把握できます。</li>
+          <li>🧭 困ったときは左側の「トレーダー向けガイド一覧」から、目的に近いタイトルを選んでください。</li>
+          <li>📑 表示中ドキュメントの目次から、必要な章へ直接ジャンプできます。</li>
+        </ul>
         <div className="guide-quick-grid">
           <button
             type="button"
@@ -322,8 +327,8 @@ export const UserGuidePage = () => {
               }
             }}
           >
-            <span className="guide-quick-card-title">最短スタート</span>
-            <span className="muted">最初の3分で必要な設定と、日々の確認順を把握</span>
+            <span className="guide-quick-card-title">🚀 最短スタート</span>
+            <span className="muted">最初の3分で必要な設定・毎朝の確認順を把握</span>
           </button>
           <button
             type="button"
@@ -335,8 +340,8 @@ export const UserGuidePage = () => {
               }
             }}
           >
-            <span className="guide-quick-card-title">プロジェクト全体像</span>
-            <span className="muted">この仕組みが何を自動化し、どこまでを支援するかを確認</span>
+            <span className="guide-quick-card-title">🗺️ プロジェクト全体像</span>
+            <span className="muted">この仕組みが何を自動化し、最終判断はどこまで利用者が担うかを確認</span>
           </button>
           <button
             type="button"
@@ -348,8 +353,8 @@ export const UserGuidePage = () => {
               }
             }}
           >
-            <span className="guide-quick-card-title">管理サイトでできること</span>
-            <span className="muted">ダッシュボード、ウォッチリスト、通知ログの役割を把握</span>
+            <span className="guide-quick-card-title">🖥️ 管理サイトでできること</span>
+            <span className="muted">ダッシュボード・ウォッチリスト・通知ログの役割を把握</span>
           </button>
         </div>
       </section>
@@ -358,28 +363,29 @@ export const UserGuidePage = () => {
         <h3>日々の使い方（要点）</h3>
         <div className="guide-steps">
           <div className="guide-step">
-            <p className="guide-step-title">1. ダッシュボード</p>
-            <p className="muted">失敗ジョブ有無とデータ不明件数を先に確認します。</p>
+            <p className="guide-step-title">1. 📊 ダッシュボード</p>
+            <p className="muted">最初に失敗ジョブ有無とデータ不明件数を確認し、緊急対応が必要か判断します。</p>
           </div>
           <div className="guide-step">
-            <p className="guide-step-title">2. 通知ログ</p>
-            <p className="muted">当日の通知カテゴリと条件キーを確認します。</p>
+            <p className="guide-step-title">2. 🔔 通知ログ</p>
+            <p className="muted">当日の通知カテゴリと条件キーを見て、どの条件で通知されたかを把握します。</p>
           </div>
           <div className="guide-step">
-            <p className="guide-step-title">3. ウォッチリスト</p>
-            <p className="muted">主要銘柄の有効状態・通知タイミング・現在値を確認します。</p>
+            <p className="guide-step-title">3. 📋 ウォッチリスト</p>
+            <p className="muted">主要銘柄の有効状態・通知タイミング・現在値を見て、設定漏れがないか確認します。</p>
           </div>
           <div className="guide-step">
-            <p className="guide-step-title">4. 必要時のみ設定変更</p>
-            <p className="muted">変更した日は履歴ページで操作記録を見直します。</p>
+            <p className="guide-step-title">4. ⚙️ 必要時のみ設定変更</p>
+            <p className="muted">設定を変えた日は履歴ページで操作記録を見直し、意図した変更かを確認します。</p>
           </div>
         </div>
       </section>
 
       <section className="help-layout">
         <aside className="panel help-sidebar" aria-label="ガイド一覧">
-          <h3>トレーダー向けガイド一覧</h3>
+          <h3>🧭 トレーダー向けガイド一覧</h3>
           <p className="muted">技術仕様・運用コマンドはここでは表示していません。</p>
+          <p className="muted">「何を知りたいか」に近いタイトルを選ぶと、必要な情報に早く辿り着けます。</p>
           {isIndexLoading && <p className="muted">ガイドを準備中です...</p>}
           {indexError && <p className="error-text">{indexError}</p>}
           {!isIndexLoading && !indexError && traderCategories.length > 0 && (
@@ -409,7 +415,7 @@ export const UserGuidePage = () => {
 
           {!isIndexLoading && !indexError && sectionTitles.length > 0 && (
             <div className="help-category">
-              <h3>表示中ドキュメントの目次</h3>
+              <h3>📑 表示中ドキュメントの目次</h3>
               <div className="help-toc-links">
                 {sectionTitles.map((title) => (
                   <button
@@ -435,7 +441,7 @@ export const UserGuidePage = () => {
               <p className="muted">更新日時: {selectedDocUpdatedAt}</p>
               {firstSectionTitle && (
                 <button type="button" className="ghost help-jump-button fit-content" onClick={() => scrollToSection(firstSectionTitle)}>
-                  最初の章へ移動
+                  ⤵️ 最初の章へ移動
                 </button>
               )}
             </div>
