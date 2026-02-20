@@ -410,7 +410,7 @@ export const OpsPage = () => {
             </button>
           ))}
         </div>
-        <p className="muted">表示中メニューのみ読み込むため、初期表示の負荷を抑えています。</p>
+        <p className="muted">🧭 表示中メニューのみ読み込むため、初期表示の負荷を抑えています。</p>
         <div className="inline-actions">
           <button type="button" className="secondary" onClick={() => void refreshOps()} disabled={isLoading}>
             {isLoading ? '読込中...' : '表示中メニューを更新'}
@@ -654,7 +654,7 @@ export const OpsPage = () => {
               <span>手動実行メニュー</span>
             </div>
             <p className="muted">
-              定期実行の代替や障害時の再実行を行う画面です。通常運用では定期実行に任せ、必要時のみ手動実行してください。
+              ▶️ 定期実行の代替や障害時の再実行を行う画面です。通常運用では定期実行に任せ、必要時のみ手動実行してください。
             </p>
           </section>
           <section className="panel table-panel">
@@ -720,7 +720,7 @@ export const OpsPage = () => {
           <div className="meta-row">
             <span>最新スキップ理由集計（日次・IMMEDIATE系）</span>
           </div>
-          <p className="muted">Cloud Logging解析は重いため、このタブを開いた時のみ取得します。</p>
+          <p className="muted">📉 Cloud Logging解析は重いため、このタブを開いた時のみ取得します。</p>
           {isLoading && latestSkipRows.length === 0 && <p className="muted">読み込み中...</p>}
           {!isLoading && latestSkipRows.length === 0 ? (
             <p className="muted">集計対象の実行履歴がありません。</p>
