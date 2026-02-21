@@ -15,6 +15,7 @@ from kabu_per_bot.intelligence import (
     VertexGeminiAiAnalyzer,
 )
 from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchlistItem
+from kabu_per_bot.watchlist import XAccountLink
 
 
 class FakeResponse:
@@ -673,6 +674,65 @@ class IntelligenceTest(unittest.TestCase):
 
         self.assertEqual(events, [])
         self.assertEqual(client.calls, [])
+
+    def test_grok_prompt_source_prioritizes_official_and_executive_posts(self) -> None:
+        client = FakeGrokClient(
+            [
+                FakeGrokResponse(
+                    payload={
+                        "output": [
+                            {
+                                "type": "message",
+                                "content": [
+                                    {
+                                        "type": "output_text",
+                                        "text": (
+                                            '{"posts":['
+                                            '{"url":"https://x.com/market_watch/status/1",'
+                                            '"published_at":"2026-02-15T09:31:00+09:00",'
+                                            '"account":"@market_watch","source_label":"その他","summary":"市況メモ"},'
+                                            '{"url":"https://x.com/ceo_fuji/status/2",'
+                                            '"published_at":"2026-02-15T09:32:00+09:00",'
+                                            '"account":"@ceo_fuji","source_label":"その他","summary":"CEOコメント"},'
+                                            '{"url":"https://x.com/fuji_ir/status/3",'
+                                            '"published_at":"2026-02-15T09:33:00+09:00",'
+                                            '"account":"@fuji_ir","source_label":"その他","summary":"公式IR投稿"}'
+                                            ']}'
+                                        ),
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                )
+            ]
+        )
+        item = WatchlistItem(
+            ticker="3901:TSE",
+            name="富士フイルム",
+            metric_type=MetricType.PER,
+            notify_channel=NotifyChannel.DISCORD,
+            notify_timing=NotifyTiming.IMMEDIATE,
+            ai_enabled=True,
+            x_official_account="fuji_ir",
+            x_executive_accounts=(XAccountLink(handle="ceo_fuji", role="CEO"),),
+        )
+        source = GrokPromptIntelSource(
+            api_key="dummy-key",
+            model="grok-4-1-fast-non-reasoning",
+            reasoning_model="grok-4-1-fast-reasoning",
+            prompt_template="対象 {ticker}",
+            max_events_per_ticker=2,
+            http_client=client,
+        )
+
+        events = source.fetch_events(item, now_iso="2026-02-15T00:00:00+00:00")
+
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[0].title, "@fuji_ir")
+        self.assertEqual(events[0].source_label, "公式")
+        self.assertEqual(events[1].title, "@ceo_fuji")
+        self.assertEqual(events[1].source_label, "役員(CEO)")
 
 
 if __name__ == "__main__":

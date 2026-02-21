@@ -19,6 +19,7 @@ from kabu_per_bot.watchlist import WatchlistItem
 
 
 LOGGER = logging.getLogger(__name__)
+_X_HANDLE_PATTERN = re.compile(r"^[A-Za-z0-9_]{1,15}$")
 
 
 class IntelKind(str, Enum):
@@ -622,6 +623,9 @@ def _build_grok_prompt(*, item: WatchlistItem, now_iso: str, max_events: int, te
             f"公式アカウント: {official_handle or '(未設定)'}",
             f"役員アカウント: {executive_handles or '(未設定)'}",
             f"最大件数: {max_events}",
+            "優先順位: 公式 > 役員 > その他",
+            "source_label は必ず `公式` / `役員` / `その他` のいずれかを設定してください。",
+            "投稿者が公式/役員アカウントに一致する場合、source_label を必ず対応ラベルにしてください。",
             "出力形式(JSONのみ):",
             '{"posts":[{"url":"https://x.com/...","published_at":"ISO8601","account":"@user","source_label":"公式|役員|その他","summary":"120文字以内"}]}',
             "投稿が見つからない場合も posts を空配列で返してください。",
@@ -744,9 +748,10 @@ def _build_sns_events_from_grok(
     if not isinstance(rows, list):
         return []
 
-    events: list[IntelEvent] = []
+    source_label_map = _build_source_label_map(item)
+    candidates: list[tuple[int, int, IntelEvent]] = []
     seen_urls: set[str] = set()
-    for row in rows:
+    for row_index, row in enumerate(rows):
         if not isinstance(row, dict):
             continue
         url = str(row.get("url", "")).strip()
@@ -757,24 +762,109 @@ def _build_sns_events_from_grok(
         seen_urls.add(url)
         published_at = _normalize_published_at(value=row.get("published_at"), fallback_iso=now_iso)
         account = str(row.get("account", "")).strip() or "Grok SNS"
-        source_label = str(row.get("source_label", "")).strip() or "Grok"
+        source_label = _resolve_sns_source_label(
+            source_label_map=source_label_map,
+            account=account,
+            url=url,
+            raw_source_label=row.get("source_label"),
+        )
         summary = str(row.get("summary", "")).strip()
         if not summary:
             summary = account
-        events.append(
-            IntelEvent(
-                ticker=item.ticker,
-                kind=IntelKind.SNS,
-                title=account,
-                url=url,
-                published_at=published_at,
-                source_label=source_label,
-                content=summary,
-            )
+        event = IntelEvent(
+            ticker=item.ticker,
+            kind=IntelKind.SNS,
+            title=account,
+            url=url,
+            published_at=published_at,
+            source_label=source_label,
+            content=summary,
         )
-        if len(events) >= max_events:
-            break
+        candidates.append((_sns_source_priority(source_label), -row_index, event))
+
+    candidates.sort(key=lambda row: (row[0], row[1]), reverse=True)
+    events: list[IntelEvent] = []
+    for _, _, event in candidates[:max_events]:
+        events.append(event)
     return events
+
+
+def _build_source_label_map(item: WatchlistItem) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    if item.x_official_account:
+        normalized = _normalize_handle_value(item.x_official_account)
+        if normalized:
+            mapping[normalized] = "公式"
+    for executive in item.x_executive_accounts:
+        normalized = _normalize_handle_value(executive.handle)
+        if not normalized:
+            continue
+        label = "役員"
+        if executive.role:
+            label = f"役員({executive.role})"
+        mapping[normalized] = label
+    return mapping
+
+
+def _resolve_sns_source_label(
+    *,
+    source_label_map: dict[str, str],
+    account: str,
+    url: str,
+    raw_source_label: Any,
+) -> str:
+    account_handle = _normalize_handle_value(account)
+    if account_handle and account_handle in source_label_map:
+        return source_label_map[account_handle]
+
+    url_handle = _extract_handle_from_x_url(url)
+    if url_handle and url_handle in source_label_map:
+        return source_label_map[url_handle]
+
+    normalized = str(raw_source_label or "").strip()
+    if "公式" in normalized:
+        return "公式"
+    if "役員" in normalized:
+        return "役員"
+    return "その他"
+
+
+def _normalize_handle_value(value: str) -> str | None:
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.startswith("@"):
+        text = text[1:]
+    if not _X_HANDLE_PATTERN.fullmatch(text):
+        return None
+    return text.lower()
+
+
+def _extract_handle_from_x_url(url: str) -> str | None:
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return None
+
+    host = (parsed.netloc or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    if host not in {"x.com", "twitter.com"}:
+        return None
+
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if not path_parts:
+        return None
+    return _normalize_handle_value(path_parts[0])
+
+
+def _sns_source_priority(source_label: str) -> int:
+    normalized = str(source_label).strip()
+    if "公式" in normalized:
+        return 3
+    if "役員" in normalized:
+        return 2
+    return 1
 
 
 def _normalize_published_at(*, value: Any, fallback_iso: str) -> str:
@@ -843,7 +933,9 @@ def _resolve_sns_label(event: IntelEvent) -> str:
         return "該当なし"
     if "公式" in event.source_label:
         return "公式"
-    return "役員"
+    if "役員" in event.source_label:
+        return "役員"
+    return "その他"
 
 
 def _default_vertex_credentials() -> tuple[str, str | None]:

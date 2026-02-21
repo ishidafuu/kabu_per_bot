@@ -160,7 +160,7 @@ class NotificationFormatterTest(unittest.TestCase):
             ),
         )
         self.assertIn("🛰️ SNS注目", message.body)
-        self.assertIn("投稿: @fujifilm_ir / 種別: 公式", message.body)
+        self.assertIn("投稿: @fujifilm_ir / ソース: 🏢 公式", message.body)
         self.assertIn("要点: 新製品の受注状況と今後の供給見通しを投稿", message.body)
         self.assertIn("🔗 https://x.com/fujifilm_ir/status/1", message.body)
         self.assertNotIn("💬 要約:", message.body)
@@ -182,6 +182,7 @@ class NotificationFormatterTest(unittest.TestCase):
         )
         self.assertIn("🎯 注目度:L / 状況:改善 / Cat:無 / 影響:→", message.body)
         self.assertIn("要点: 第3Q業績好調でドルウェブ貢献強調。", message.body)
+        self.assertIn("投稿: @Alpaca_Arcadia / ソース: 🧩 その他", message.body)
         self.assertNotIn("11likes", message.body)
         self.assertEqual(message.category, "SNS注目")
 

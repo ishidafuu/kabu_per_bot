@@ -158,10 +158,11 @@ def format_intel_update_message(
     if event.kind is IntelKind.SNS:
         summary = _trim_text(event.content, max_chars=180)
         status_line, point_line = _split_sns_summary(summary)
+        source_badge = _sns_source_badge(event.source_label)
         lines = [
             f"🛰️ {category}",
             f"　{normalized_ticker} {company_name}",
-            f"　投稿: {event.title} / 種別: {event.source_label}",
+            f"　投稿: {event.title} / ソース: {source_badge}",
         ]
         if status_line or point_line:
             lines.append("")
@@ -327,6 +328,15 @@ def _normalize_sns_point(point: str) -> str:
         return ""
     normalized = re.sub(r"\s*\d+\s*(?:likes?|いいね)[。.．.]?$", "", normalized, flags=re.I).strip()
     return _trim_text(normalized, max_chars=120)
+
+
+def _sns_source_badge(source_label: str) -> str:
+    normalized = str(source_label).strip()
+    if "公式" in normalized:
+        return "🏢 公式"
+    if "役員" in normalized:
+        return f"👔 {normalized}"
+    return f"🧩 {normalized or 'その他'}"
 
 
 def _missing_field_to_label(field: str) -> str:
