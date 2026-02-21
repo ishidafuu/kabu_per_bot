@@ -734,6 +734,103 @@ class IntelligenceTest(unittest.TestCase):
         self.assertEqual(events[1].title, "@ceo_fuji")
         self.assertEqual(events[1].source_label, "役員(CEO)")
 
+    def test_grok_prompt_source_keeps_official_label_when_official_and_executive_overlap(self) -> None:
+        client = FakeGrokClient(
+            [
+                FakeGrokResponse(
+                    payload={
+                        "output": [
+                            {
+                                "type": "message",
+                                "content": [
+                                    {
+                                        "type": "output_text",
+                                        "text": (
+                                            '{"posts":['
+                                            '{"url":"https://x.com/fuji_ir/status/1",'
+                                            '"published_at":"2026-02-15T09:33:00+09:00",'
+                                            '"account":"@fuji_ir","source_label":"その他","summary":"公式IR投稿"}'
+                                            ']}'
+                                        ),
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                )
+            ]
+        )
+        item = WatchlistItem(
+            ticker="3901:TSE",
+            name="富士フイルム",
+            metric_type=MetricType.PER,
+            notify_channel=NotifyChannel.DISCORD,
+            notify_timing=NotifyTiming.IMMEDIATE,
+            ai_enabled=True,
+            x_official_account="fuji_ir",
+            x_executive_accounts=(XAccountLink(handle="fuji_ir", role="CEO"),),
+        )
+        source = GrokPromptIntelSource(
+            api_key="dummy-key",
+            model="grok-4-1-fast-non-reasoning",
+            reasoning_model="grok-4-1-fast-reasoning",
+            prompt_template="対象 {ticker}",
+            http_client=client,
+        )
+
+        events = source.fetch_events(item, now_iso="2026-02-15T00:00:00+00:00")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].source_label, "公式")
+
+    def test_grok_prompt_source_resolves_mobile_twitter_url_to_official(self) -> None:
+        client = FakeGrokClient(
+            [
+                FakeGrokResponse(
+                    payload={
+                        "output": [
+                            {
+                                "type": "message",
+                                "content": [
+                                    {
+                                        "type": "output_text",
+                                        "text": (
+                                            '{"posts":['
+                                            '{"url":"https://mobile.twitter.com/fuji_ir/status/1",'
+                                            '"published_at":"2026-02-15T09:33:00+09:00",'
+                                            '"account":"unknown_account","source_label":"その他","summary":"公式IR投稿"}'
+                                            ']}'
+                                        ),
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                )
+            ]
+        )
+        item = WatchlistItem(
+            ticker="3901:TSE",
+            name="富士フイルム",
+            metric_type=MetricType.PER,
+            notify_channel=NotifyChannel.DISCORD,
+            notify_timing=NotifyTiming.IMMEDIATE,
+            ai_enabled=True,
+            x_official_account="fuji_ir",
+        )
+        source = GrokPromptIntelSource(
+            api_key="dummy-key",
+            model="grok-4-1-fast-non-reasoning",
+            reasoning_model="grok-4-1-fast-reasoning",
+            prompt_template="対象 {ticker}",
+            http_client=client,
+        )
+
+        events = source.fetch_events(item, now_iso="2026-02-15T00:00:00+00:00")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].source_label, "公式")
+
 
 if __name__ == "__main__":
     unittest.main()

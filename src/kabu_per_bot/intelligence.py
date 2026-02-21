@@ -799,6 +799,9 @@ def _build_source_label_map(item: WatchlistItem) -> dict[str, str]:
         normalized = _normalize_handle_value(executive.handle)
         if not normalized:
             continue
+        # 公式ハンドルは最優先で保持し、役員ラベルで上書きしない。
+        if mapping.get(normalized) == "公式":
+            continue
         label = "役員"
         if executive.role:
             label = f"役員({executive.role})"
@@ -849,7 +852,7 @@ def _extract_handle_from_x_url(url: str) -> str | None:
     host = (parsed.netloc or "").lower()
     if host.startswith("www."):
         host = host[4:]
-    if host not in {"x.com", "twitter.com"}:
+    if host not in {"x.com", "twitter.com", "mobile.twitter.com", "m.twitter.com"}:
         return None
 
     path_parts = [part for part in parsed.path.split("/") if part]
