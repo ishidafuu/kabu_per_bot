@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import re
 
 from kabu_per_bot.intelligence import AiInsight, IntelEvent, IntelKind
 from kabu_per_bot.signal import SignalState
@@ -154,14 +155,39 @@ def format_intel_update_message(
 ) -> NotificationMessage:
     normalized_ticker = normalize_ticker(ticker)
     category = "IR更新" if event.kind is IntelKind.IR else "SNS注目"
+    if event.kind is IntelKind.SNS:
+        summary = _trim_text(event.content, max_chars=180)
+        status_line, point_line = _split_sns_summary(summary)
+        lines = [
+            f"🛰️ {category}",
+            f"　{normalized_ticker} {company_name}",
+            f"　投稿: {event.title} / 種別: {event.source_label}",
+        ]
+        if status_line or point_line:
+            lines.append("")
+        if status_line:
+            lines.append(f"　🎯 {status_line}")
+        if point_line:
+            lines.append(f"　要点: {point_line}")
+        lines.extend(
+            [
+                "",
+                f"　🔗 {event.url}",
+            ]
+        )
+        body = "\n".join(lines)
+        return NotificationMessage(
+            ticker=normalized_ticker,
+            category=category,
+            condition_key=f"{event.kind.value}:{event.fingerprint}",
+            body=body,
+            is_strong=False,
+        )
+
     lines = [
         f"【{category}】{normalized_ticker} {company_name}",
         f"📝 {event.title}",
     ]
-    if event.kind is IntelKind.SNS:
-        summary = _trim_text(event.content, max_chars=140)
-        if summary:
-            lines.append(f"💬 要約: {summary}")
     lines.extend(
         [
             f"🔗 URL: {event.url}",
@@ -257,6 +283,50 @@ def _normalize_unknown_fields(missing_fields: list[str]) -> list[str]:
     if normalized:
         return normalized
     return ["unknown"]
+
+
+def _split_sns_summary(summary: str) -> tuple[str, str]:
+    normalized = " ".join(str(summary).split()).strip()
+    if not normalized:
+        return ("", "")
+
+    matched = re.match(r"^\[(?P<meta>[^\]]+)\]\s*(?P<point>.*)$", normalized)
+    if not matched:
+        return ("", _normalize_sns_point(normalized))
+
+    meta = _normalize_sns_meta(matched.group("meta"))
+    point = _normalize_sns_point(matched.group("point"))
+    return (meta, point)
+
+
+def _normalize_sns_meta(meta: str) -> str:
+    chunks = [chunk.strip() for chunk in str(meta).split("|") if chunk.strip()]
+    if not chunks:
+        return ""
+
+    keyed: dict[str, str] = {}
+    free_chunks: list[str] = []
+    for chunk in chunks:
+        matched = re.match(r"^(注目度|状況|Cat|影響)\s*[：:]\s*(.+)$", chunk, flags=re.I)
+        if not matched:
+            free_chunks.append(chunk)
+            continue
+        key = matched.group(1)
+        value = matched.group(2).strip()
+        if value:
+            keyed[key] = f"{key}:{value}"
+
+    ordered = [keyed[key] for key in ("注目度", "状況", "Cat", "影響") if key in keyed]
+    ordered.extend(free_chunks)
+    return " / ".join(ordered)
+
+
+def _normalize_sns_point(point: str) -> str:
+    normalized = " ".join(str(point).split()).strip()
+    if not normalized:
+        return ""
+    normalized = re.sub(r"\s*\d+\s*(?:likes?|いいね)[。.．.]?$", "", normalized, flags=re.I).strip()
+    return _trim_text(normalized, max_chars=120)
 
 
 def _missing_field_to_label(field: str) -> str:

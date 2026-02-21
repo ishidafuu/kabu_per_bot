@@ -159,9 +159,30 @@ class NotificationFormatterTest(unittest.TestCase):
                 content="新製品の受注状況と今後の供給見通しを投稿",
             ),
         )
-        self.assertIn("【SNS注目】", message.body)
-        self.assertIn("💬 要約: 新製品の受注状況と今後の供給見通しを投稿", message.body)
-        self.assertIn("URL: https://x.com/fujifilm_ir/status/1", message.body)
+        self.assertIn("🛰️ SNS注目", message.body)
+        self.assertIn("投稿: @fujifilm_ir / 種別: 公式", message.body)
+        self.assertIn("要点: 新製品の受注状況と今後の供給見通しを投稿", message.body)
+        self.assertIn("🔗 https://x.com/fujifilm_ir/status/1", message.body)
+        self.assertNotIn("💬 要約:", message.body)
+        self.assertEqual(message.category, "SNS注目")
+
+    def test_intel_update_message_format_for_sns_splits_tagged_summary(self) -> None:
+        message = format_intel_update_message(
+            ticker="7844:TSE",
+            company_name="マーベラス",
+            event=IntelEvent(
+                ticker="7844:TSE",
+                kind=IntelKind.SNS,
+                title="@Alpaca_Arcadia",
+                url="https://x.com/Alpaca_Arcadia/status/2024302307241066965",
+                published_at="2026-02-15T12:00:00+09:00",
+                source_label="その他",
+                content="[注目度:L|状況:改善|Cat:無|影響:→] 第3Q業績好調でドルウェブ貢献強調。11likes。",
+            ),
+        )
+        self.assertIn("🎯 注目度:L / 状況:改善 / Cat:無 / 影響:→", message.body)
+        self.assertIn("要点: 第3Q業績好調でドルウェブ貢献強調。", message.body)
+        self.assertNotIn("11likes", message.body)
         self.assertEqual(message.category, "SNS注目")
 
     def test_ai_attention_message_format(self) -> None:

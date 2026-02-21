@@ -272,7 +272,7 @@ class IntelligencePipelineTest(unittest.TestCase):
         self.assertEqual(result.sent_notifications, 2)
         self.assertEqual(result.skipped_notifications, 0)
         self.assertEqual(len(sender.messages), 2)
-        self.assertIn("【SNS注目】", sender.messages[0])
+        self.assertIn("🛰️ SNS注目", sender.messages[0])
         self.assertIn("【AI注目】", sender.messages[1])
         self.assertEqual(len(seen_repo.seen), 1)
 
