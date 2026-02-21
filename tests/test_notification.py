@@ -40,7 +40,7 @@ class NotificationFormatterTest(unittest.TestCase):
             median_3m=13.0,
             median_1y=14.0,
         )
-        self.assertIn("【超PER割安】", message.body)
+        self.assertIn("🔥 超PER割安", message.body)
         self.assertIn("under（3日連続）", message.body)
         self.assertIn("🔥", message.body)
         self.assertEqual(message.category, "超PER割安")
@@ -80,7 +80,7 @@ class NotificationFormatterTest(unittest.TestCase):
             median_3m=13.0,
             median_1y=14.0,
         )
-        self.assertIn("【PER状況】", message.body)
+        self.assertIn("📘 PER状況", message.body)
         self.assertIn("判定レベル: 下回りなし", message.body)
         self.assertEqual(message.category, "PER状況")
 

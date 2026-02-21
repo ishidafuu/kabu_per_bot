@@ -178,7 +178,7 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.processed_tickers, 1)
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
-        self.assertIn("【超PER割安】", sender.messages[0])
+        self.assertIn("🔥 超PER割安", sender.messages[0])
         self.assertEqual(len(log_repo.rows), 1)
 
     def test_daily_pipeline_sends_status_notification_when_always_notify_enabled(self) -> None:
@@ -235,7 +235,7 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.processed_tickers, 1)
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
-        self.assertIn("【PER状況】", sender.messages[0])
+        self.assertIn("📘 PER状況", sender.messages[0])
         self.assertIn("判定レベル: 下回りなし", sender.messages[0])
 
     def test_daily_pipeline_sends_insufficient_status_when_medians_missing(self) -> None:
@@ -278,7 +278,7 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.processed_tickers, 1)
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
-        self.assertIn("【PER状況】", sender.messages[0])
+        self.assertIn("📘 PER状況", sender.messages[0])
         self.assertIn("判定レベル: 判定不能（中央値不足: 1W/3M/1Y）", sender.messages[0])
 
     def test_daily_pipeline_daily_mode_sends_immediate_only(self) -> None:

@@ -38,8 +38,15 @@ def format_signal_message(
     del metric_value, median_1w, median_3m, median_1y
     streak_days = max(1, state.streak_days)
     combo_label = _format_combo_label(state.combo, is_strong=state.is_strong)
-    trend_icon = "🔥" if state.is_strong else "📉"
-    body = f"【{state.category}】{normalized_ticker} {company_name} {combo_label} under（{streak_days}日連続） {trend_icon}"
+    header_icon = "🔥" if state.is_strong else "📉"
+    body = "\n".join(
+        [
+            f"{header_icon} {state.category}",
+            "",
+            f"　{normalized_ticker} {company_name}",
+            f"　🎯 {combo_label} under（{streak_days}日連続）",
+        ]
+    )
     return NotificationMessage(
         ticker=normalized_ticker,
         category=state.category,
@@ -66,18 +73,19 @@ def format_signal_status_message(
     if normalized_insufficient:
         level_key = f"INSUFFICIENT_{'+'.join(normalized_insufficient)}"
         level_label = f"判定不能（中央値不足: {'/'.join(normalized_insufficient)}）"
-        discount_line = "割安通知: 判定保留"
+        discount_label = "判定保留"
     else:
         level_key, level_label = _status_level(state)
-        discount_line = "割安通知: なし"
+        discount_label = "なし"
     body = "\n".join(
         [
-            f"【{metric_label}状況】",
-            f"{company_name} ({normalized_ticker})",
-            f"📊 {metric_label}: {_fmt(metric_value)}",
-            f"📚 中央値(1W/3M/1Y): {_fmt(median_1w)} / {_fmt(median_3m)} / {_fmt(median_1y)}",
-            f"🧭 判定レベル: {level_label}",
-            f"🔕 {discount_line}",
+            f"📘 {metric_label}状況",
+            f"　{company_name} ({normalized_ticker})",
+            "",
+            f"　{metric_label}: {_fmt(metric_value)}",
+            f"　中央値(1W/3M/1Y): {_fmt(median_1w)} / {_fmt(median_3m)} / {_fmt(median_1y)}",
+            f"　🎯 判定レベル: {level_label}",
+            f"　割安通知: {discount_label}",
         ]
     )
     return NotificationMessage(
