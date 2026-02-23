@@ -27,6 +27,7 @@ const TRADER_GUIDE_ID = 'docs/04_利用ガイド/トレーダー向け_使い方
 const PROJECT_OVERVIEW_DOC_ID = 'docs/04_利用ガイド/プロジェクト全体像_非エンジニア向け/01_このプロジェクトの全体像.md';
 const WEB_USAGE_DOC_ID = 'docs/04_利用ガイド/プロジェクト全体像_非エンジニア向け/06_管理画面（Web）でできること.md';
 const DAILY_NOTIFICATION_DOC_ID = 'docs/04_利用ガイド/プロジェクト全体像_非エンジニア向け/03_日次の割安判定と通知.md';
+const CHANGELOG_DOC_ID = 'docs/04_利用ガイド/更新履歴.md';
 const TRADER_DOC_PREFIX = 'docs/04_利用ガイド/';
 
 const extractSectionTitles = (markdown: string): string[] => {
@@ -230,6 +231,7 @@ export const UserGuidePage = () => {
   const projectOverviewDoc = useMemo(() => findDocById(index, PROJECT_OVERVIEW_DOC_ID), [index]);
   const webUsageDoc = useMemo(() => findDocById(index, WEB_USAGE_DOC_ID), [index]);
   const dailyNotificationDoc = useMemo(() => findDocById(index, DAILY_NOTIFICATION_DOC_ID), [index]);
+  const changelogDoc = useMemo(() => findDocById(index, CHANGELOG_DOC_ID), [index]);
 
   useEffect(() => {
     if (!selectedDoc) {
@@ -355,6 +357,19 @@ export const UserGuidePage = () => {
           >
             <span className="guide-quick-card-title">🖥️ 管理サイトでできること</span>
             <span className="muted">ダッシュボード・ウォッチリスト・通知ログの役割を把握</span>
+          </button>
+          <button
+            type="button"
+            className="guide-quick-card"
+            disabled={!changelogDoc}
+            onClick={() => {
+              if (changelogDoc) {
+                setSelectedDocId(changelogDoc.id);
+              }
+            }}
+          >
+            <span className="guide-quick-card-title">🆕 更新履歴</span>
+            <span className="muted">機能追加とバグ修正の差分を先に確認</span>
           </button>
         </div>
       </section>
