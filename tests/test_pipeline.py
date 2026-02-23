@@ -179,6 +179,7 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
         self.assertIn("🔥 [新規] 超PER割安", sender.messages[0])
+        self.assertIn("差分(現在-中央値):", sender.messages[0])
         self.assertEqual(len(log_repo.rows), 1)
 
     def test_daily_pipeline_marks_signal_as_continuing_when_streak_extends(self) -> None:
@@ -310,6 +311,7 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
         self.assertIn("📘 PER状況", sender.messages[0])
+        self.assertIn("乖離率:", sender.messages[0])
         self.assertIn("判定レベル: 下回りなし", sender.messages[0])
 
     def test_daily_pipeline_marks_status_as_released_when_signal_clears(self) -> None:

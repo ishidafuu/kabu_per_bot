@@ -38,16 +38,26 @@ def format_signal_message(
 
     normalized_ticker = normalize_ticker(ticker)
     normalized_phase = _normalize_signal_phase(signal_phase)
-    del metric_value, median_1w, median_3m, median_1y
+    metric_label = state.metric_type.value
     streak_days = max(1, state.streak_days)
     combo_label = _format_combo_label(state.combo, is_strong=state.is_strong)
     header_icon = "🔥" if state.is_strong else "📉"
+    difference_line, divergence_line = _build_metric_difference_lines(
+        metric_value=metric_value,
+        median_1w=median_1w,
+        median_3m=median_3m,
+        median_1y=median_1y,
+    )
     body = "\n".join(
         [
             f"{header_icon} [{normalized_phase}] {state.category}",
             "",
             f"　{normalized_ticker} {company_name}",
             f"　🎯 {combo_label} under（{streak_days}日連続）",
+            f"　{metric_label}: {_fmt(metric_value)}",
+            f"　中央値(1W/3M/1Y): {_fmt(median_1w)} / {_fmt(median_3m)} / {_fmt(median_1y)}",
+            f"　差分(現在-中央値): {difference_line}",
+            f"　乖離率: {divergence_line}",
         ]
     )
     return NotificationMessage(
@@ -88,11 +98,19 @@ def format_signal_status_message(
     ]
     if normalized_phase:
         lines.append(f"　シグナル種別: {normalized_phase}")
+    difference_line, divergence_line = _build_metric_difference_lines(
+        metric_value=metric_value,
+        median_1w=median_1w,
+        median_3m=median_3m,
+        median_1y=median_1y,
+    )
     lines.extend(
         [
             "",
             f"　{metric_label}: {_fmt(metric_value)}",
             f"　中央値(1W/3M/1Y): {_fmt(median_1w)} / {_fmt(median_3m)} / {_fmt(median_1y)}",
+            f"　差分(現在-中央値): {difference_line}",
+            f"　乖離率: {divergence_line}",
             f"　🎯 判定レベル: {level_label}",
             f"　割安通知: {discount_label}",
         ]
@@ -249,6 +267,40 @@ def _fmt(value: float | None) -> str:
     if value is None:
         return "N/A"
     return f"{value:.2f}"
+
+
+def _build_metric_difference_lines(
+    *,
+    metric_value: float | None,
+    median_1w: float | None,
+    median_3m: float | None,
+    median_1y: float | None,
+) -> tuple[str, str]:
+    windows = (
+        ("1W", median_1w),
+        ("3M", median_3m),
+        ("1Y", median_1y),
+    )
+    differences: list[str] = []
+    divergence_rates: list[str] = []
+    for label, median in windows:
+        differences.append(f"{label} {_fmt_difference(metric_value=metric_value, median_value=median)}")
+        divergence_rates.append(f"{label} {_fmt_divergence_rate(metric_value=metric_value, median_value=median)}")
+    return (" / ".join(differences), " / ".join(divergence_rates))
+
+
+def _fmt_difference(*, metric_value: float | None, median_value: float | None) -> str:
+    if metric_value is None or median_value is None:
+        return "N/A"
+    return f"{metric_value - median_value:+.2f}"
+
+
+def _fmt_divergence_rate(*, metric_value: float | None, median_value: float | None) -> str:
+    if metric_value is None or median_value is None:
+        return "N/A"
+    if median_value == 0:
+        return "N/A"
+    return f"{((metric_value - median_value) / median_value) * 100:+.1f}%"
 
 
 def _normalize_signal_phase(signal_phase: str) -> str:

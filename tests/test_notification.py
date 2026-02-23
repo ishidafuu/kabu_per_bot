@@ -43,6 +43,8 @@ class NotificationFormatterTest(unittest.TestCase):
         )
         self.assertIn("🔥 [新規] 超PER割安", message.body)
         self.assertIn("under（3日連続）", message.body)
+        self.assertIn("差分(現在-中央値): 1W -2.00 / 3M -3.00 / 1Y -4.00", message.body)
+        self.assertIn("乖離率: 1W -16.7% / 3M -23.1% / 1Y -28.6%", message.body)
         self.assertIn("🔥", message.body)
         self.assertEqual(message.category, "超PER割安")
 
@@ -84,6 +86,8 @@ class NotificationFormatterTest(unittest.TestCase):
         )
         self.assertIn("📘 PER状況", message.body)
         self.assertIn("シグナル種別: 解除", message.body)
+        self.assertIn("差分(現在-中央値): 1W +4.00 / 3M +3.00 / 1Y +2.00", message.body)
+        self.assertIn("乖離率: 1W +33.3% / 3M +23.1% / 1Y +14.3%", message.body)
         self.assertIn("判定レベル: 下回りなし", message.body)
         self.assertEqual(message.category, "PER状況")
 
@@ -113,6 +117,8 @@ class NotificationFormatterTest(unittest.TestCase):
             insufficient_windows=["1W", "1Y"],
         )
         self.assertIn("判定レベル: 判定不能（中央値不足: 1W/1Y）", message.body)
+        self.assertIn("差分(現在-中央値): 1W N/A / 3M +3.00 / 1Y N/A", message.body)
+        self.assertIn("乖離率: 1W N/A / 3M +23.1% / 1Y N/A", message.body)
         self.assertIn("割安通知: 判定保留", message.body)
         self.assertEqual(message.condition_key, "PER:STATUS:INSUFFICIENT_1W+1Y")
 
