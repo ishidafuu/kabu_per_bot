@@ -3,8 +3,8 @@ import type { ListNotificationLogParams, NotificationLogClient } from './notific
 
 const watchPriorityByTicker: Record<string, 'HIGH' | 'MEDIUM' | 'LOW'> = {
   '7203:TSE': 'HIGH',
-  '6501:TSE': 'MEDIUM',
-  '9432:TSE': 'LOW',
+  '6501:TSE': 'HIGH',
+  '9432:TSE': 'MEDIUM',
   '8035:TSE': 'HIGH',
 };
 
