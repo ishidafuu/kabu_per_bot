@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from enum import Enum
 from hashlib import sha1
 import logging
@@ -476,9 +476,16 @@ def _resolve_status_signal_phase(
 ) -> str | None:
     if insufficient_windows:
         return None
-    if _has_active_signal(previous_state, metric_type=current_state.metric_type):
-        return "解除"
-    return None
+    if not _has_active_signal(previous_state, metric_type=current_state.metric_type):
+        return None
+    if previous_state is None:
+        return None
+    if not _is_previous_business_day(
+        previous_trade_date=previous_state.trade_date,
+        current_trade_date=current_state.trade_date,
+    ):
+        return None
+    return "解除"
 
 
 def _has_active_signal(state: SignalState | None, *, metric_type: MetricType) -> bool:
@@ -487,3 +494,12 @@ def _has_active_signal(state: SignalState | None, *, metric_type: MetricType) ->
     if state.metric_type is not metric_type:
         return False
     return bool(state.category and state.combo)
+
+
+def _is_previous_business_day(*, previous_trade_date: str, current_trade_date: str) -> bool:
+    previous = date.fromisoformat(previous_trade_date)
+    current = date.fromisoformat(current_trade_date)
+    expected = current - timedelta(days=1)
+    while expected.weekday() >= 5:
+        expected -= timedelta(days=1)
+    return previous == expected
