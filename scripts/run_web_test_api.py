@@ -10,6 +10,7 @@ import uvicorn
 from kabu_per_bot.admin_ops import AdminOpsJob, AdminOpsSummary, BackfillRunRequest, JobExecution
 from kabu_per_bot.api.app import create_app
 from kabu_per_bot.api.errors import UnauthorizedError
+from kabu_per_bot.grok_sns_settings import GrokSnsSettings
 from kabu_per_bot.immediate_schedule import ImmediateSchedule
 from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
 from kabu_per_bot.signal import NotificationLogEntry
@@ -100,6 +101,8 @@ class InMemoryNotificationLogRepository:
         self,
         *,
         ticker: str | None = None,
+        category: str | None = None,
+        is_strong: bool | None = None,
         limit: int | None = 100,
         offset: int = 0,
         sent_at_from: str | None = None,
@@ -109,6 +112,11 @@ class InMemoryNotificationLogRepository:
         if ticker:
             normalized = normalize_ticker(ticker)
             values = [row for row in values if row.ticker == normalized]
+        if category:
+            normalized_category = category.strip()
+            values = [row for row in values if row.category == normalized_category]
+        if is_strong is not None:
+            values = [row for row in values if row.is_strong is is_strong]
         if sent_at_from:
             from_dt = _parse_iso_datetime(sent_at_from)
             values = [row for row in values if _parse_iso_datetime(row.sent_at) >= from_dt]
@@ -124,12 +132,16 @@ class InMemoryNotificationLogRepository:
         self,
         *,
         ticker: str | None = None,
+        category: str | None = None,
+        is_strong: bool | None = None,
         sent_at_from: str | None = None,
         sent_at_to: str | None = None,
     ) -> int:
         return len(
             self.list_timeline(
                 ticker=ticker,
+                category=category,
+                is_strong=is_strong,
                 sent_at_from=sent_at_from,
                 sent_at_to=sent_at_to,
                 limit=None,
@@ -151,7 +163,9 @@ class InMemoryGlobalSettingsRepository:
     settings: GlobalRuntimeSettings = field(
         default_factory=lambda: GlobalRuntimeSettings(
             cooldown_hours=2,
+            intel_notification_max_age_days=30,
             immediate_schedule=ImmediateSchedule.default(),
+            grok_sns_settings=GrokSnsSettings.default(),
             updated_at=None,
             updated_by=None,
         )
@@ -164,13 +178,21 @@ class InMemoryGlobalSettingsRepository:
         self,
         *,
         cooldown_hours: int | None = None,
+        intel_notification_max_age_days: int | None = None,
         immediate_schedule: ImmediateSchedule | None = None,
+        grok_sns_settings: GrokSnsSettings | None = None,
         updated_at: str,
         updated_by: str | None,
     ) -> None:
         self.settings = GlobalRuntimeSettings(
             cooldown_hours=(self.settings.cooldown_hours if cooldown_hours is None else cooldown_hours),
+            intel_notification_max_age_days=(
+                self.settings.intel_notification_max_age_days
+                if intel_notification_max_age_days is None
+                else intel_notification_max_age_days
+            ),
             immediate_schedule=(self.settings.immediate_schedule if immediate_schedule is None else immediate_schedule),
+            grok_sns_settings=(self.settings.grok_sns_settings if grok_sns_settings is None else grok_sns_settings),
             updated_at=updated_at,
             updated_by=updated_by,
         )
@@ -218,12 +240,18 @@ class InMemoryAdminOpsService:
         self.executions.insert(0, execution)
         return execution
 
-    def get_summary(self, *, limit_per_job: int = 5) -> AdminOpsSummary:
+    def get_summary(
+        self,
+        *,
+        limit_per_job: int = 5,
+        include_recent_executions: bool = True,
+        include_skip_reasons: bool = True,
+    ) -> AdminOpsSummary:
         _ = limit_per_job
         return AdminOpsSummary(
             jobs=self.list_jobs(),
-            recent_executions=tuple(self.executions[:20]),
-            latest_skip_reasons=tuple(self.executions[:5]),
+            recent_executions=tuple(self.executions[:20]) if include_recent_executions else tuple(),
+            latest_skip_reasons=tuple(self.executions[:5]) if include_skip_reasons else tuple(),
         )
 
     def send_discord_test(self, *, requested_uid: str) -> str:
