@@ -48,11 +48,19 @@ def format_signal_message(
         median_3m=median_3m,
         median_1y=median_1y,
     )
+    priority, recommended_action = _signal_conclusion(state=state, signal_phase=normalized_phase)
+    conclusion_line = _build_conclusion_line(
+        icon=header_icon,
+        priority=priority,
+        recommended_action=recommended_action,
+        reason=f"{metric_label}={_fmt(metric_value)} / 乖離率({divergence_line})",
+    )
     body = "\n".join(
         [
-            f"{header_icon} [{normalized_phase}] {state.category}",
+            conclusion_line,
             "",
             f"　{normalized_ticker} {company_name}",
+            f"　区分: [{normalized_phase}] {state.category}",
             f"　🎯 {combo_label} under（{streak_days}日連続）",
             f"　{metric_label}: {_fmt(metric_value)}",
             f"　中央値(1W/3M/1Y): {_fmt(median_1w)} / {_fmt(median_3m)} / {_fmt(median_1y)}",
@@ -92,18 +100,32 @@ def format_signal_status_message(
     else:
         level_key, level_label = _status_level(state)
         discount_label = "なし"
-    lines = [
-        f"📘 {metric_label}状況",
-        f"　{company_name} ({normalized_ticker})",
-    ]
-    if normalized_phase:
-        lines.append(f"　シグナル種別: {normalized_phase}")
     difference_line, divergence_line = _build_metric_difference_lines(
         metric_value=metric_value,
         median_1w=median_1w,
         median_3m=median_3m,
         median_1y=median_1y,
     )
+    priority, recommended_action, reason = _status_conclusion(
+        metric_label=metric_label,
+        metric_value=metric_value,
+        divergence_line=divergence_line,
+        level_key=level_key,
+        normalized_phase=normalized_phase,
+        normalized_insufficient=normalized_insufficient,
+    )
+    lines = [
+        _build_conclusion_line(
+            icon="📘",
+            priority=priority,
+            recommended_action=recommended_action,
+            reason=reason,
+        ),
+        f"　{metric_label}状況",
+        f"　{company_name} ({normalized_ticker})",
+    ]
+    if normalized_phase:
+        lines.append(f"　シグナル種別: {normalized_phase}")
     lines.extend(
         [
             "",
@@ -302,6 +324,42 @@ def _fmt_divergence_rate(*, metric_value: float | None, median_value: float | No
     if base == 0:
         return "N/A"
     return f"{((metric_value - median_value) / base) * 100:+.1f}%"
+
+
+def _build_conclusion_line(
+    *,
+    icon: str,
+    priority: str,
+    recommended_action: str,
+    reason: str,
+) -> str:
+    return f"{icon} 優先度:{priority} / 推奨:{recommended_action} / 根拠:{reason}"
+
+
+def _signal_conclusion(*, state: SignalState, signal_phase: str) -> tuple[str, str]:
+    if state.is_strong:
+        return ("高", "優先確認")
+    if signal_phase == "新規":
+        return ("中", "監視開始")
+    return ("中", "継続監視")
+
+
+def _status_conclusion(
+    *,
+    metric_label: str,
+    metric_value: float | None,
+    divergence_line: str,
+    level_key: str,
+    normalized_phase: str | None,
+    normalized_insufficient: list[str],
+) -> tuple[str, str, str]:
+    if normalized_insufficient:
+        return ("中", "データ確認", f"中央値不足({'/'.join(normalized_insufficient)})")
+    if normalized_phase == "解除":
+        return ("中", "通常監視へ移行", f"{metric_label}={_fmt(metric_value)} / 乖離率({divergence_line})")
+    if level_key == "NONE":
+        return ("低", "様子見", f"{metric_label}={_fmt(metric_value)} / 乖離率({divergence_line})")
+    return ("中", "監視継続", f"{metric_label}={_fmt(metric_value)} / 乖離率({divergence_line})")
 
 
 def _normalize_signal_phase(signal_phase: str) -> str:
