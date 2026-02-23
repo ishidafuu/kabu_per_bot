@@ -30,6 +30,7 @@ from kabu_per_bot.backfill_service import (
 )
 from kabu_per_bot.jquants_v2 import JQuantsV2Client
 from kabu_per_bot.market_data import create_default_market_data_source
+from kabu_per_bot.notification import format_signal_status_message
 from kabu_per_bot.api.errors import (
     BadRequestError,
     ConflictError,
@@ -56,14 +57,16 @@ from kabu_per_bot.api.schemas import (
 )
 from kabu_per_bot.ir_url_candidates import IrUrlSuggestionError
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
+from kabu_per_bot.runtime_settings import resolve_runtime_settings
 from kabu_per_bot.settings import load_settings
-from kabu_per_bot.signal import SignalState
+from kabu_per_bot.signal import NotificationLogEntry, SignalState, evaluate_cooldown
 from kabu_per_bot.storage.firestore_daily_metrics_repository import FirestoreDailyMetricsRepository
 from kabu_per_bot.storage.firestore_metric_medians_repository import FirestoreMetricMediansRepository
 from kabu_per_bot.storage.firestore_signal_state_repository import FirestoreSignalStateRepository
 from kabu_per_bot.watchlist import (
     MetricType,
     NotifyChannel,
+    NotifyTiming,
     WatchlistAlreadyExistsError,
     WatchlistError,
     WatchlistLimitExceededError,
@@ -146,12 +149,24 @@ def list_watchlist(
     latest_medians_by_ticker = _load_latest_medians_by_ticker(metric_medians_repo, target_tickers)
     latest_states_by_ticker = _load_latest_signal_states_by_ticker(signal_state_repo, target_tickers)
     next_earnings_by_ticker = _load_next_earnings_by_ticker(earnings_calendar_repo, target_tickers, from_date=today_jst)
+    recent_notifications_by_ticker = _load_recent_notifications_by_ticker_optional(request=request, tickers=target_tickers)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    cooldown_hours = _resolve_cooldown_hours(request=request)
     response_items = [
         _build_watchlist_item_response(
             item=item,
             latest_metric=latest_metrics_by_ticker.get(item.ticker),
             latest_medians=latest_medians_by_ticker.get(item.ticker),
             latest_signal_state=latest_states_by_ticker.get(item.ticker),
+            notification_skip_reason=_resolve_notification_skip_reason(
+                item=item,
+                latest_metric=latest_metrics_by_ticker.get(item.ticker),
+                latest_medians=latest_medians_by_ticker.get(item.ticker),
+                latest_signal_state=latest_states_by_ticker.get(item.ticker),
+                recent_notifications=recent_notifications_by_ticker.get(item.ticker, []),
+                cooldown_hours=cooldown_hours,
+                now_iso=now_iso,
+            ),
             next_earnings=next_earnings_by_ticker.get(item.ticker),
         )
         for item in paged_items
@@ -429,6 +444,7 @@ def _build_watchlist_item_response(
     latest_medians: MetricMedians | None,
     latest_signal_state: SignalState | None,
     next_earnings: EarningsCalendarEntry | None,
+    notification_skip_reason: str | None = None,
 ) -> WatchlistItemResponse:
     current_metric_value: float | None = None
     median_1w: float | None = None
@@ -469,6 +485,7 @@ def _build_watchlist_item_response(
         signal_combo=signal_combo,
         signal_is_strong=signal_is_strong,
         signal_streak_days=signal_streak_days,
+        notification_skip_reason=notification_skip_reason,
         next_earnings_date=next_earnings_date,
         next_earnings_time=next_earnings_time,
     )
@@ -577,6 +594,171 @@ def _load_next_earnings_by_ticker(
         future_rows.sort(key=lambda row: (row.earnings_date, row.earnings_time or "99:99"))
         next_by_ticker[ticker] = future_rows[0]
     return next_by_ticker
+
+
+def _load_recent_notifications_by_ticker_optional(
+    *,
+    request: Request,
+    tickers: list[str],
+) -> dict[str, list[NotificationLogEntry]]:
+    try:
+        repository = _resolve_status_dependency(
+            request=request,
+            value_key="notification_log_repository",
+            factory_key="notification_log_repository_factory",
+        )
+    except InternalServerError as exc:
+        LOGGER.warning("通知スキップ理由の取得をスキップ: reason=%s", exc)
+        return {}
+
+    rows_by_ticker: dict[str, list[NotificationLogEntry]] = {}
+    for ticker in tickers:
+        try:
+            list_recent = getattr(repository, "list_recent", None)
+            if callable(list_recent):
+                rows = _call_repository(list_recent, ticker=ticker, limit=100)
+            else:
+                rows = _call_repository(repository.list_timeline, ticker=ticker, limit=100, offset=0)
+        except InternalServerError as exc:
+            LOGGER.warning("通知スキップ理由の取得をスキップ: ticker=%s reason=%s", ticker, exc)
+            rows = []
+        rows_by_ticker[ticker] = rows
+    return rows_by_ticker
+
+
+def _resolve_cooldown_hours(*, request: Request) -> int:
+    app_settings = load_settings()
+    fallback = app_settings.cooldown_hours
+    try:
+        repository = _resolve_status_dependency(
+            request=request,
+            value_key="global_settings_repository",
+            factory_key="global_settings_repository_factory",
+        )
+    except InternalServerError:
+        return fallback
+
+    try:
+        global_settings = repository.get_global_settings()
+    except Exception as exc:
+        LOGGER.warning("global_settings/runtime 取得失敗のため環境変数設定を使用: reason=%s", exc)
+        return fallback
+
+    return resolve_runtime_settings(
+        default_cooldown_hours=fallback,
+        default_intel_notification_max_age_days=app_settings.intel_notification_max_age_days,
+        global_settings=global_settings,
+    ).cooldown_hours
+
+
+def _resolve_notification_skip_reason(
+    *,
+    item: WatchlistItem,
+    latest_metric: DailyMetric | None,
+    latest_medians: MetricMedians | None,
+    latest_signal_state: SignalState | None,
+    recent_notifications: list[NotificationLogEntry],
+    cooldown_hours: int,
+    now_iso: str,
+) -> str | None:
+    if not item.is_active:
+        return "監視OFF（is_active=false）"
+    if item.notify_channel is NotifyChannel.OFF:
+        return "通知チャネルOFF"
+    if item.notify_timing is NotifyTiming.OFF:
+        return "通知タイミングOFF"
+
+    current_metric_value = _resolve_current_metric_value(item=item, latest_metric=latest_metric)
+    insufficient_windows = _resolve_insufficient_windows(latest_medians)
+
+    if latest_signal_state is not None and latest_signal_state.category and latest_signal_state.combo:
+        decision = evaluate_cooldown(
+            now_iso=now_iso,
+            cooldown_hours=cooldown_hours,
+            candidate_ticker=item.ticker,
+            candidate_category=latest_signal_state.category,
+            candidate_condition_key=f"{latest_signal_state.metric_type.value}:{latest_signal_state.combo}",
+            candidate_is_strong=latest_signal_state.is_strong,
+            recent_entries=recent_notifications,
+        )
+        if not decision.should_send:
+            return decision.reason
+        return None
+
+    if item.always_notify_enabled:
+        status_state = latest_signal_state or _build_fallback_signal_state(
+            item=item,
+            metric_value=current_metric_value,
+            trade_date=latest_metric.trade_date if latest_metric is not None else datetime.now(JST).date().isoformat(),
+            now_iso=now_iso,
+        )
+        status_message = format_signal_status_message(
+            ticker=item.ticker,
+            company_name=item.name,
+            state=status_state,
+            metric_value=current_metric_value,
+            median_1w=latest_medians.median_1w if latest_medians is not None else None,
+            median_3m=latest_medians.median_3m if latest_medians is not None else None,
+            median_1y=latest_medians.median_1y if latest_medians is not None else None,
+            insufficient_windows=insufficient_windows,
+        )
+        decision = evaluate_cooldown(
+            now_iso=now_iso,
+            cooldown_hours=cooldown_hours,
+            candidate_ticker=item.ticker,
+            candidate_category=status_message.category,
+            candidate_condition_key=status_message.condition_key,
+            candidate_is_strong=False,
+            recent_entries=recent_notifications,
+        )
+        if not decision.should_send:
+            return decision.reason
+        if current_metric_value is None:
+            return "データ不足（【データ不明】通知対象）"
+        return None
+
+    if current_metric_value is None:
+        return "データ不足（【データ不明】通知対象）"
+
+    if insufficient_windows:
+        return f"条件未達（中央値不足: {'/'.join(insufficient_windows)}）"
+
+    return "条件未達（割安シグナルなし）"
+
+
+def _resolve_current_metric_value(*, item: WatchlistItem, latest_metric: DailyMetric | None) -> float | None:
+    if latest_metric is None:
+        return None
+    return latest_metric.per_value if item.metric_type is MetricType.PER else latest_metric.psr_value
+
+
+def _resolve_insufficient_windows(latest_medians: MetricMedians | None) -> list[str]:
+    if latest_medians is None:
+        return ["1W", "3M", "1Y"]
+    return latest_medians.insufficient_windows()
+
+
+def _build_fallback_signal_state(
+    *,
+    item: WatchlistItem,
+    metric_value: float | None,
+    trade_date: str,
+    now_iso: str,
+) -> SignalState:
+    return SignalState(
+        ticker=item.ticker,
+        trade_date=trade_date,
+        metric_type=item.metric_type,
+        metric_value=metric_value,
+        under_1w=False,
+        under_3m=False,
+        under_1y=False,
+        combo=None,
+        is_strong=False,
+        category=None,
+        streak_days=0,
+        updated_at=now_iso,
+    )
 
 
 def _call_repository(callable_obj, **kwargs):

@@ -41,6 +41,7 @@ class WatchlistItemResponse(BaseModel):
     signal_combo: str | None = None
     signal_is_strong: bool | None = None
     signal_streak_days: int | None = None
+    notification_skip_reason: str | None = None
     next_earnings_date: str | None = None
     next_earnings_time: str | None = None
     created_at: str | None = None
@@ -59,6 +60,7 @@ class WatchlistItemResponse(BaseModel):
         signal_combo: str | None = None,
         signal_is_strong: bool | None = None,
         signal_streak_days: int | None = None,
+        notification_skip_reason: str | None = None,
         next_earnings_date: str | None = None,
         next_earnings_time: str | None = None,
     ) -> "WatchlistItemResponse":
@@ -82,6 +84,7 @@ class WatchlistItemResponse(BaseModel):
             signal_combo=signal_combo,
             signal_is_strong=signal_is_strong,
             signal_streak_days=signal_streak_days,
+            notification_skip_reason=notification_skip_reason,
             next_earnings_date=next_earnings_date,
             next_earnings_time=next_earnings_time,
             created_at=item.created_at,

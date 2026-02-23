@@ -535,6 +535,11 @@ th {
   line-height: 1.6;
 }
 
+.watchlist-skip-reason-cell {
+  min-width: 220px;
+  white-space: normal;
+}
+
 .kpi-grid {
   margin-top: 12px;
   display: grid;

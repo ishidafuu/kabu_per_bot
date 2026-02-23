@@ -81,6 +81,8 @@
   - 通知時間（IMMEDIATE/AT_21/OFF）
   - 常時通知（always_notify_enabled）
   - 有効状態（is_active）
+  - 最新判定（現在値/中央値/シグナル/次回決算）
+  - 通知スキップ理由（例: クールダウン中、条件未達、OFF設定）
 - 操作:
   - 追加
   - 編集
@@ -158,8 +160,10 @@
     - `q`（任意: ticker/name 部分一致）
     - `limit`（任意）
     - `offset`（任意）
+    - `include_status`（任意: `true` の場合、現在値/中央値/シグナル/次回決算/通知スキップ理由を付与）
   - 200レスポンス:
     - `items[]`
+      - `notification_skip_reason`（`include_status=true` 時、`null` は通知対象）
     - `total`
 
 2. `GET /watchlist/{ticker}`

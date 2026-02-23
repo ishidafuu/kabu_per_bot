@@ -29,6 +29,7 @@ export interface WatchlistItem {
   signal_combo?: string | null;
   signal_is_strong?: boolean | null;
   signal_streak_days?: number | null;
+  notification_skip_reason?: string | null;
   next_earnings_date?: string | null;
   next_earnings_time?: string | null;
 }
