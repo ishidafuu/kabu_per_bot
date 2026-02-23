@@ -35,12 +35,13 @@ class NotificationFormatterTest(unittest.TestCase):
             ticker="3901:TSE",
             company_name="富士フイルム",
             state=state,
+            signal_phase="新規",
             metric_value=10.0,
             median_1w=12.0,
             median_3m=13.0,
             median_1y=14.0,
         )
-        self.assertIn("🔥 超PER割安", message.body)
+        self.assertIn("🔥 [新規] 超PER割安", message.body)
         self.assertIn("under（3日連続）", message.body)
         self.assertIn("🔥", message.body)
         self.assertEqual(message.category, "超PER割安")
@@ -79,8 +80,10 @@ class NotificationFormatterTest(unittest.TestCase):
             median_1w=12.0,
             median_3m=13.0,
             median_1y=14.0,
+            signal_phase="解除",
         )
         self.assertIn("📘 PER状況", message.body)
+        self.assertIn("シグナル種別: 解除", message.body)
         self.assertIn("判定レベル: 下回りなし", message.body)
         self.assertEqual(message.category, "PER状況")
 
@@ -122,6 +125,7 @@ class NotificationFormatterTest(unittest.TestCase):
         )
         self.assertIn("【データ不明】", message.body)
         self.assertIn("終値/予想EPS", message.body)
+        self.assertIn("次の確認:", message.body)
         self.assertEqual(message.category, "データ不明")
 
     def test_intel_update_message_format(self) -> None:

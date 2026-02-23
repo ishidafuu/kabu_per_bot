@@ -178,8 +178,82 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.processed_tickers, 1)
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
-        self.assertIn("🔥 超PER割安", sender.messages[0])
+        self.assertIn("🔥 [新規] 超PER割安", sender.messages[0])
         self.assertEqual(len(log_repo.rows), 1)
+
+    def test_daily_pipeline_marks_signal_as_continuing_when_streak_extends(self) -> None:
+        market_source = FakeMarketDataSource(
+            snapshots={
+                "3901:TSE": MarketDataSnapshot.create(
+                    ticker="3901:TSE",
+                    close_price=100.0,
+                    eps_forecast=10.0,
+                    sales_forecast=100.0,
+                    source="株探",
+                    earnings_date="2026-05-10",
+                )
+            }
+        )
+        daily_repo = InMemoryDailyMetricsRepo(
+            rows=[
+                DailyMetric(
+                    ticker="3901:TSE",
+                    trade_date="2026-02-11",
+                    close_price=150.0,
+                    eps_forecast=10.0,
+                    sales_forecast=100.0,
+                    per_value=15.0,
+                    psr_value=1.5,
+                    data_source="株探",
+                    fetched_at="2026-02-11T00:00:00+00:00",
+                )
+            ]
+        )
+        medians_repo = InMemoryMediansRepo()
+        signal_repo = InMemorySignalStateRepo(
+            rows=[
+                SignalState(
+                    ticker="3901:TSE",
+                    trade_date="2026-02-11",
+                    metric_type=MetricType.PER,
+                    metric_value=9.0,
+                    under_1w=True,
+                    under_3m=True,
+                    under_1y=True,
+                    combo="1Y+3M+1W",
+                    is_strong=True,
+                    category="超PER割安",
+                    streak_days=3,
+                    updated_at="2026-02-11T00:00:00+00:00",
+                )
+            ]
+        )
+        log_repo = InMemoryNotificationLogRepo()
+        sender = SpySender()
+
+        result = run_daily_pipeline(
+            watchlist_items=[_watch_item("3901:TSE", "富士フイルム")],
+            market_data_source=market_source,
+            daily_metrics_repo=daily_repo,
+            medians_repo=medians_repo,
+            signal_state_repo=signal_repo,
+            notification_log_repo=log_repo,
+            sender=sender,
+            config=DailyPipelineConfig(
+                trade_date="2026-02-12",
+                window_1w_days=2,
+                window_3m_days=2,
+                window_1y_days=2,
+                cooldown_hours=2,
+                now_iso="2026-02-12T09:00:00+00:00",
+            ),
+        )
+
+        self.assertEqual(result.processed_tickers, 1)
+        self.assertEqual(result.sent_notifications, 1)
+        self.assertEqual(len(sender.messages), 1)
+        self.assertIn("🔥 [継続] 超PER割安", sender.messages[0])
+        self.assertIn("under（4日連続）", sender.messages[0])
 
     def test_daily_pipeline_sends_status_notification_when_always_notify_enabled(self) -> None:
         market_source = FakeMarketDataSource(
@@ -238,6 +312,80 @@ class PipelineTest(unittest.TestCase):
         self.assertIn("📘 PER状況", sender.messages[0])
         self.assertIn("判定レベル: 下回りなし", sender.messages[0])
 
+    def test_daily_pipeline_marks_status_as_released_when_signal_clears(self) -> None:
+        market_source = FakeMarketDataSource(
+            snapshots={
+                "3901:TSE": MarketDataSnapshot.create(
+                    ticker="3901:TSE",
+                    close_price=120.0,
+                    eps_forecast=10.0,
+                    sales_forecast=100.0,
+                    source="株探",
+                    earnings_date="2026-05-10",
+                )
+            }
+        )
+        daily_repo = InMemoryDailyMetricsRepo(
+            rows=[
+                DailyMetric(
+                    ticker="3901:TSE",
+                    trade_date="2026-02-11",
+                    close_price=80.0,
+                    eps_forecast=10.0,
+                    sales_forecast=100.0,
+                    per_value=8.0,
+                    psr_value=0.8,
+                    data_source="株探",
+                    fetched_at="2026-02-11T00:00:00+00:00",
+                )
+            ]
+        )
+        medians_repo = InMemoryMediansRepo()
+        signal_repo = InMemorySignalStateRepo(
+            rows=[
+                SignalState(
+                    ticker="3901:TSE",
+                    trade_date="2026-02-11",
+                    metric_type=MetricType.PER,
+                    metric_value=8.0,
+                    under_1w=True,
+                    under_3m=True,
+                    under_1y=True,
+                    combo="1Y+3M+1W",
+                    is_strong=True,
+                    category="超PER割安",
+                    streak_days=2,
+                    updated_at="2026-02-11T00:00:00+00:00",
+                )
+            ]
+        )
+        log_repo = InMemoryNotificationLogRepo()
+        sender = SpySender()
+
+        result = run_daily_pipeline(
+            watchlist_items=[_watch_item("3901:TSE", "富士フイルム", always_notify_enabled=True)],
+            market_data_source=market_source,
+            daily_metrics_repo=daily_repo,
+            medians_repo=medians_repo,
+            signal_state_repo=signal_repo,
+            notification_log_repo=log_repo,
+            sender=sender,
+            config=DailyPipelineConfig(
+                trade_date="2026-02-12",
+                window_1w_days=2,
+                window_3m_days=2,
+                window_1y_days=2,
+                cooldown_hours=2,
+                now_iso="2026-02-12T09:00:00+00:00",
+            ),
+        )
+
+        self.assertEqual(result.processed_tickers, 1)
+        self.assertEqual(result.sent_notifications, 1)
+        self.assertEqual(len(sender.messages), 1)
+        self.assertIn("📘 PER状況", sender.messages[0])
+        self.assertIn("シグナル種別: 解除", sender.messages[0])
+
     def test_daily_pipeline_sends_insufficient_status_when_medians_missing(self) -> None:
         market_source = FakeMarketDataSource(
             snapshots={
@@ -280,6 +428,7 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(len(sender.messages), 1)
         self.assertIn("📘 PER状況", sender.messages[0])
         self.assertIn("判定レベル: 判定不能（中央値不足: 1W/3M/1Y）", sender.messages[0])
+        self.assertNotIn("シグナル種別: 解除", sender.messages[0])
 
     def test_daily_pipeline_daily_mode_sends_immediate_only(self) -> None:
         market_source = FakeMarketDataSource(

@@ -27,6 +27,7 @@ def format_signal_message(
     ticker: str,
     company_name: str,
     state: SignalState,
+    signal_phase: str,
     metric_value: float | None,
     median_1w: float | None,
     median_3m: float | None,
@@ -36,13 +37,14 @@ def format_signal_message(
         raise ValueError("signal category/combo is required for signal notifications")
 
     normalized_ticker = normalize_ticker(ticker)
+    normalized_phase = _normalize_signal_phase(signal_phase)
     del metric_value, median_1w, median_3m, median_1y
     streak_days = max(1, state.streak_days)
     combo_label = _format_combo_label(state.combo, is_strong=state.is_strong)
     header_icon = "🔥" if state.is_strong else "📉"
     body = "\n".join(
         [
-            f"{header_icon} {state.category}",
+            f"{header_icon} [{normalized_phase}] {state.category}",
             "",
             f"　{normalized_ticker} {company_name}",
             f"　🎯 {combo_label} under（{streak_days}日連続）",
@@ -67,10 +69,12 @@ def format_signal_status_message(
     median_3m: float | None,
     median_1y: float | None,
     insufficient_windows: list[str] | None = None,
+    signal_phase: str | None = None,
 ) -> NotificationMessage:
     normalized_ticker = normalize_ticker(ticker)
     metric_label = state.metric_type.value
     normalized_insufficient = _normalize_insufficient_windows(insufficient_windows)
+    normalized_phase = _normalize_signal_phase(signal_phase) if signal_phase else None
     if normalized_insufficient:
         level_key = f"INSUFFICIENT_{'+'.join(normalized_insufficient)}"
         level_label = f"判定不能（中央値不足: {'/'.join(normalized_insufficient)}）"
@@ -78,10 +82,14 @@ def format_signal_status_message(
     else:
         level_key, level_label = _status_level(state)
         discount_label = "なし"
-    body = "\n".join(
+    lines = [
+        f"📘 {metric_label}状況",
+        f"　{company_name} ({normalized_ticker})",
+    ]
+    if normalized_phase:
+        lines.append(f"　シグナル種別: {normalized_phase}")
+    lines.extend(
         [
-            f"📘 {metric_label}状況",
-            f"　{company_name} ({normalized_ticker})",
             "",
             f"　{metric_label}: {_fmt(metric_value)}",
             f"　中央値(1W/3M/1Y): {_fmt(median_1w)} / {_fmt(median_3m)} / {_fmt(median_1y)}",
@@ -89,6 +97,7 @@ def format_signal_status_message(
             f"　割安通知: {discount_label}",
         ]
     )
+    body = "\n".join(lines)
     return NotificationMessage(
         ticker=normalized_ticker,
         category=f"{metric_label}状況",
@@ -137,7 +146,12 @@ def format_data_unknown_message(
     del context
     sorted_fields = _normalize_unknown_fields(missing_fields)
     labels = [_missing_field_to_label(field) for field in sorted_fields]
-    body = f"【データ不明】{normalized_ticker} {company_name} {'/'.join(labels)}が取得できませんでした"
+    body = "\n".join(
+        [
+            f"【データ不明】{normalized_ticker} {company_name} {'/'.join(labels)}が取得できませんでした",
+            "次の確認: 通知ログで同銘柄の履歴を確認し、必要に応じて /ops から対象ジョブを再実行してください",
+        ]
+    )
     return NotificationMessage(
         ticker=normalized_ticker,
         category="データ不明",
@@ -235,6 +249,13 @@ def _fmt(value: float | None) -> str:
     if value is None:
         return "N/A"
     return f"{value:.2f}"
+
+
+def _normalize_signal_phase(signal_phase: str) -> str:
+    normalized = str(signal_phase).strip()
+    if normalized not in {"新規", "継続", "解除"}:
+        raise ValueError(f"unsupported signal_phase: {signal_phase}")
+    return normalized
 
 
 def _trim_text(value: str, *, max_chars: int) -> str:

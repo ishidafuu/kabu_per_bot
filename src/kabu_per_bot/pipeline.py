@@ -281,10 +281,12 @@ def _process_single_ticker(
     signal_state_repo.upsert(state)
 
     if state.category and state.combo:
+        signal_phase = "継続" if state.streak_days > 1 else "新規"
         message = format_signal_message(
             ticker=watch_item.ticker,
             company_name=watch_item.name,
             state=state,
+            signal_phase=signal_phase,
             metric_value=state.metric_value,
             median_1w=medians.median_1w,
             median_3m=medians.median_3m,
@@ -301,6 +303,12 @@ def _process_single_ticker(
             channel=config.channel,
         )
     elif watch_item.always_notify_enabled:
+        insufficient_windows = medians.insufficient_windows()
+        signal_phase = _resolve_status_signal_phase(
+            previous_state=previous_state,
+            current_state=state,
+            insufficient_windows=insufficient_windows,
+        )
         status_message = format_signal_status_message(
             ticker=watch_item.ticker,
             company_name=watch_item.name,
@@ -309,7 +317,8 @@ def _process_single_ticker(
             median_1w=medians.median_1w,
             median_3m=medians.median_3m,
             median_1y=medians.median_1y,
-            insufficient_windows=medians.insufficient_windows(),
+            insufficient_windows=insufficient_windows,
+            signal_phase=signal_phase,
         )
         sent_count, skipped_count = _dispatch_with_cooldown(
             message=status_message,
@@ -457,3 +466,24 @@ def _normalize_execution_mode(execution_mode: NotificationExecutionMode | str) -
         return NotificationExecutionMode(str(execution_mode).strip().upper())
     except ValueError as exc:
         raise ValueError(f"unsupported execution_mode: {execution_mode}") from exc
+
+
+def _resolve_status_signal_phase(
+    *,
+    previous_state: SignalState | None,
+    current_state: SignalState,
+    insufficient_windows: list[str],
+) -> str | None:
+    if insufficient_windows:
+        return None
+    if _has_active_signal(previous_state, metric_type=current_state.metric_type):
+        return "解除"
+    return None
+
+
+def _has_active_signal(state: SignalState | None, *, metric_type: MetricType) -> bool:
+    if state is None:
+        return False
+    if state.metric_type is not metric_type:
+        return False
+    return bool(state.category and state.combo)
