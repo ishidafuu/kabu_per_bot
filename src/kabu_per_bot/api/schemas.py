@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from kabu_per_bot.grok_sns_settings import GrokSnsSettings, validate_grok_sns_settings
 from kabu_per_bot.immediate_schedule import ImmediateSchedule, validate_immediate_schedule
 from kabu_per_bot.signal import NotificationLogEntry
-from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchlistItem, XAccountLink
+from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchPriority, WatchlistItem, XAccountLink
 from kabu_per_bot.watchlist import WatchlistHistoryRecord
 
 
@@ -27,6 +27,7 @@ class WatchlistItemResponse(BaseModel):
     metric_type: MetricType
     notify_channel: NotifyChannel
     notify_timing: NotifyTiming
+    priority: WatchPriority
     always_notify_enabled: bool
     ai_enabled: bool
     is_active: bool
@@ -44,6 +45,7 @@ class WatchlistItemResponse(BaseModel):
     notification_skip_reason: str | None = None
     next_earnings_date: str | None = None
     next_earnings_time: str | None = None
+    next_earnings_days: int | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -63,6 +65,7 @@ class WatchlistItemResponse(BaseModel):
         notification_skip_reason: str | None = None,
         next_earnings_date: str | None = None,
         next_earnings_time: str | None = None,
+        next_earnings_days: int | None = None,
     ) -> "WatchlistItemResponse":
         return cls(
             ticker=item.ticker,
@@ -70,6 +73,7 @@ class WatchlistItemResponse(BaseModel):
             metric_type=item.metric_type,
             notify_channel=item.notify_channel,
             notify_timing=item.notify_timing,
+            priority=item.priority,
             always_notify_enabled=item.always_notify_enabled,
             ai_enabled=item.ai_enabled,
             is_active=item.is_active,
@@ -87,6 +91,7 @@ class WatchlistItemResponse(BaseModel):
             notification_skip_reason=notification_skip_reason,
             next_earnings_date=next_earnings_date,
             next_earnings_time=next_earnings_time,
+            next_earnings_days=next_earnings_days,
             created_at=item.created_at,
             updated_at=item.updated_at,
         )
@@ -107,6 +112,7 @@ class WatchlistCreateRequest(BaseModel):
     metric_type: MetricType
     notify_channel: NotifyChannel
     notify_timing: NotifyTiming
+    priority: WatchPriority = WatchPriority.MEDIUM
     always_notify_enabled: bool = False
     ai_enabled: bool = True
     is_active: bool = True
@@ -132,6 +138,7 @@ class WatchlistUpdateRequest(BaseModel):
     metric_type: MetricType | None = None
     notify_channel: NotifyChannel | None = None
     notify_timing: NotifyTiming | None = None
+    priority: WatchPriority | None = None
     always_notify_enabled: bool | None = None
     ai_enabled: bool | None = None
     is_active: bool | None = None
@@ -155,6 +162,7 @@ class WatchlistUpdateRequest(BaseModel):
                 self.metric_type is not None,
                 self.notify_channel is not None,
                 self.notify_timing is not None,
+                self.priority is not None,
                 self.always_notify_enabled is not None,
                 # 互換性維持: 旧クライアントの ai_enabled 単独PATCHを受け付ける。
                 self.ai_enabled is not None,
@@ -426,6 +434,8 @@ class NotificationLogItemResponse(BaseModel):
     payload_hash: str
     is_strong: bool
     body: str | None = None
+    data_source: str | None = None
+    data_fetched_at: str | None = None
 
     @classmethod
     def from_domain(cls, entry: NotificationLogEntry) -> "NotificationLogItemResponse":
@@ -439,6 +449,8 @@ class NotificationLogItemResponse(BaseModel):
             payload_hash=entry.payload_hash,
             is_strong=entry.is_strong,
             body=entry.body,
+            data_source=entry.data_source,
+            data_fetched_at=entry.data_fetched_at,
         )
 
 

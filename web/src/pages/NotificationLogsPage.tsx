@@ -5,6 +5,7 @@ import { createNotificationLogClient } from '../lib/api';
 import { toUserMessage } from '../lib/api/errors';
 import { appConfig } from '../lib/config';
 import type { NotificationLogItem } from '../types/notificationLog';
+import type { WatchPriority } from '../types/watchlist';
 
 const getPageLabel = (offset: number, limit: number): number => {
   return Math.floor(offset / limit) + 1;
@@ -21,7 +22,10 @@ const dateTimeFormatter = new Intl.DateTimeFormat('ja-JP', {
   timeZone: 'Asia/Tokyo',
 });
 
-const formatDateTime = (value: string): string => {
+const formatDateTime = (value?: string | null): string => {
+  if (!value) {
+    return '-';
+  }
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
@@ -39,6 +43,7 @@ export const NotificationLogsPage = () => {
   const [total, setTotal] = useState(0);
   const [tickerInput, setTickerInput] = useState('');
   const [ticker, setTicker] = useState('');
+  const [priority, setPriority] = useState<WatchPriority | ''>('');
   const [offset, setOffset] = useState(0);
   const limit = appConfig.pageSize;
   const [isLoading, setIsLoading] = useState(false);
@@ -51,6 +56,7 @@ export const NotificationLogsPage = () => {
     try {
       const response = await client.list({
         ticker: ticker || undefined,
+        priority: priority || undefined,
         limit,
         offset,
       });
@@ -63,7 +69,7 @@ export const NotificationLogsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [client, ticker, limit, offset]);
+  }, [client, ticker, priority, limit, offset]);
 
   useEffect(() => {
     void fetchLogs();
@@ -82,7 +88,7 @@ export const NotificationLogsPage = () => {
     <AppLayout title="通知ログ">
       <section className="panel controls-panel">
         <p className="muted">🔔 通知の発生条件を追跡したいときは、まず ticker で絞り込んで確認してください。</p>
-        <div className="search-row compact">
+        <div className="search-row compact notification-logs-search-row">
           <input
             type="search"
             placeholder="tickerで絞り込み (例: 7203:TSE)"
@@ -100,6 +106,19 @@ export const NotificationLogsPage = () => {
           <button type="button" className="secondary" onClick={handleSearch}>
             検索
           </button>
+          <select
+            value={priority}
+            onChange={(event) => {
+              setOffset(0);
+              setPriority(event.target.value as WatchPriority | '');
+            }}
+            aria-label="優先度で絞り込み"
+          >
+            <option value="">優先度: すべて</option>
+            <option value="HIGH">HIGH</option>
+            <option value="MEDIUM">MEDIUM</option>
+            <option value="LOW">LOW</option>
+          </select>
         </div>
 
         <div className="meta-row">
@@ -107,6 +126,7 @@ export const NotificationLogsPage = () => {
           <span>ページ: {getPageLabel(offset, limit)}</span>
           <span>表示件数: {limit}</span>
           <span>絞り込み: {ticker || 'なし'}</span>
+          <span>優先度: {priority || 'すべて'}</span>
         </div>
       </section>
 
@@ -123,6 +143,8 @@ export const NotificationLogsPage = () => {
                 <th>通知先</th>
                 <th>強通知</th>
                 <th>条件キー</th>
+                <th>データソース</th>
+                <th>取得時刻</th>
                 <th>本文</th>
                 <th>通知ID</th>
               </tr>
@@ -130,7 +152,7 @@ export const NotificationLogsPage = () => {
             <tbody>
               {isLoading && items.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="empty-cell">
+                  <td colSpan={10} className="empty-cell">
                     読み込み中...
                   </td>
                 </tr>
@@ -138,7 +160,7 @@ export const NotificationLogsPage = () => {
 
               {!isLoading && items.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="empty-cell">
+                  <td colSpan={10} className="empty-cell">
                     通知ログがありません。
                   </td>
                 </tr>
@@ -152,6 +174,8 @@ export const NotificationLogsPage = () => {
                   <td>{item.channel}</td>
                   <td>{item.is_strong ? 'true' : 'false'}</td>
                   <td>{item.condition_key}</td>
+                  <td>{item.data_source ?? '-'}</td>
+                  <td>{formatDateTime(item.data_fetched_at)}</td>
                   <td className="detail-body-cell">{item.body ?? '-'}</td>
                   <td>{item.entry_id}</td>
                 </tr>

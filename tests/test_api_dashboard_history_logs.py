@@ -16,6 +16,7 @@ from kabu_per_bot.watchlist import (
     MetricType,
     NotifyChannel,
     NotifyTiming,
+    WatchPriority,
     WatchlistHistoryAction,
     WatchlistHistoryRecord,
     WatchlistItem,
@@ -198,13 +199,14 @@ def _auth_header(token: str = "valid-token") -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _watchlist_item(*, ticker: str, name: str) -> WatchlistItem:
+def _watchlist_item(*, ticker: str, name: str, priority: WatchPriority = WatchPriority.MEDIUM) -> WatchlistItem:
     return WatchlistItem(
         ticker=normalize_ticker(ticker),
         name=name,
         metric_type=MetricType.PER,
         notify_channel=NotifyChannel.DISCORD,
         notify_timing=NotifyTiming.IMMEDIATE,
+        priority=priority,
         ai_enabled=False,
         is_active=True,
         created_at="2026-02-12T00:00:00+09:00",
@@ -482,6 +484,8 @@ class DashboardHistoryLogsApiTest(unittest.TestCase):
                     payload_hash="h3",
                     is_strong=False,
                     body="unknown",
+                    data_source="Yahoo!ファイナンス",
+                    data_fetched_at="2026-02-12T14:58:00+09:00",
                 ),
             ]
         )
@@ -505,6 +509,55 @@ class DashboardHistoryLogsApiTest(unittest.TestCase):
         self.assertEqual(strong_only.status_code, 200)
         self.assertEqual(strong_only.json()["total"], 1)
         self.assertEqual(strong_only.json()["items"][0]["entry_id"], "b")
+        self.assertEqual(body["items"][0]["data_source"], None)
+
+    def test_notification_logs_support_priority_filter_and_data_source(self) -> None:
+        client = _build_client(
+            watchlist_items=[
+                _watchlist_item(ticker="3901:TSE", name="富士フイルム", priority=WatchPriority.HIGH),
+                _watchlist_item(ticker="6758:TSE", name="ソニー", priority=WatchPriority.LOW),
+            ],
+            notification_rows=[
+                NotificationLogEntry(
+                    entry_id="high-1",
+                    ticker="3901:TSE",
+                    category="超PER割安",
+                    condition_key="PER:1Y+3M+1W",
+                    sent_at="2026-02-12T12:00:00+09:00",
+                    channel="DISCORD",
+                    payload_hash="h-high",
+                    is_strong=True,
+                    body="high",
+                    data_source="株探",
+                    data_fetched_at="2026-02-12T11:58:00+09:00",
+                ),
+                NotificationLogEntry(
+                    entry_id="low-1",
+                    ticker="6758:TSE",
+                    category="PER割安",
+                    condition_key="PER:1Y+3M",
+                    sent_at="2026-02-12T11:00:00+09:00",
+                    channel="DISCORD",
+                    payload_hash="h-low",
+                    is_strong=False,
+                    body="low",
+                    data_source="Yahoo!ファイナンス",
+                    data_fetched_at="2026-02-12T10:58:00+09:00",
+                ),
+            ],
+        )
+
+        response = client.get(
+            "/api/v1/notifications/logs?priority=HIGH",
+            headers=_auth_header(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["total"], 1)
+        self.assertEqual(body["items"][0]["ticker"], "3901:TSE")
+        self.assertEqual(body["items"][0]["data_source"], "株探")
+        self.assertEqual(body["items"][0]["data_fetched_at"], "2026-02-12T11:58:00+09:00")
 
     def test_validation_errors(self) -> None:
         client = _build_client()

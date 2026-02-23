@@ -54,6 +54,12 @@ class NotifyTiming(str, Enum):
     OFF = "OFF"
 
 
+class WatchPriority(str, Enum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+
+
 class WatchlistHistoryAction(str, Enum):
     ADD = "ADD"
     REMOVE = "REMOVE"
@@ -85,6 +91,7 @@ class WatchlistItem:
     metric_type: MetricType
     notify_channel: NotifyChannel
     notify_timing: NotifyTiming
+    priority: WatchPriority = WatchPriority.MEDIUM
     always_notify_enabled: bool = False
     ai_enabled: bool = True
     is_active: bool = True
@@ -102,6 +109,7 @@ class WatchlistItem:
             metric_type=MetricType(str(data["metric_type"]).strip().upper()),
             notify_channel=_parse_notify_channel(data["notify_channel"]),
             notify_timing=NotifyTiming(str(data["notify_timing"]).strip().upper()),
+            priority=_parse_priority(data.get("priority")),
             always_notify_enabled=_coerce_bool(
                 data.get("always_notify_enabled"),
                 field_name="always_notify_enabled",
@@ -124,6 +132,7 @@ class WatchlistItem:
             "metric_type": self.metric_type.value,
             "notify_channel": self.notify_channel.value,
             "notify_timing": self.notify_timing.value,
+            "priority": self.priority.value,
             "always_notify_enabled": self.always_notify_enabled,
             "ai_enabled": self.ai_enabled,
             "is_active": self.is_active,
@@ -269,6 +278,7 @@ class WatchlistService:
         metric_type: MetricType | str,
         notify_channel: NotifyChannel | str,
         notify_timing: NotifyTiming | str,
+        priority: WatchPriority | str = WatchPriority.MEDIUM,
         always_notify_enabled: bool = False,
         ai_enabled: bool = True,
         is_active: bool = True,
@@ -287,6 +297,7 @@ class WatchlistService:
             metric_type=MetricType(self._enum_input(metric_type)),
             notify_channel=NotifyChannel(self._enum_input(notify_channel)),
             notify_timing=NotifyTiming(self._enum_input(notify_timing)),
+            priority=WatchPriority(self._enum_input(priority)),
             always_notify_enabled=bool(always_notify_enabled),
             ai_enabled=True,
             is_active=bool(is_active),
@@ -343,6 +354,7 @@ class WatchlistService:
         metric_type: MetricType | str | None = None,
         notify_channel: NotifyChannel | str | None = None,
         notify_timing: NotifyTiming | str | None = None,
+        priority: WatchPriority | str | None = None,
         always_notify_enabled: bool | None = None,
         ai_enabled: bool | None = None,
         is_active: bool | None = None,
@@ -371,6 +383,11 @@ class WatchlistService:
                 NotifyTiming(self._enum_input(notify_timing))
                 if notify_timing is not None
                 else existing.notify_timing
+            ),
+            priority=(
+                WatchPriority(self._enum_input(priority))
+                if priority is not None
+                else existing.priority
             ),
             always_notify_enabled=(
                 existing.always_notify_enabled if always_notify_enabled is None else bool(always_notify_enabled)
@@ -433,6 +450,15 @@ def _parse_notify_channel(value: Any) -> NotifyChannel:
         LOGGER.warning("旧notify_channel値を互換変換: %s -> DISCORD", normalized)
         return NotifyChannel.DISCORD
     return NotifyChannel(normalized)
+
+
+def _parse_priority(value: Any) -> WatchPriority:
+    if value is None:
+        return WatchPriority.MEDIUM
+    normalized = str(value).strip().upper()
+    if not normalized:
+        return WatchPriority.MEDIUM
+    return WatchPriority(normalized)
 
 
 def _coerce_bool(value: Any, *, field_name: str, default: bool) -> bool:

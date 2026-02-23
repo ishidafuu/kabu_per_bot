@@ -181,7 +181,10 @@ class PipelineTest(unittest.TestCase):
         self.assertIn("🔥 優先度:高 / 推奨アクション:優先確認 / 根拠数値:PER=10.00", sender.messages[0])
         self.assertIn("区分: [新規] 超PER割安", sender.messages[0])
         self.assertIn("差分(現在-中央値):", sender.messages[0])
+        self.assertIn("📅 決算まで: 87日", sender.messages[0])
         self.assertEqual(len(log_repo.rows), 1)
+        self.assertEqual(log_repo.rows[0].data_source, "株探")
+        self.assertIsNotNone(log_repo.rows[0].data_fetched_at)
 
     def test_daily_pipeline_marks_signal_as_continuing_when_streak_extends(self) -> None:
         market_source = FakeMarketDataSource(
@@ -1012,6 +1015,8 @@ class PipelineTest(unittest.TestCase):
         self.assertIn("3901:TSE", sender.messages[0])
         self.assertEqual(len(log_repo.rows), 1)
         self.assertEqual(log_repo.rows[0].category, "今週決算")
+        self.assertEqual(log_repo.rows[0].data_source, "株探")
+        self.assertEqual(log_repo.rows[0].data_fetched_at, "2026-02-12T00:00:00+00:00")
 
     def test_weekly_earnings_pipeline_daily_mode_sends_immediate_only(self) -> None:
         watchlist_items = [

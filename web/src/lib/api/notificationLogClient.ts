@@ -1,8 +1,10 @@
 import type { NotificationLogListResponse } from '../../types/notificationLog';
+import type { WatchPriority } from '../../types/watchlist';
 import { HttpClient } from './httpClient';
 
 export interface ListNotificationLogParams {
   ticker?: string;
+  priority?: WatchPriority;
   limit?: number;
   offset?: number;
 }
@@ -23,6 +25,9 @@ export class HttpNotificationLogClient implements NotificationLogClient {
 
     if (params.ticker) {
       query.set('ticker', params.ticker);
+    }
+    if (params.priority) {
+      query.set('priority', params.priority);
     }
 
     if (params.limit != null) {

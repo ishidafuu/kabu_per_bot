@@ -1,6 +1,13 @@
 import type { NotificationLogItem, NotificationLogListResponse } from '../../types/notificationLog';
 import type { ListNotificationLogParams, NotificationLogClient } from './notificationLogClient';
 
+const watchPriorityByTicker: Record<string, 'HIGH' | 'MEDIUM' | 'LOW'> = {
+  '7203:TSE': 'HIGH',
+  '6501:TSE': 'MEDIUM',
+  '9432:TSE': 'LOW',
+  '8035:TSE': 'HIGH',
+};
+
 const seedNotificationLogs: NotificationLogItem[] = [
   {
     entry_id: 'log-20260212-01',
@@ -12,6 +19,8 @@ const seedNotificationLogs: NotificationLogItem[] = [
     payload_hash: 'af1b9c2d',
     is_strong: false,
     body: '【PER割安】7203:TSE トヨタ自動車 1Y 3M under（2日連続）',
+    data_source: '株探',
+    data_fetched_at: '2026-02-12T08:00:00+09:00',
   },
   {
     entry_id: 'log-20260211-02',
@@ -23,6 +32,8 @@ const seedNotificationLogs: NotificationLogItem[] = [
     payload_hash: '8d1efaa0',
     is_strong: true,
     body: '【超PSR割安】6501:TSE 日立製作所 1Y 3M 1W under（1日目）',
+    data_source: 'J-Quants v2',
+    data_fetched_at: '2026-02-11T20:55:00+09:00',
   },
   {
     entry_id: 'log-20260211-01',
@@ -34,6 +45,8 @@ const seedNotificationLogs: NotificationLogItem[] = [
     payload_hash: '90cde110',
     is_strong: false,
     body: '【データ不明】9432:TSE 日本電信電話 予想EPSが取得できませんでした',
+    data_source: 'Yahoo!ファイナンス',
+    data_fetched_at: '2026-02-11T07:40:00+09:00',
   },
   {
     entry_id: 'log-20260210-01',
@@ -45,6 +58,8 @@ const seedNotificationLogs: NotificationLogItem[] = [
     payload_hash: 'b0f1974e',
     is_strong: false,
     body: '【明日決算】8035:TSE 東京エレクトロン 2026-02-11 15:00',
+    data_source: '株探',
+    data_fetched_at: '2026-02-10T06:20:00+09:00',
   },
 ];
 
@@ -60,10 +75,17 @@ export class MockNotificationLogClient implements NotificationLogClient {
     const limit = params.limit ?? 20;
     const offset = params.offset ?? 0;
     const ticker = params.ticker?.trim().toUpperCase() ?? '';
+    const priority = params.priority;
 
-    const filtered = ticker.length === 0
-      ? seedNotificationLogs
-      : seedNotificationLogs.filter((item) => item.ticker.toUpperCase() === ticker);
+    const filtered = seedNotificationLogs.filter((item) => {
+      if (ticker.length > 0 && item.ticker.toUpperCase() !== ticker) {
+        return false;
+      }
+      if (priority && watchPriorityByTicker[item.ticker] !== priority) {
+        return false;
+      }
+      return true;
+    });
 
     return {
       items: filtered.slice(offset, offset + limit),

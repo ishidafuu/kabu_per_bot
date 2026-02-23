@@ -7,7 +7,7 @@ import { createWatchlistClient } from '../lib/api';
 import { toUserMessage } from '../lib/api/errors';
 import { buildWatchlistPayload } from '../lib/watchlistFormPayload';
 import { appConfig } from '../lib/config';
-import type { IrUrlCandidate, WatchlistItem } from '../types/watchlist';
+import type { IrUrlCandidate, WatchPriority, WatchlistItem } from '../types/watchlist';
 
 const getPageLabel = (offset: number, limit: number): number => {
   return Math.floor(offset / limit) + 1;
@@ -27,6 +27,16 @@ const formatEarnings = (date?: string | null, time?: string | null): string => {
   return `${date} ${time ?? '未定'}`;
 };
 
+const formatEarningsDays = (days?: number | null): string => {
+  if (days == null) {
+    return '-';
+  }
+  if (days <= 0) {
+    return '当日';
+  }
+  return `${days}日`;
+};
+
 export const WatchlistPage = () => {
   const navigate = useNavigate();
   const { getIdToken } = useAuth();
@@ -36,6 +46,7 @@ export const WatchlistPage = () => {
   const [total, setTotal] = useState(0);
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
+  const [priority, setPriority] = useState<WatchPriority | ''>('');
   const [offset, setOffset] = useState(0);
   const limit = appConfig.pageSize;
   const [isLoading, setIsLoading] = useState(false);
@@ -83,6 +94,7 @@ export const WatchlistPage = () => {
     try {
       const response = await client.list({
         q: keyword || undefined,
+        priority: priority || undefined,
         limit,
         offset,
         include_status: true,
@@ -96,7 +108,7 @@ export const WatchlistPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [client, keyword, limit, offset]);
+  }, [client, keyword, limit, offset, priority]);
 
   useEffect(() => {
     void fetchWatchlist();
@@ -195,7 +207,7 @@ export const WatchlistPage = () => {
           <p className="dashboard-badge">銘柄設定</p>
           <p className="muted">🔎 ticker または会社名で検索し、必要時に編集・削除を実行します。</p>
         </div>
-        <div className="search-row">
+        <div className="search-row watchlist-search-row">
           <input
             type="search"
             placeholder="ticker / 会社名で検索"
@@ -213,6 +225,19 @@ export const WatchlistPage = () => {
           <button type="button" className="secondary" onClick={handleSearch}>
             検索
           </button>
+          <select
+            value={priority}
+            onChange={(event) => {
+              setOffset(0);
+              setPriority(event.target.value as WatchPriority | '');
+            }}
+            aria-label="優先度で絞り込み"
+          >
+            <option value="">優先度: すべて</option>
+            <option value="HIGH">HIGH</option>
+            <option value="MEDIUM">MEDIUM</option>
+            <option value="LOW">LOW</option>
+          </select>
           <button type="button" className="primary" onClick={openCreateForm}>
             新規追加
           </button>
@@ -254,6 +279,7 @@ export const WatchlistPage = () => {
                 <th>銘柄コード</th>
                 <th>会社名</th>
                 <th>監視指標</th>
+                <th>優先度</th>
                 <th>通知タイミング</th>
                 <th>常時通知</th>
                 <th>有効状態</th>
@@ -262,13 +288,14 @@ export const WatchlistPage = () => {
                 <th>シグナル</th>
                 <th>通知スキップ理由</th>
                 <th>次回決算</th>
+                <th>決算まで</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody>
               {!isLoading && items.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="empty-cell">
+                  <td colSpan={14} className="empty-cell">
                     データがありません。
                   </td>
                 </tr>
@@ -279,6 +306,7 @@ export const WatchlistPage = () => {
                   <td>{item.ticker}</td>
                   <td>{item.name}</td>
                   <td>{item.metric_type}</td>
+                  <td>{item.priority}</td>
                   <td>{item.notify_timing}</td>
                   <td>{item.always_notify_enabled ? 'true' : 'false'}</td>
                   <td>{item.is_active ? 'true' : 'false'}</td>
@@ -292,6 +320,7 @@ export const WatchlistPage = () => {
                   </td>
                   <td className="watchlist-skip-reason-cell">{item.notification_skip_reason ?? '通知対象'}</td>
                   <td>{formatEarnings(item.next_earnings_date, item.next_earnings_time)}</td>
+                  <td>{formatEarningsDays(item.next_earnings_days)}</td>
                   <td>
                     <div className="inline-actions">
                       <button

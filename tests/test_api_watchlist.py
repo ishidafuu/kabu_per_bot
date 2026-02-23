@@ -18,7 +18,7 @@ from kabu_per_bot.signal import NotificationLogEntry, SignalState
 from kabu_per_bot.ir_url_candidates import IrUrlCandidate, IrUrlSuggestionError
 from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
 from kabu_per_bot.storage.firestore_schema import normalize_ticker
-from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming
+from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchPriority
 from kabu_per_bot.watchlist import CreateResult, WatchlistHistoryAction, WatchlistHistoryRecord, WatchlistItem, WatchlistService
 
 
@@ -303,6 +303,7 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(create_1.status_code, 201)
         self.assertTrue(create_1.json()["always_notify_enabled"])
         self.assertEqual(create_1.json()["ticker"], "3901:TSE")
+        self.assertEqual(create_1.json()["priority"], "MEDIUM")
 
         create_2 = client.post(
             "/api/v1/watchlist",
@@ -335,12 +336,13 @@ class WatchlistApiTest(unittest.TestCase):
         update = client.patch(
             "/api/v1/watchlist/3901:TSE",
             headers=_auth_header(),
-            json={"always_notify_enabled": False, "is_active": False},
+            json={"always_notify_enabled": False, "is_active": False, "priority": "HIGH"},
         )
         self.assertEqual(update.status_code, 200)
         self.assertEqual(update.json()["notify_channel"], "DISCORD")
         self.assertFalse(update.json()["always_notify_enabled"])
         self.assertEqual(update.json()["is_active"], False)
+        self.assertEqual(update.json()["priority"], "HIGH")
 
         delete = client.delete("/api/v1/watchlist/3901:TSE", headers=_auth_header())
         self.assertEqual(delete.status_code, 204)
@@ -348,6 +350,38 @@ class WatchlistApiTest(unittest.TestCase):
         missing = client.get("/api/v1/watchlist/3901:TSE", headers=_auth_header())
         self.assertEqual(missing.status_code, 404)
         self.assertEqual(missing.json()["error"]["code"], "not_found")
+
+    def test_watchlist_supports_priority_filter(self) -> None:
+        client = _build_client()
+        payloads = [
+            {
+                "ticker": "3901:TSE",
+                "name": "富士フイルム",
+                "metric_type": "PER",
+                "notify_channel": "DISCORD",
+                "notify_timing": "IMMEDIATE",
+                "priority": "HIGH",
+            },
+            {
+                "ticker": "6758:TSE",
+                "name": "ソニー",
+                "metric_type": "PSR",
+                "notify_channel": "DISCORD",
+                "notify_timing": "AT_21",
+                "priority": "LOW",
+            },
+        ]
+        for payload in payloads:
+            response = client.post("/api/v1/watchlist", headers=_auth_header(), json=payload)
+            self.assertEqual(response.status_code, 201)
+
+        filtered = client.get("/api/v1/watchlist?priority=HIGH", headers=_auth_header())
+
+        self.assertEqual(filtered.status_code, 200)
+        body = filtered.json()
+        self.assertEqual(body["total"], 1)
+        self.assertEqual(body["items"][0]["ticker"], "3901:TSE")
+        self.assertEqual(body["items"][0]["priority"], "HIGH")
 
     def test_watchlist_detail_returns_summary_notifications_and_history(self) -> None:
         now = datetime.now(timezone.utc)
@@ -969,6 +1003,9 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(item["signal_category"], "超PER割安")
         self.assertIsNone(item["notification_skip_reason"])
         self.assertEqual(item["next_earnings_date"], "2099-01-10")
+        self.assertEqual(item["priority"], WatchPriority.MEDIUM.value)
+        self.assertIsInstance(item["next_earnings_days"], int)
+        self.assertGreater(item["next_earnings_days"], 0)
 
     def test_watchlist_list_include_status_exposes_cooldown_skip_reason(self) -> None:
         repository = InMemoryWatchlistRepository()

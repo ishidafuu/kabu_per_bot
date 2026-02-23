@@ -26,6 +26,7 @@ export const buildWatchlistPayload = (
     metric_type: values.metric_type,
     notify_channel: 'DISCORD',
     notify_timing: values.notify_timing,
+    priority: values.priority,
     always_notify_enabled: values.always_notify_enabled,
     is_active: values.is_active,
     ai_enabled: true,

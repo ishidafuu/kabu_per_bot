@@ -8,6 +8,8 @@ export interface NotificationLogItem {
   payload_hash: string;
   is_strong: boolean;
   body?: string | null;
+  data_source?: string | null;
+  data_fetched_at?: string | null;
 }
 
 export interface NotificationLogListResponse {

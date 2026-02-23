@@ -8,6 +8,7 @@ from kabu_per_bot.watchlist import (
     MetricType,
     NotifyChannel,
     NotifyTiming,
+    WatchPriority,
     WatchlistAlreadyExistsError,
     WatchlistHistoryAction,
     WatchlistHistoryRecord,
@@ -102,6 +103,27 @@ class WatchlistServiceTest(unittest.TestCase):
         self.assertEqual(service.list_items(), [])
         with self.assertRaises(WatchlistNotFoundError):
             service.get_item("3901:TSE")
+
+    def test_priority_defaults_to_medium_and_can_be_updated(self) -> None:
+        repo = InMemoryWatchlistRepository()
+        service = WatchlistService(repo)
+
+        created = service.add_item(
+            ticker="3901:TSE",
+            name="富士フイルム",
+            metric_type=MetricType.PER,
+            notify_channel=NotifyChannel.DISCORD,
+            notify_timing=NotifyTiming.IMMEDIATE,
+        )
+        self.assertEqual(created.priority, WatchPriority.MEDIUM)
+
+        updated = service.update_item(
+            "3901:TSE",
+            priority=WatchPriority.HIGH,
+            now_iso="2026-02-13T00:00:00+00:00",
+        )
+        self.assertEqual(updated.priority, WatchPriority.HIGH)
+        self.assertEqual(updated.updated_at, "2026-02-13T00:00:00+00:00")
 
     def test_limit_exceeded_raises(self) -> None:
         repo = InMemoryWatchlistRepository()

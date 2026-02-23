@@ -67,6 +67,7 @@ from kabu_per_bot.watchlist import (
     MetricType,
     NotifyChannel,
     NotifyTiming,
+    WatchPriority,
     WatchlistAlreadyExistsError,
     WatchlistError,
     WatchlistLimitExceededError,
@@ -107,9 +108,10 @@ def _translate_watchlist_error() -> Iterator[None]:
 def list_watchlist(
     request: Request,
     q: str | None = Query(default=None, description="ticker/name の部分一致検索"),
+    priority: WatchPriority | None = Query(default=None, description="優先度で絞り込み"),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    include_status: bool = Query(default=False, description="最新指標/判定/次回決算を含める"),
+    include_status: bool = Query(default=False, description="最新指標/判定/次回決算/決算まで日数を含める"),
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> WatchlistListResponse:
     items = service.list_items()
@@ -117,6 +119,8 @@ def list_watchlist(
     if q:
         needle = q.strip().lower()
         items = [item for item in items if needle in item.ticker.lower() or needle in item.name.lower()]
+    if priority is not None:
+        items = [item for item in items if item.priority == priority]
 
     total = len(items)
     paged_items = items[offset : offset + limit]
@@ -342,6 +346,7 @@ def create_watchlist_item(
             metric_type=payload.metric_type,
             notify_channel=NotifyChannel.DISCORD,
             notify_timing=payload.notify_timing,
+            priority=payload.priority,
             always_notify_enabled=payload.always_notify_enabled,
             ai_enabled=True,
             is_active=payload.is_active,
@@ -374,6 +379,7 @@ def update_watchlist_item(
             metric_type=payload.metric_type,
             notify_channel=NotifyChannel.DISCORD,
             notify_timing=payload.notify_timing,
+            priority=payload.priority,
             always_notify_enabled=payload.always_notify_enabled,
             ai_enabled=True,
             is_active=payload.is_active,
@@ -474,6 +480,7 @@ def _build_watchlist_item_response(
     if next_earnings is not None:
         next_earnings_date = next_earnings.earnings_date
         next_earnings_time = next_earnings.earnings_time
+    next_earnings_days = _resolve_next_earnings_days(next_earnings_date=next_earnings_date)
 
     return WatchlistItemResponse.from_domain(
         item,
@@ -488,6 +495,7 @@ def _build_watchlist_item_response(
         notification_skip_reason=notification_skip_reason,
         next_earnings_date=next_earnings_date,
         next_earnings_time=next_earnings_time,
+        next_earnings_days=next_earnings_days,
     )
 
 
@@ -759,6 +767,17 @@ def _resolve_insufficient_windows(latest_medians: MetricMedians | None) -> list[
     if latest_medians is None:
         return ["1W", "3M", "1Y"]
     return latest_medians.insufficient_windows()
+
+
+def _resolve_next_earnings_days(*, next_earnings_date: str | None) -> int | None:
+    if not next_earnings_date:
+        return None
+    try:
+        target_date = datetime.fromisoformat(next_earnings_date).date()
+    except ValueError:
+        return None
+    today = datetime.now(JST).date()
+    return max((target_date - today).days, 0)
 
 
 def _build_fallback_signal_state(

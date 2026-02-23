@@ -3,6 +3,7 @@ export type MetricType = 'PER' | 'PSR';
 export type NotifyChannel = 'DISCORD' | 'OFF';
 
 export type NotifyTiming = 'IMMEDIATE' | 'AT_21' | 'OFF';
+export type WatchPriority = 'HIGH' | 'MEDIUM' | 'LOW';
 
 export interface XAccountLink {
   handle: string;
@@ -15,6 +16,7 @@ export interface WatchlistItem {
   metric_type: MetricType;
   notify_channel: NotifyChannel;
   notify_timing: NotifyTiming;
+  priority: WatchPriority;
   always_notify_enabled?: boolean;
   is_active: boolean;
   ai_enabled: boolean;
@@ -32,6 +34,7 @@ export interface WatchlistItem {
   notification_skip_reason?: string | null;
   next_earnings_date?: string | null;
   next_earnings_time?: string | null;
+  next_earnings_days?: number | null;
 }
 
 export interface WatchlistListResponse {
@@ -45,6 +48,7 @@ export interface WatchlistCreateInput {
   metric_type: MetricType;
   notify_channel: NotifyChannel;
   notify_timing: NotifyTiming;
+  priority?: WatchPriority;
   always_notify_enabled?: boolean;
   reason?: string;
   ir_urls?: string[];
@@ -59,6 +63,7 @@ export interface WatchlistUpdateInput {
   metric_type?: MetricType;
   notify_channel?: NotifyChannel;
   notify_timing?: NotifyTiming;
+  priority?: WatchPriority;
   always_notify_enabled?: boolean;
   ir_urls?: string[];
   x_official_account?: string;

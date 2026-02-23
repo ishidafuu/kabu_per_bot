@@ -237,12 +237,14 @@ def _process_single_ticker(
     missing_fields = metric_row.missing_fields(metric_type=watch_item.metric_type)
     if not snapshot.earnings_date:
         missing_fields.append("earnings_date")
+    earnings_days = _resolve_earnings_days(trade_date=trade_date, earnings_date=snapshot.earnings_date)
     if missing_fields:
         unknown_message = format_data_unknown_message(
             ticker=watch_item.ticker,
             company_name=watch_item.name,
             missing_fields=missing_fields,
             context="日次指標計算",
+            earnings_days=earnings_days,
         )
         sent, skipped = _dispatch_with_cooldown(
             message=unknown_message,
@@ -253,6 +255,8 @@ def _process_single_ticker(
             cooldown_hours=config.cooldown_hours,
             now_iso=config.now_iso,
             channel=config.channel,
+            data_source=metric_row.data_source,
+            data_fetched_at=metric_row.fetched_at,
         )
         return PipelineResult(processed_tickers=1, sent_notifications=sent, skipped_notifications=skipped, errors=0)
 
@@ -291,6 +295,7 @@ def _process_single_ticker(
             median_1w=medians.median_1w,
             median_3m=medians.median_3m,
             median_1y=medians.median_1y,
+            earnings_days=earnings_days,
         )
         sent_count, skipped_count = _dispatch_with_cooldown(
             message=message,
@@ -301,6 +306,8 @@ def _process_single_ticker(
             cooldown_hours=config.cooldown_hours,
             now_iso=config.now_iso,
             channel=config.channel,
+            data_source=metric_row.data_source,
+            data_fetched_at=metric_row.fetched_at,
         )
     elif watch_item.always_notify_enabled:
         insufficient_windows = medians.insufficient_windows()
@@ -319,6 +326,7 @@ def _process_single_ticker(
             median_1y=medians.median_1y,
             insufficient_windows=insufficient_windows,
             signal_phase=signal_phase,
+            earnings_days=earnings_days,
         )
         sent_count, skipped_count = _dispatch_with_cooldown(
             message=status_message,
@@ -329,6 +337,8 @@ def _process_single_ticker(
             cooldown_hours=config.cooldown_hours,
             now_iso=config.now_iso,
             channel=config.channel,
+            data_source=metric_row.data_source,
+            data_fetched_at=metric_row.fetched_at,
         )
 
     return PipelineResult(
@@ -380,6 +390,8 @@ def _run_earnings_pipeline(
                 cooldown_hours=cooldown_hours,
                 now_iso=now_value,
                 channel=channel,
+                data_source=entry.source,
+                data_fetched_at=entry.fetched_at,
             )
             result = result.merge(
                 PipelineResult(processed_tickers=1, sent_notifications=sent, skipped_notifications=skipped)
@@ -400,6 +412,8 @@ def _dispatch_with_cooldown(
     cooldown_hours: int,
     now_iso: str,
     channel: str,
+    data_source: str | None = None,
+    data_fetched_at: str | None = None,
 ) -> tuple[int, int]:
     recent = notification_log_repo.list_recent(ticker, limit=100)
     decision = evaluate_cooldown(
@@ -426,6 +440,8 @@ def _dispatch_with_cooldown(
         payload_hash=message.payload_hash,
         is_strong=is_strong,
         body=message.body,
+        data_source=data_source,
+        data_fetched_at=data_fetched_at,
     )
     notification_log_repo.append(log_entry)
     return (1, 0)
@@ -494,6 +510,17 @@ def _has_active_signal(state: SignalState | None, *, metric_type: MetricType) ->
     if state.metric_type is not metric_type:
         return False
     return bool(state.category and state.combo)
+
+
+def _resolve_earnings_days(*, trade_date: str, earnings_date: str | None) -> int | None:
+    if not earnings_date:
+        return None
+    try:
+        base_date = date.fromisoformat(trade_date)
+        target_date = date.fromisoformat(earnings_date)
+    except ValueError:
+        return None
+    return max((target_date - base_date).days, 0)
 
 
 def _is_previous_business_day(*, previous_trade_date: str, current_trade_date: str) -> bool:

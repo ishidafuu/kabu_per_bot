@@ -20,6 +20,7 @@ const seedWatchlist: WatchlistItem[] = [
     metric_type: 'PER',
     notify_channel: 'DISCORD',
     notify_timing: 'IMMEDIATE',
+    priority: 'MEDIUM',
     ir_urls: [],
     x_official_account: null,
     x_executive_accounts: [],
@@ -32,6 +33,7 @@ const seedWatchlist: WatchlistItem[] = [
     metric_type: 'PSR',
     notify_channel: 'DISCORD',
     notify_timing: 'AT_21',
+    priority: 'MEDIUM',
     ir_urls: [],
     x_official_account: 'inpex_jp',
     x_executive_accounts: [],
@@ -44,6 +46,7 @@ const seedWatchlist: WatchlistItem[] = [
     metric_type: 'PER',
     notify_channel: 'DISCORD',
     notify_timing: 'OFF',
+    priority: 'LOW',
     ir_urls: [],
     x_official_account: null,
     x_executive_accounts: [],
@@ -56,6 +59,7 @@ const seedWatchlist: WatchlistItem[] = [
     metric_type: 'PSR',
     notify_channel: 'DISCORD',
     notify_timing: 'IMMEDIATE',
+    priority: 'MEDIUM',
     ir_urls: [],
     x_official_account: null,
     x_executive_accounts: [],
@@ -68,6 +72,7 @@ const seedWatchlist: WatchlistItem[] = [
     metric_type: 'PER',
     notify_channel: 'OFF',
     notify_timing: 'OFF',
+    priority: 'LOW',
     ir_urls: [],
     x_official_account: null,
     x_executive_accounts: [],
@@ -80,6 +85,7 @@ const seedWatchlist: WatchlistItem[] = [
     metric_type: 'PSR',
     notify_channel: 'DISCORD',
     notify_timing: 'AT_21',
+    priority: 'MEDIUM',
     ir_urls: [],
     x_official_account: null,
     x_executive_accounts: [],
@@ -92,11 +98,15 @@ const seedWatchlist: WatchlistItem[] = [
     metric_type: 'PER',
     notify_channel: 'DISCORD',
     notify_timing: 'IMMEDIATE',
+    priority: 'HIGH',
     ir_urls: [],
     x_official_account: null,
     x_executive_accounts: [],
     is_active: true,
     ai_enabled: true,
+    next_earnings_date: '2026-03-02',
+    next_earnings_time: '15:00',
+    next_earnings_days: 7,
   },
   {
     ticker: '6758:TSE',
@@ -104,6 +114,7 @@ const seedWatchlist: WatchlistItem[] = [
     metric_type: 'PSR',
     notify_channel: 'DISCORD',
     notify_timing: 'AT_21',
+    priority: 'MEDIUM',
     ir_urls: [],
     x_official_account: null,
     x_executive_accounts: [],
@@ -116,11 +127,15 @@ const seedWatchlist: WatchlistItem[] = [
     metric_type: 'PER',
     notify_channel: 'DISCORD',
     notify_timing: 'IMMEDIATE',
+    priority: 'HIGH',
     ir_urls: [],
     x_official_account: null,
     x_executive_accounts: [],
     is_active: true,
     ai_enabled: false,
+    next_earnings_date: '2026-03-05',
+    next_earnings_time: '15:00',
+    next_earnings_days: 10,
   },
   {
     ticker: '8035:TSE',
@@ -128,11 +143,15 @@ const seedWatchlist: WatchlistItem[] = [
     metric_type: 'PER',
     notify_channel: 'DISCORD',
     notify_timing: 'AT_21',
+    priority: 'HIGH',
     ir_urls: [],
     x_official_account: null,
     x_executive_accounts: [],
     is_active: true,
     ai_enabled: true,
+    next_earnings_date: '2026-03-08',
+    next_earnings_time: '15:00',
+    next_earnings_days: 13,
   },
   {
     ticker: '8058:TSE',
@@ -140,6 +159,7 @@ const seedWatchlist: WatchlistItem[] = [
     metric_type: 'PSR',
     notify_channel: 'DISCORD',
     notify_timing: 'OFF',
+    priority: 'LOW',
     ir_urls: [],
     x_official_account: null,
     x_executive_accounts: [],
@@ -152,6 +172,7 @@ const seedWatchlist: WatchlistItem[] = [
     metric_type: 'PER',
     notify_channel: 'DISCORD',
     notify_timing: 'AT_21',
+    priority: 'MEDIUM',
     ir_urls: [],
     x_official_account: null,
     x_executive_accounts: [],
@@ -191,15 +212,20 @@ export class MockWatchlistClient implements WatchlistClient {
     const limit = params.limit ?? 10;
     const offset = params.offset ?? 0;
     const keyword = params.q?.trim().toLowerCase() ?? '';
+    const priority = params.priority;
 
-    const filtered = keyword.length === 0
-      ? mockStore
-      : mockStore.filter((item) => {
-          return (
-            item.ticker.toLowerCase().includes(keyword) ||
-            item.name.toLowerCase().includes(keyword)
-          );
-        });
+    const filtered = mockStore.filter((item) => {
+      const keywordMatched = keyword.length === 0
+        || item.ticker.toLowerCase().includes(keyword)
+        || item.name.toLowerCase().includes(keyword);
+      if (!keywordMatched) {
+        return false;
+      }
+      if (priority && item.priority !== priority) {
+        return false;
+      }
+      return true;
+    });
 
     return {
       items: filtered.slice(offset, offset + limit),
@@ -231,6 +257,8 @@ export class MockWatchlistClient implements WatchlistClient {
         payload_hash: 'mock-strong',
         is_strong: true,
         body: `【超PER割安】${normalizedTicker} ${found.name} 1Y 3M 1W under（2日連続）`,
+        data_source: '株探',
+        data_fetched_at: recentSentAt,
       },
       {
         entry_id: `${normalizedTicker}-2`,
@@ -242,6 +270,8 @@ export class MockWatchlistClient implements WatchlistClient {
         payload_hash: 'mock-unknown',
         is_strong: false,
         body: `【データ不明】${normalizedTicker} ${found.name} 予想EPSが取得できませんでした`,
+        data_source: 'Yahoo!ファイナンス',
+        data_fetched_at: monthAgo,
       },
     ];
 
@@ -375,6 +405,7 @@ export class MockWatchlistClient implements WatchlistClient {
       metric_type: normalizedInput.metric_type,
       notify_channel: normalizedInput.notify_channel,
       notify_timing: normalizedInput.notify_timing,
+      priority: normalizedInput.priority ?? 'MEDIUM',
       always_notify_enabled: normalizedInput.always_notify_enabled ?? false,
       ir_urls: normalizedInput.ir_urls ?? [],
       x_official_account: normalizedInput.x_official_account ?? null,

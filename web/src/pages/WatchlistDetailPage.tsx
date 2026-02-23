@@ -43,6 +43,16 @@ const formatEarnings = (date?: string | null, time?: string | null): string => {
   return `${date} ${time ?? '未定'}`;
 };
 
+const formatEarningsDays = (days?: number | null): string => {
+  if (days == null) {
+    return '-';
+  }
+  if (days <= 0) {
+    return '当日';
+  }
+  return `${days}日`;
+};
+
 export const WatchlistDetailPage = () => {
   const { ticker } = useParams();
   const { getIdToken } = useAuth();
@@ -187,6 +197,10 @@ export const WatchlistDetailPage = () => {
               <strong>{item?.notify_timing ?? '-'}</strong>
             </div>
             <div className="watchlist-meta-item">
+              <span className="muted">優先度</span>
+              <strong>{item?.priority ?? '-'}</strong>
+            </div>
+            <div className="watchlist-meta-item">
               <span className="muted">現在値</span>
               <strong>{formatNumber(item?.current_metric_value)}</strong>
             </div>
@@ -204,6 +218,10 @@ export const WatchlistDetailPage = () => {
             <div className="watchlist-meta-item">
               <span className="muted">次回決算</span>
               <strong>{formatEarnings(item?.next_earnings_date, item?.next_earnings_time)}</strong>
+            </div>
+            <div className="watchlist-meta-item">
+              <span className="muted">決算まで</span>
+              <strong>{formatEarningsDays(item?.next_earnings_days)}</strong>
             </div>
           </div>
         </article>

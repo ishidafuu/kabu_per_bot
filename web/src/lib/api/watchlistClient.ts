@@ -1,6 +1,7 @@
 import type {
   IrUrlCandidateListResponse,
   IrUrlCandidateSuggestInput,
+  WatchPriority,
   WatchlistCreateInput,
   WatchlistItem,
   WatchlistListResponse,
@@ -22,6 +23,7 @@ export interface GetWatchlistDetailParams {
 
 export interface ListWatchlistParams {
   q?: string;
+  priority?: WatchPriority;
   limit?: number;
   offset?: number;
   include_status?: boolean;
@@ -48,6 +50,9 @@ export class HttpWatchlistClient implements WatchlistClient {
 
     if (params.q) {
       query.set('q', params.q);
+    }
+    if (params.priority) {
+      query.set('priority', params.priority);
     }
 
     if (params.limit != null) {

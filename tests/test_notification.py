@@ -49,6 +49,34 @@ class NotificationFormatterTest(unittest.TestCase):
         self.assertIn("🔥", message.body)
         self.assertEqual(message.category, "超PER割安")
 
+    def test_signal_message_includes_earnings_days(self) -> None:
+        state = SignalState(
+            ticker="3901:TSE",
+            trade_date="2026-02-12",
+            metric_type=MetricType.PER,
+            metric_value=10.0,
+            under_1w=True,
+            under_3m=True,
+            under_1y=True,
+            combo="1Y+3M+1W",
+            is_strong=True,
+            category="超PER割安",
+            streak_days=3,
+            updated_at="2026-02-12T00:00:00+00:00",
+        )
+        message = format_signal_message(
+            ticker="3901:TSE",
+            company_name="富士フイルム",
+            state=state,
+            signal_phase="新規",
+            metric_value=10.0,
+            median_1w=12.0,
+            median_3m=13.0,
+            median_1y=14.0,
+            earnings_days=2,
+        )
+        self.assertIn("📅 決算まで: 2日", message.body)
+
     def test_earnings_message_format(self) -> None:
         message = format_earnings_message(
             ticker="3901:TSE",
@@ -162,10 +190,12 @@ class NotificationFormatterTest(unittest.TestCase):
             company_name="富士フイルム",
             missing_fields=["eps_forecast", "close_price"],
             context="日次指標計算",
+            earnings_days=0,
         )
         self.assertIn("【データ不明】", message.body)
         self.assertIn("終値/予想EPS", message.body)
         self.assertIn("次の確認:", message.body)
+        self.assertIn("📅 決算まで: 当日", message.body)
         self.assertEqual(message.category, "データ不明")
 
     def test_intel_update_message_format(self) -> None:

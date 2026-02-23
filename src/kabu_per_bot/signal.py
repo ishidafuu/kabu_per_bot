@@ -93,6 +93,8 @@ class NotificationLogEntry:
     payload_hash: str
     is_strong: bool
     body: str | None = None
+    data_source: str | None = None
+    data_fetched_at: str | None = None
 
     @classmethod
     def from_document(cls, data: dict[str, Any]) -> "NotificationLogEntry":
@@ -106,6 +108,8 @@ class NotificationLogEntry:
             payload_hash=str(data.get("payload_hash", "")),
             is_strong=bool(data.get("is_strong", False)),
             body=str(data["body"]) if data.get("body") is not None else None,
+            data_source=str(data["data_source"]) if data.get("data_source") is not None else None,
+            data_fetched_at=str(data["data_fetched_at"]) if data.get("data_fetched_at") is not None else None,
         )
 
     def to_document(self) -> dict[str, Any]:
@@ -121,6 +125,10 @@ class NotificationLogEntry:
         }
         if self.body is not None:
             row["body"] = self.body
+        if self.data_source is not None:
+            row["data_source"] = self.data_source
+        if self.data_fetched_at is not None:
+            row["data_fetched_at"] = self.data_fetched_at
         return row
 
 

@@ -32,6 +32,7 @@ def format_signal_message(
     median_1w: float | None,
     median_3m: float | None,
     median_1y: float | None,
+    earnings_days: int | None = None,
 ) -> NotificationMessage:
     if not state.category or not state.combo:
         raise ValueError("signal category/combo is required for signal notifications")
@@ -55,19 +56,21 @@ def format_signal_message(
         recommended_action=recommended_action,
         reason=f"{metric_label}={_fmt(metric_value)} / 乖離率({divergence_line})",
     )
-    body = "\n".join(
-        [
-            conclusion_line,
-            "",
-            f"　{normalized_ticker} {company_name}",
-            f"　区分: [{normalized_phase}] {state.category}",
-            f"　🎯 {combo_label} under（{streak_days}日連続）",
-            f"　{metric_label}: {_fmt(metric_value)}",
-            f"　中央値(1W/3M/1Y): {_fmt(median_1w)} / {_fmt(median_3m)} / {_fmt(median_1y)}",
-            f"　差分(現在-中央値): {difference_line}",
-            f"　乖離率: {divergence_line}",
-        ]
-    )
+    lines = [
+        conclusion_line,
+        "",
+        f"　{normalized_ticker} {company_name}",
+        f"　区分: [{normalized_phase}] {state.category}",
+        f"　🎯 {combo_label} under（{streak_days}日連続）",
+        f"　{metric_label}: {_fmt(metric_value)}",
+        f"　中央値(1W/3M/1Y): {_fmt(median_1w)} / {_fmt(median_3m)} / {_fmt(median_1y)}",
+        f"　差分(現在-中央値): {difference_line}",
+        f"　乖離率: {divergence_line}",
+    ]
+    earnings_days_line = _build_earnings_days_line(earnings_days)
+    if earnings_days_line:
+        lines.append(earnings_days_line)
+    body = "\n".join(lines)
     return NotificationMessage(
         ticker=normalized_ticker,
         category=state.category,
@@ -88,6 +91,7 @@ def format_signal_status_message(
     median_1y: float | None,
     insufficient_windows: list[str] | None = None,
     signal_phase: str | None = None,
+    earnings_days: int | None = None,
 ) -> NotificationMessage:
     normalized_ticker = normalize_ticker(ticker)
     metric_label = state.metric_type.value
@@ -137,6 +141,9 @@ def format_signal_status_message(
             f"　割安通知: {discount_label}",
         ]
     )
+    earnings_days_line = _build_earnings_days_line(earnings_days)
+    if earnings_days_line:
+        lines.append(earnings_days_line)
     body = "\n".join(lines)
     return NotificationMessage(
         ticker=normalized_ticker,
@@ -181,17 +188,20 @@ def format_data_unknown_message(
     company_name: str,
     missing_fields: list[str],
     context: str,
+    earnings_days: int | None = None,
 ) -> NotificationMessage:
     normalized_ticker = normalize_ticker(ticker)
     del context
     sorted_fields = _normalize_unknown_fields(missing_fields)
     labels = [_missing_field_to_label(field) for field in sorted_fields]
-    body = "\n".join(
-        [
-            f"【データ不明】{normalized_ticker} {company_name} {'/'.join(labels)}が取得できませんでした",
-            "次の確認: 通知ログで同銘柄の履歴を確認し、必要に応じて /ops から対象ジョブを再実行してください",
-        ]
-    )
+    lines = [
+        f"【データ不明】{normalized_ticker} {company_name} {'/'.join(labels)}が取得できませんでした",
+        "次の確認: 通知ログで同銘柄の履歴を確認し、必要に応じて /ops から対象ジョブを再実行してください",
+    ]
+    earnings_days_line = _build_earnings_days_line(earnings_days)
+    if earnings_days_line:
+        lines.append(earnings_days_line)
+    body = "\n".join(lines)
     return NotificationMessage(
         ticker=normalized_ticker,
         category="データ不明",
@@ -393,6 +403,14 @@ def _status_level(state: SignalState) -> tuple[str, str]:
         return ("NONE", "下回りなし")
     joined = "+".join(active_labels)
     return (f"{joined}_ONLY", f"{joined}のみ下回り")
+
+
+def _build_earnings_days_line(earnings_days: int | None) -> str | None:
+    if earnings_days is None:
+        return None
+    if earnings_days <= 0:
+        return "　📅 決算まで: 当日"
+    return f"　📅 決算まで: {earnings_days}日"
 
 
 def _normalize_insufficient_windows(windows: list[str] | None) -> list[str]:

@@ -3,6 +3,7 @@ import type {
   IrUrlCandidate,
   MetricType,
   NotifyTiming,
+  WatchPriority,
   XAccountLink,
   WatchlistItem,
 } from '../types/watchlist';
@@ -12,6 +13,7 @@ export interface WatchlistFormValues {
   name: string;
   metric_type: MetricType;
   notify_timing: NotifyTiming;
+  priority: WatchPriority;
   always_notify_enabled: boolean;
   reason: string;
   ir_urls_text: string;
@@ -39,6 +41,7 @@ const buildInitialValues = (item?: WatchlistItem): WatchlistFormValues => {
     name: item?.name ?? '',
     metric_type: item?.metric_type ?? 'PER',
     notify_timing: item?.notify_timing ?? 'IMMEDIATE',
+    priority: item?.priority ?? 'MEDIUM',
     always_notify_enabled: item?.always_notify_enabled ?? false,
     reason: '',
     ir_urls_text: (item?.ir_urls ?? []).join('\n'),
@@ -239,6 +242,20 @@ export const WatchlistForm = ({
             <option value="IMMEDIATE">IMMEDIATE</option>
             <option value="AT_21">AT_21</option>
             <option value="OFF">OFF</option>
+          </select>
+        </label>
+
+        <label>
+          優先度
+          <select
+            value={values.priority}
+            onChange={(event) => {
+              updateField('priority', event.target.value as WatchPriority);
+            }}
+          >
+            <option value="HIGH">HIGH</option>
+            <option value="MEDIUM">MEDIUM</option>
+            <option value="LOW">LOW</option>
           </select>
         </label>
 

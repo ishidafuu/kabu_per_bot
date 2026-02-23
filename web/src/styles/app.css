@@ -230,6 +230,14 @@ button:disabled {
   gap: 4px;
 }
 
+.watchlist-search-row {
+  grid-template-columns: 1fr auto auto auto;
+}
+
+.notification-logs-search-row {
+  grid-template-columns: 1fr auto auto;
+}
+
 .watchlist-meta-grid {
   display: grid;
   gap: 8px;

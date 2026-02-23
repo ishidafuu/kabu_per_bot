@@ -77,18 +77,19 @@
   - ticker
   - 会社名
   - 監視方式（PER/PSR）
+  - 優先度（HIGH/MEDIUM/LOW）
   - 通知先（DISCORD固定）
   - 通知時間（IMMEDIATE/AT_21/OFF）
   - 常時通知（always_notify_enabled）
   - 有効状態（is_active）
-  - 最新判定（現在値/中央値/シグナル/次回決算）
+  - 最新判定（現在値/中央値/シグナル/次回決算/決算まで日数）
   - 通知スキップ理由（例: クールダウン中、条件未達、OFF設定）
 - 操作:
   - 追加
   - 編集
   - 削除
   - 銘柄詳細（通知履歴・操作履歴・直近サマリの確認）
-  - 絞り込み（ticker/会社名）
+  - 絞り込み（ticker/会社名/優先度）
 
 ### 3.5 ウォッチリスト編集画面
 
@@ -119,8 +120,11 @@
 - 表示:
   - 通知カテゴリ
   - ticker
+  - 優先度フィルタ
   - 条件キー
   - 送信時刻
+  - データソース
+  - 取得時刻
   - チャネル
   - 通知本文
 
@@ -158,12 +162,15 @@
   - 目的: 一覧取得
   - クエリ:
     - `q`（任意: ticker/name 部分一致）
+    - `priority`（任意: HIGH/MEDIUM/LOW）
     - `limit`（任意）
     - `offset`（任意）
-    - `include_status`（任意: `true` の場合、現在値/中央値/シグナル/次回決算/通知スキップ理由を付与）
+    - `include_status`（任意: `true` の場合、現在値/中央値/シグナル/次回決算/決算まで日数/通知スキップ理由を付与）
   - 200レスポンス:
     - `items[]`
+      - `priority`
       - `notification_skip_reason`（`include_status=true` 時、`null` は通知対象）
+      - `next_earnings_days`（`include_status=true` 時）
     - `total`
 
 2. `GET /watchlist/{ticker}`
@@ -199,6 +206,7 @@
     - `metric_type`
     - `notify_channel`（固定値 `DISCORD`）
     - `notify_timing`
+    - `priority`（任意: 既定 `MEDIUM`）
     - `always_notify_enabled`（任意）
     - `ai_enabled`（任意・互換用。未指定/指定値に関わらず常時有効として扱う）
     - `is_active`（任意）
@@ -213,6 +221,7 @@
     - `name`（任意）
     - `metric_type`（任意）
     - `notify_timing`（任意）
+    - `priority`（任意）
     - `always_notify_enabled`（任意）
     - `ai_enabled`（任意・互換用。未指定/指定値に関わらず常時有効として扱う）
     - `is_active`（任意）
@@ -269,11 +278,12 @@
   - 目的: 通知ログの時系列取得
   - クエリ:
     - `ticker`（任意）
+    - `priority`（任意: HIGH/MEDIUM/LOW）
     - `category`（任意）
     - `strong_only`（任意）
     - `limit` / `offset`（任意）
   - 200レスポンス:
-    - `items[]`（`body` を含む）
+    - `items[]`（`body` / `data_source` / `data_fetched_at` を含む）
     - `total`
 
 ### 4.5 管理運用API（管理者のみ）
