@@ -122,6 +122,33 @@ class NotificationFormatterTest(unittest.TestCase):
         self.assertIn("割安通知: 判定保留", message.body)
         self.assertEqual(message.condition_key, "PER:STATUS:INSUFFICIENT_1W+1Y")
 
+    def test_signal_status_message_uses_absolute_median_for_divergence_rate(self) -> None:
+        state = SignalState(
+            ticker="3901:TSE",
+            trade_date="2026-02-12",
+            metric_type=MetricType.PER,
+            metric_value=-5.0,
+            under_1w=False,
+            under_3m=False,
+            under_1y=False,
+            combo=None,
+            is_strong=False,
+            category=None,
+            streak_days=0,
+            updated_at="2026-02-12T00:00:00+00:00",
+        )
+        message = format_signal_status_message(
+            ticker="3901:TSE",
+            company_name="富士フイルム",
+            state=state,
+            metric_value=-5.0,
+            median_1w=-10.0,
+            median_3m=-8.0,
+            median_1y=-6.0,
+        )
+        self.assertIn("差分(現在-中央値): 1W +5.00 / 3M +3.00 / 1Y +1.00", message.body)
+        self.assertIn("乖離率: 1W +50.0% / 3M +37.5% / 1Y +16.7%", message.body)
+
     def test_data_unknown_message_format(self) -> None:
         message = format_data_unknown_message(
             ticker="3901:TSE",

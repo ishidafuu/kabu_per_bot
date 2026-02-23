@@ -298,9 +298,10 @@ def _fmt_difference(*, metric_value: float | None, median_value: float | None) -
 def _fmt_divergence_rate(*, metric_value: float | None, median_value: float | None) -> str:
     if metric_value is None or median_value is None:
         return "N/A"
-    if median_value == 0:
+    base = abs(median_value)
+    if base == 0:
         return "N/A"
-    return f"{((metric_value - median_value) / median_value) * 100:+.1f}%"
+    return f"{((metric_value - median_value) / base) * 100:+.1f}%"
 
 
 def _normalize_signal_phase(signal_phase: str) -> str:
