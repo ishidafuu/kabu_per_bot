@@ -670,8 +670,17 @@ def _resolve_notification_skip_reason(
 
     current_metric_value = _resolve_current_metric_value(item=item, latest_metric=latest_metric)
     insufficient_windows = _resolve_insufficient_windows(latest_medians)
+    state_is_current = _is_state_aligned_with_latest_metric(
+        latest_signal_state=latest_signal_state,
+        latest_metric=latest_metric,
+    )
 
-    if latest_signal_state is not None and latest_signal_state.category and latest_signal_state.combo:
+    if (
+        state_is_current
+        and latest_signal_state is not None
+        and latest_signal_state.category
+        and latest_signal_state.combo
+    ):
         decision = evaluate_cooldown(
             now_iso=now_iso,
             cooldown_hours=cooldown_hours,
@@ -686,11 +695,15 @@ def _resolve_notification_skip_reason(
         return None
 
     if item.always_notify_enabled:
-        status_state = latest_signal_state or _build_fallback_signal_state(
+        status_state = (
+            latest_signal_state
+            if state_is_current and latest_signal_state is not None
+            else _build_fallback_signal_state(
             item=item,
             metric_value=current_metric_value,
             trade_date=latest_metric.trade_date if latest_metric is not None else datetime.now(JST).date().isoformat(),
             now_iso=now_iso,
+        )
         )
         status_message = format_signal_status_message(
             ticker=item.ticker,
@@ -730,6 +743,16 @@ def _resolve_current_metric_value(*, item: WatchlistItem, latest_metric: DailyMe
     if latest_metric is None:
         return None
     return latest_metric.per_value if item.metric_type is MetricType.PER else latest_metric.psr_value
+
+
+def _is_state_aligned_with_latest_metric(
+    *,
+    latest_signal_state: SignalState | None,
+    latest_metric: DailyMetric | None,
+) -> bool:
+    if latest_signal_state is None or latest_metric is None:
+        return False
+    return latest_signal_state.trade_date == latest_metric.trade_date
 
 
 def _resolve_insufficient_windows(latest_medians: MetricMedians | None) -> list[str]:

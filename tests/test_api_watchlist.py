@@ -1075,6 +1075,85 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(body["total"], 1)
         self.assertEqual(body["items"][0]["notification_skip_reason"], "2時間クールダウン中")
 
+    def test_watchlist_list_include_status_ignores_stale_signal_state_for_skip_reason(self) -> None:
+        repository = InMemoryWatchlistRepository()
+        service = WatchlistService(repository, max_items=100)
+        service.add_item(
+            ticker="3901:TSE",
+            name="富士フイルム",
+            metric_type="PER",
+            notify_channel="DISCORD",
+            notify_timing="IMMEDIATE",
+        )
+
+        class DailyRepo:
+            def list_recent(self, ticker: str, *, limit: int) -> list[DailyMetric]:
+                return [
+                    DailyMetric(
+                        ticker=ticker,
+                        trade_date="2026-02-15",
+                        close_price=1000,
+                        eps_forecast=0,
+                        sales_forecast=200,
+                        per_value=None,
+                        psr_value=5.0,
+                        data_source="test",
+                        fetched_at=datetime.now(timezone.utc).isoformat(),
+                    )
+                ]
+
+        class MedianRepo:
+            def list_recent(self, ticker: str, *, limit: int) -> list[MetricMedians]:
+                return [
+                    MetricMedians(
+                        ticker=ticker,
+                        trade_date="2026-02-15",
+                        median_1w=11.0,
+                        median_3m=12.0,
+                        median_1y=13.0,
+                        source_metric_type=MetricType.PER,
+                        calculated_at=datetime.now(timezone.utc).isoformat(),
+                    )
+                ]
+
+        class SignalRepo:
+            def get_latest(self, ticker: str) -> SignalState | None:
+                return SignalState(
+                    ticker=ticker,
+                    trade_date="2026-02-14",
+                    metric_type=MetricType.PER,
+                    metric_value=10.0,
+                    under_1w=True,
+                    under_3m=True,
+                    under_1y=True,
+                    combo="1Y+3M+1W",
+                    is_strong=True,
+                    category="超PER割安",
+                    streak_days=3,
+                    updated_at=datetime.now(timezone.utc).isoformat(),
+                )
+
+        class EarningsRepo:
+            def list_by_ticker(self, ticker: str) -> list[EarningsCalendarEntry]:
+                return []
+
+        app = create_app(
+            watchlist_service=service,
+            daily_metrics_repository=DailyRepo(),
+            metric_medians_repository=MedianRepo(),
+            signal_state_repository=SignalRepo(),
+            earnings_calendar_repository=EarningsRepo(),
+            notification_log_repository=FakeNotificationLogRepository(),
+            token_verifier=FakeTokenVerifier(),
+        )
+        client = TestClient(app)
+        response = client.get("/api/v1/watchlist?include_status=true", headers=_auth_header())
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["total"], 1)
+        self.assertEqual(body["items"][0]["notification_skip_reason"], "データ不足（【データ不明】通知対象）")
+
     def test_watchlist_list_include_status_prefers_bulk_loaders(self) -> None:
         repository = InMemoryWatchlistRepository()
         service = WatchlistService(repository, max_items=100)
