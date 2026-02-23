@@ -41,7 +41,7 @@ class NotificationFormatterTest(unittest.TestCase):
             median_3m=13.0,
             median_1y=14.0,
         )
-        self.assertIn("🔥 優先度:高 / 推奨:優先確認 / 根拠:PER=10.00", message.body)
+        self.assertIn("🔥 優先度:高 / 推奨アクション:優先確認 / 根拠数値:PER=10.00", message.body)
         self.assertIn("区分: [新規] 超PER割安", message.body)
         self.assertIn("under（3日連続）", message.body)
         self.assertIn("差分(現在-中央値): 1W -2.00 / 3M -3.00 / 1Y -4.00", message.body)
@@ -85,7 +85,7 @@ class NotificationFormatterTest(unittest.TestCase):
             median_1y=14.0,
             signal_phase="解除",
         )
-        self.assertIn("📘 優先度:中 / 推奨:通常監視へ移行 / 根拠:PER=16.00", message.body)
+        self.assertIn("📘 優先度:中 / 推奨アクション:通常監視へ移行 / 根拠数値:PER=16.00", message.body)
         self.assertIn("　PER状況", message.body)
         self.assertIn("シグナル種別: 解除", message.body)
         self.assertIn("差分(現在-中央値): 1W +4.00 / 3M +3.00 / 1Y +2.00", message.body)
@@ -118,7 +118,10 @@ class NotificationFormatterTest(unittest.TestCase):
             median_1y=None,
             insufficient_windows=["1W", "1Y"],
         )
-        self.assertIn("📘 優先度:中 / 推奨:データ確認 / 根拠:中央値不足(1W/1Y)", message.body)
+        self.assertIn(
+            "📘 優先度:中 / 推奨アクション:データ確認 / 根拠数値:PER=16.00 / 乖離率(1W N/A / 3M +23.1% / 1Y N/A) / 中央値不足(1W/1Y)",
+            message.body,
+        )
         self.assertIn("判定レベル: 判定不能（中央値不足: 1W/1Y）", message.body)
         self.assertIn("差分(現在-中央値): 1W N/A / 3M +3.00 / 1Y N/A", message.body)
         self.assertIn("乖離率: 1W N/A / 3M +23.1% / 1Y N/A", message.body)
@@ -149,7 +152,7 @@ class NotificationFormatterTest(unittest.TestCase):
             median_3m=-8.0,
             median_1y=-6.0,
         )
-        self.assertIn("📘 優先度:低 / 推奨:様子見 / 根拠:PER=-5.00", message.body)
+        self.assertIn("📘 優先度:低 / 推奨アクション:様子見 / 根拠数値:PER=-5.00", message.body)
         self.assertIn("差分(現在-中央値): 1W +5.00 / 3M +3.00 / 1Y +1.00", message.body)
         self.assertIn("乖離率: 1W +50.0% / 3M +37.5% / 1Y +16.7%", message.body)
 

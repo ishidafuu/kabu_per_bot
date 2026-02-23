@@ -178,7 +178,7 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.processed_tickers, 1)
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
-        self.assertIn("🔥 優先度:高 / 推奨:優先確認 / 根拠:PER=10.00", sender.messages[0])
+        self.assertIn("🔥 優先度:高 / 推奨アクション:優先確認 / 根拠数値:PER=10.00", sender.messages[0])
         self.assertIn("区分: [新規] 超PER割安", sender.messages[0])
         self.assertIn("差分(現在-中央値):", sender.messages[0])
         self.assertEqual(len(log_repo.rows), 1)
@@ -254,7 +254,7 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.processed_tickers, 1)
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
-        self.assertIn("🔥 優先度:高 / 推奨:優先確認 / 根拠:PER=10.00", sender.messages[0])
+        self.assertIn("🔥 優先度:高 / 推奨アクション:優先確認 / 根拠数値:PER=10.00", sender.messages[0])
         self.assertIn("区分: [継続] 超PER割安", sender.messages[0])
         self.assertIn("under（4日連続）", sender.messages[0])
 
@@ -312,7 +312,7 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.processed_tickers, 1)
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
-        self.assertIn("📘 優先度:低 / 推奨:様子見 / 根拠:PER=10.00", sender.messages[0])
+        self.assertIn("📘 優先度:低 / 推奨アクション:様子見 / 根拠数値:PER=10.00", sender.messages[0])
         self.assertIn("　PER状況", sender.messages[0])
         self.assertIn("乖離率:", sender.messages[0])
         self.assertIn("判定レベル: 下回りなし", sender.messages[0])
@@ -388,7 +388,7 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.processed_tickers, 1)
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
-        self.assertIn("📘 優先度:中 / 推奨:通常監視へ移行 / 根拠:PER=12.00", sender.messages[0])
+        self.assertIn("📘 優先度:中 / 推奨アクション:通常監視へ移行 / 根拠数値:PER=12.00", sender.messages[0])
         self.assertIn("　PER状況", sender.messages[0])
         self.assertIn("シグナル種別: 解除", sender.messages[0])
 
@@ -463,7 +463,7 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.processed_tickers, 1)
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
-        self.assertIn("📘 優先度:低 / 推奨:様子見 / 根拠:PER=12.00", sender.messages[0])
+        self.assertIn("📘 優先度:低 / 推奨アクション:様子見 / 根拠数値:PER=12.00", sender.messages[0])
         self.assertIn("　PER状況", sender.messages[0])
         self.assertNotIn("シグナル種別: 解除", sender.messages[0])
 
@@ -507,7 +507,10 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.processed_tickers, 1)
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
-        self.assertIn("📘 優先度:中 / 推奨:データ確認 / 根拠:中央値不足(1W/3M/1Y)", sender.messages[0])
+        self.assertIn(
+            "📘 優先度:中 / 推奨アクション:データ確認 / 根拠数値:PER=10.00 / 乖離率(1W N/A / 3M N/A / 1Y N/A) / 中央値不足(1W/3M/1Y)",
+            sender.messages[0],
+        )
         self.assertIn("　PER状況", sender.messages[0])
         self.assertIn("判定レベル: 判定不能（中央値不足: 1W/3M/1Y）", sender.messages[0])
         self.assertNotIn("シグナル種別: 解除", sender.messages[0])

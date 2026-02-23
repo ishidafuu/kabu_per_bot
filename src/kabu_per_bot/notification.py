@@ -333,7 +333,7 @@ def _build_conclusion_line(
     recommended_action: str,
     reason: str,
 ) -> str:
-    return f"{icon} 優先度:{priority} / 推奨:{recommended_action} / 根拠:{reason}"
+    return f"{icon} 優先度:{priority} / 推奨アクション:{recommended_action} / 根拠数値:{reason}"
 
 
 def _signal_conclusion(*, state: SignalState, signal_phase: str) -> tuple[str, str]:
@@ -354,7 +354,11 @@ def _status_conclusion(
     normalized_insufficient: list[str],
 ) -> tuple[str, str, str]:
     if normalized_insufficient:
-        return ("中", "データ確認", f"中央値不足({'/'.join(normalized_insufficient)})")
+        return (
+            "中",
+            "データ確認",
+            f"{metric_label}={_fmt(metric_value)} / 乖離率({divergence_line}) / 中央値不足({'/'.join(normalized_insufficient)})",
+        )
     if normalized_phase == "解除":
         return ("中", "通常監視へ移行", f"{metric_label}={_fmt(metric_value)} / 乖離率({divergence_line})")
     if level_key == "NONE":
