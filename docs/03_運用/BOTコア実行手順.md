@@ -65,6 +65,7 @@ PYTHONPATH=src python scripts/run_daily_job.py
   - `daily`: `notify_timing=IMMEDIATE` の銘柄のみ
   - `at_21`: `notify_timing=AT_21` の銘柄のみ
   - `all`: 両方
+- `--enable-phase-a` を指定すると、保有銘柄向けフェイズAブリーフ（RL/Earnings Gate/候補アクション）を追加で送信する。
 - 標準出力のJSONは `processed` / `sent` / `skipped` / `errors` を返す。
 - 通知条件（割安/データ不明/常時通知ON時の状況通知）に一致しなければ `sent=0` でも正常（ジョブ成功）である。
 - クールダウン時間は `global_settings/runtime.cooldown_hours` があればそれを優先し、未設定時は `COOLDOWN_HOURS` を使用する。

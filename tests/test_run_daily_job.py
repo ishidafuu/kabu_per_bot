@@ -390,6 +390,46 @@ class RunDailyJobTest(TestCase):
             with self.assertRaisesRegex(ValueError, "--no-notification-log は --stdout と併用してください"):
                 run_daily_job.main()
 
+    def test_main_runs_phase_a_when_enabled(self) -> None:
+        args = run_daily_job.argparse.Namespace(
+            trade_date="2026-02-12",
+            now_iso="2026-02-12T09:00:00+00:00",
+            discord_webhook_url="",
+            execution_mode="daily",
+            stdout=True,
+            no_notification_log=False,
+            enable_phase_a=True,
+        )
+        settings = AppSettings(
+            app_env="test",
+            timezone="Asia/Tokyo",
+            window_1w_days=2,
+            window_3m_days=2,
+            window_1y_days=2,
+            cooldown_hours=2,
+            firestore_project_id="",
+            ai_notifications_enabled=False,
+            x_api_bearer_token="",
+        )
+
+        with (
+            patch.object(run_daily_job, "parse_args", return_value=args),
+            patch.object(run_daily_job, "load_settings", return_value=settings),
+            patch.object(run_daily_job, "_create_firestore_client", return_value=FakeFirestoreClient()),
+            patch.object(run_daily_job, "create_default_market_data_source", return_value=StaticMarketDataSource()),
+            patch.object(run_daily_job, "run_daily_pipeline", return_value=run_daily_job.PipelineResult()),
+            patch.object(
+                run_daily_job,
+                "run_holdings_phase_a_pipeline",
+                return_value=run_daily_job.PipelineResult(),
+            ) as mocked_phase_a,
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            code = run_daily_job.main()
+
+        self.assertEqual(code, 0)
+        self.assertTrue(mocked_phase_a.called)
+
 
 if __name__ == "__main__":
     import unittest

@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from kabu_per_bot.discord_notifier import DiscordNotifier
+from kabu_per_bot.holdings_phase_a import PhaseAHoldingsConfig, run_holdings_phase_a_pipeline
 from kabu_per_bot.market_data import create_default_market_data_source
 from kabu_per_bot.pipeline import DailyPipelineConfig, NotificationExecutionMode, PipelineResult, run_daily_pipeline
 from kabu_per_bot.runtime_settings import resolve_runtime_settings
@@ -79,6 +80,11 @@ def parse_args() -> argparse.Namespace:
         "--no-notification-log",
         action="store_true",
         help="Use with --stdout for notification preview. Bypass cooldown and do not read/write notification_log.",
+    )
+    parser.add_argument(
+        "--enable-phase-a",
+        action="store_true",
+        help="Enable Phase A holdings briefing notifications.",
     )
     return parser.parse_args()
 
@@ -199,6 +205,9 @@ def main() -> int:
     signal_repo = FirestoreSignalStateRepository(client)
     log_repo = _resolve_notification_log_repo(args, FirestoreNotificationLogRepository(client))
     watchlist_items = watchlist_repo.list_all()
+    market_data_source = create_default_market_data_source(
+        jquants_api_key=getattr(args, "jquants_api_key", ""),
+    )
 
     LOGGER.info("日次ジョブ開始: trade_date=%s watchlist_items=%s", trade_date, len(watchlist_items))
     if not watchlist_items:
@@ -206,9 +215,7 @@ def main() -> int:
 
     result = run_daily_pipeline(
         watchlist_items=watchlist_items,
-        market_data_source=create_default_market_data_source(
-            jquants_api_key=getattr(args, "jquants_api_key", ""),
-        ),
+        market_data_source=market_data_source,
         daily_metrics_repo=daily_repo,
         medians_repo=medians_repo,
         signal_state_repo=signal_repo,
@@ -225,6 +232,28 @@ def main() -> int:
             execution_mode=_resolve_execution_mode(args.execution_mode),
         ),
     )
+    if getattr(args, "enable_phase_a", False):
+        phase_a_result = run_holdings_phase_a_pipeline(
+            watchlist_items=watchlist_items,
+            market_data_source=market_data_source,
+            daily_metrics_repo=daily_repo,
+            notification_log_repo=log_repo,
+            sender=sender,
+            config=PhaseAHoldingsConfig(
+                trade_date=trade_date,
+                now_iso=now_iso,
+                cooldown_hours=cooldown_hours,
+                channel=DISCORD_DAILY_CHANNEL,
+                execution_mode=_resolve_execution_mode(args.execution_mode),
+            ),
+        )
+        LOGGER.info(
+            "フェイズA完了: processed=%s sent=%s skipped=%s errors=%s",
+            phase_a_result.processed_tickers,
+            phase_a_result.sent_notifications,
+            phase_a_result.skipped_notifications,
+            phase_a_result.errors,
+        )
     payload = _result_payload(result)
     print(json.dumps(payload, ensure_ascii=False))
     LOGGER.info(
