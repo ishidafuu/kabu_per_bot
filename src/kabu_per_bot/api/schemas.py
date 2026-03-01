@@ -464,6 +464,8 @@ class NotificationLogItemResponse(BaseModel):
     body: str | None = None
     data_source: str | None = None
     data_fetched_at: str | None = None
+    evaluation_confidence: int | None = Field(default=None, ge=1, le=5)
+    evaluation_strength: int | None = Field(default=None, ge=1, le=5)
 
     @classmethod
     def from_domain(cls, entry: NotificationLogEntry) -> "NotificationLogItemResponse":
@@ -479,6 +481,8 @@ class NotificationLogItemResponse(BaseModel):
             body=entry.body,
             data_source=entry.data_source,
             data_fetched_at=entry.data_fetched_at,
+            evaluation_confidence=entry.evaluation_confidence,
+            evaluation_strength=entry.evaluation_strength,
         )
 
 

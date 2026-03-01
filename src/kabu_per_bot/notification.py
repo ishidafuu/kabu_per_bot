@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import hashlib
 import re
 
+from kabu_per_bot.committee.types import CommitteeEvaluation, LensDirection
 from kabu_per_bot.intelligence import AiInsight, IntelEvent, IntelKind
 from kabu_per_bot.signal import SignalState
 from kabu_per_bot.storage.firestore_schema import normalize_ticker
@@ -295,10 +296,50 @@ def format_ai_attention_message(
     )
 
 
+def format_committee_evaluation_message(
+    *,
+    evaluation: CommitteeEvaluation,
+) -> NotificationMessage:
+    normalized_ticker = normalize_ticker(evaluation.ticker)
+    lines = [
+        f"【委員会評価】{normalized_ticker} {evaluation.company_name}",
+        f"自信: {evaluation.confidence}/5",
+        f"強さ: {evaluation.strength}/5",
+    ]
+
+    if evaluation.missing_fields:
+        preview = ", ".join(evaluation.missing_fields[:5])
+        lines.append(f"欠損: {preview}")
+
+    for lens in evaluation.lenses:
+        direction = _lens_direction_label(lens.direction)
+        lines.append(f"[{lens.title}] {direction} / 自信{lens.confidence} / 強さ{lens.strength}")
+        for row in lens.lines:
+            lines.append(f"- {row}")
+
+    lines.append("※ 売買の断言はせず、追加確認の材料として利用してください。")
+    condition_key = f"COMMITTEE:{evaluation.trade_date}:{evaluation.confidence}:{evaluation.strength}"
+    return NotificationMessage(
+        ticker=normalized_ticker,
+        category="委員会評価",
+        condition_key=condition_key,
+        body="\n".join(lines),
+        is_strong=evaluation.strength >= 4,
+    )
+
+
 def _fmt(value: float | None) -> str:
     if value is None:
         return "N/A"
     return f"{value:.2f}"
+
+
+def _lens_direction_label(value: LensDirection) -> str:
+    if value is LensDirection.POSITIVE:
+        return "ポジ"
+    if value is LensDirection.NEGATIVE:
+        return "ネガ"
+    return "中立"
 
 
 def _build_metric_difference_lines(

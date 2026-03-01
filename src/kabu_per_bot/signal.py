@@ -95,6 +95,8 @@ class NotificationLogEntry:
     body: str | None = None
     data_source: str | None = None
     data_fetched_at: str | None = None
+    evaluation_confidence: int | None = None
+    evaluation_strength: int | None = None
 
     @classmethod
     def from_document(cls, data: dict[str, Any]) -> "NotificationLogEntry":
@@ -110,6 +112,8 @@ class NotificationLogEntry:
             body=str(data["body"]) if data.get("body") is not None else None,
             data_source=str(data["data_source"]) if data.get("data_source") is not None else None,
             data_fetched_at=str(data["data_fetched_at"]) if data.get("data_fetched_at") is not None else None,
+            evaluation_confidence=_as_int_or_none(data.get("evaluation_confidence")),
+            evaluation_strength=_as_int_or_none(data.get("evaluation_strength")),
         )
 
     def to_document(self) -> dict[str, Any]:
@@ -129,6 +133,10 @@ class NotificationLogEntry:
             row["data_source"] = self.data_source
         if self.data_fetched_at is not None:
             row["data_fetched_at"] = self.data_fetched_at
+        if self.evaluation_confidence is not None:
+            row["evaluation_confidence"] = self.evaluation_confidence
+        if self.evaluation_strength is not None:
+            row["evaluation_strength"] = self.evaluation_strength
         return row
 
 
@@ -299,6 +307,12 @@ def _as_float(value: Any) -> float | None:
     if value is None:
         return None
     return float(value)
+
+
+def _as_int_or_none(value: Any) -> int | None:
+    if value is None:
+        return None
+    return int(value)
 
 
 def _metric_prefix(condition_key: str) -> str:

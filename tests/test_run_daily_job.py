@@ -123,6 +123,7 @@ class RunDailyJobTest(TestCase):
             execution_mode="daily",
             stdout=True,
             no_notification_log=False,
+            disable_committee=False,
         )
         settings = AppSettings(
             app_env="test",
@@ -179,6 +180,7 @@ class RunDailyJobTest(TestCase):
             execution_mode="daily",
             stdout=False,
             no_notification_log=False,
+            disable_committee=False,
         )
         settings = AppSettings(
             app_env="test",
@@ -229,6 +231,7 @@ class RunDailyJobTest(TestCase):
             execution_mode="at_21",
             stdout=True,
             no_notification_log=False,
+            disable_committee=False,
         )
         settings = AppSettings(
             app_env="test",
@@ -274,6 +277,7 @@ class RunDailyJobTest(TestCase):
             execution_mode="daily",
             stdout=True,
             no_notification_log=False,
+            disable_committee=False,
         )
         settings = AppSettings(
             app_env="test",
@@ -335,6 +339,7 @@ class RunDailyJobTest(TestCase):
             execution_mode="daily",
             stdout=True,
             no_notification_log=True,
+            disable_committee=False,
         )
         settings = AppSettings(
             app_env="test",
@@ -370,6 +375,7 @@ class RunDailyJobTest(TestCase):
             execution_mode="daily",
             stdout=False,
             no_notification_log=True,
+            disable_committee=False,
         )
         settings = AppSettings(
             app_env="test",
@@ -390,7 +396,7 @@ class RunDailyJobTest(TestCase):
             with self.assertRaisesRegex(ValueError, "--no-notification-log は --stdout と併用してください"):
                 run_daily_job.main()
 
-    def test_main_runs_phase_a_when_enabled(self) -> None:
+    def test_main_runs_committee_pipeline_by_default(self) -> None:
         args = run_daily_job.argparse.Namespace(
             trade_date="2026-02-12",
             now_iso="2026-02-12T09:00:00+00:00",
@@ -398,7 +404,7 @@ class RunDailyJobTest(TestCase):
             execution_mode="daily",
             stdout=True,
             no_notification_log=False,
-            enable_phase_a=True,
+            disable_committee=False,
         )
         settings = AppSettings(
             app_env="test",
@@ -420,17 +426,17 @@ class RunDailyJobTest(TestCase):
             patch.object(run_daily_job, "run_daily_pipeline", return_value=run_daily_job.PipelineResult()),
             patch.object(
                 run_daily_job,
-                "run_holdings_phase_a_pipeline",
+                "run_committee_pipeline",
                 return_value=run_daily_job.PipelineResult(),
-            ) as mocked_phase_a,
+            ) as mocked_committee,
             patch("sys.stdout", new_callable=io.StringIO),
         ):
             code = run_daily_job.main()
 
         self.assertEqual(code, 0)
-        self.assertTrue(mocked_phase_a.called)
+        self.assertTrue(mocked_committee.called)
 
-    def test_main_merges_phase_a_result_into_summary(self) -> None:
+    def test_main_merges_committee_result_into_summary(self) -> None:
         args = run_daily_job.argparse.Namespace(
             trade_date="2026-02-12",
             now_iso="2026-02-12T09:00:00+00:00",
@@ -438,7 +444,7 @@ class RunDailyJobTest(TestCase):
             execution_mode="daily",
             stdout=True,
             no_notification_log=False,
-            enable_phase_a=True,
+            disable_committee=False,
         )
         settings = AppSettings(
             app_env="test",
@@ -464,8 +470,8 @@ class RunDailyJobTest(TestCase):
             ),
             patch.object(
                 run_daily_job,
-                "run_holdings_phase_a_pipeline",
-                return_value=run_daily_job.PhaseAResult(
+                "run_committee_pipeline",
+                return_value=run_daily_job.PipelineResult(
                     processed_tickers=5,
                     sent_notifications=6,
                     skipped_notifications=7,
@@ -480,6 +486,41 @@ class RunDailyJobTest(TestCase):
         lines = [line for line in stdout.getvalue().splitlines() if line.strip()]
         summary = json.loads(lines[-1])
         self.assertEqual(summary, {"processed": 6, "sent": 8, "skipped": 10, "errors": 12})
+
+    def test_main_skips_committee_when_disabled(self) -> None:
+        args = run_daily_job.argparse.Namespace(
+            trade_date="2026-02-12",
+            now_iso="2026-02-12T09:00:00+00:00",
+            discord_webhook_url="",
+            execution_mode="daily",
+            stdout=True,
+            no_notification_log=False,
+            disable_committee=True,
+        )
+        settings = AppSettings(
+            app_env="test",
+            timezone="Asia/Tokyo",
+            window_1w_days=2,
+            window_3m_days=2,
+            window_1y_days=2,
+            cooldown_hours=2,
+            firestore_project_id="",
+            ai_notifications_enabled=False,
+            x_api_bearer_token="",
+        )
+        with (
+            patch.object(run_daily_job, "parse_args", return_value=args),
+            patch.object(run_daily_job, "load_settings", return_value=settings),
+            patch.object(run_daily_job, "_create_firestore_client", return_value=FakeFirestoreClient()),
+            patch.object(run_daily_job, "create_default_market_data_source", return_value=StaticMarketDataSource()),
+            patch.object(run_daily_job, "run_daily_pipeline", return_value=run_daily_job.PipelineResult()),
+            patch.object(run_daily_job, "run_committee_pipeline") as mocked_committee,
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            code = run_daily_job.main()
+
+        self.assertEqual(code, 0)
+        mocked_committee.assert_not_called()
 
     def test_cached_market_data_source_uses_cache_for_same_ticker(self) -> None:
         class CountingSource:

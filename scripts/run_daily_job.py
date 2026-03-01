@@ -8,8 +8,8 @@ import os
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
+from kabu_per_bot.committee_pipeline import CommitteePipelineConfig, run_committee_pipeline
 from kabu_per_bot.discord_notifier import DiscordNotifier
-from kabu_per_bot.holdings_phase_a import PhaseAHoldingsConfig, PhaseAResult, run_holdings_phase_a_pipeline
 from kabu_per_bot.market_data import create_default_market_data_source
 from kabu_per_bot.pipeline import DailyPipelineConfig, NotificationExecutionMode, PipelineResult, run_daily_pipeline
 from kabu_per_bot.runtime_settings import resolve_runtime_settings
@@ -110,9 +110,9 @@ def parse_args() -> argparse.Namespace:
         help="Use with --stdout for notification preview. Bypass cooldown and do not read/write notification_log.",
     )
     parser.add_argument(
-        "--enable-phase-a",
+        "--disable-committee",
         action="store_true",
-        help="Enable Phase A holdings briefing notifications.",
+        help="Disable committee evaluation notifications.",
     )
     return parser.parse_args()
 
@@ -217,15 +217,6 @@ def _resolve_runtime_cooldown_hours(*, settings, client) -> int:
         return settings.cooldown_hours
 
 
-def _as_pipeline_result(result: PhaseAResult) -> PipelineResult:
-    return PipelineResult(
-        processed_tickers=result.processed_tickers,
-        sent_notifications=result.sent_notifications,
-        skipped_notifications=result.skipped_notifications,
-        errors=result.errors,
-    )
-
-
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args()
@@ -272,14 +263,15 @@ def main() -> int:
         ),
     )
     total_result = result
-    if getattr(args, "enable_phase_a", False):
-        phase_a_result = run_holdings_phase_a_pipeline(
+    if not getattr(args, "disable_committee", False):
+        committee_result = run_committee_pipeline(
             watchlist_items=watchlist_items,
             market_data_source=market_data_source,
             daily_metrics_repo=daily_repo,
+            medians_repo=medians_repo,
             notification_log_repo=log_repo,
             sender=sender,
-            config=PhaseAHoldingsConfig(
+            config=CommitteePipelineConfig(
                 trade_date=trade_date,
                 now_iso=now_iso,
                 cooldown_hours=cooldown_hours,
@@ -288,13 +280,13 @@ def main() -> int:
             ),
         )
         LOGGER.info(
-            "フェイズA完了: processed=%s sent=%s skipped=%s errors=%s",
-            phase_a_result.processed_tickers,
-            phase_a_result.sent_notifications,
-            phase_a_result.skipped_notifications,
-            phase_a_result.errors,
+            "委員会評価完了: processed=%s sent=%s skipped=%s errors=%s",
+            committee_result.processed_tickers,
+            committee_result.sent_notifications,
+            committee_result.skipped_notifications,
+            committee_result.errors,
         )
-        total_result = total_result.merge(_as_pipeline_result(phase_a_result))
+        total_result = total_result.merge(committee_result)
     payload = _result_payload(total_result)
     print(json.dumps(payload, ensure_ascii=False))
     LOGGER.info(
