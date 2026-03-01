@@ -34,6 +34,11 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.grok_sns_per_ticker_cooldown_hours, 24)
         self.assertGreaterEqual(len(settings.grok_sns_prompt_template), 20)
         self.assertEqual(settings.intel_notification_max_age_days, 30)
+        self.assertEqual(settings.edinet_api_key, "")
+        self.assertEqual(settings.edinet_api_base_url, "https://api.edinet-fsa.go.jp/api/v2")
+        self.assertEqual(settings.estat_app_id, "")
+        self.assertEqual(settings.estat_api_base_url, "https://api.e-stat.go.jp/rest/3.0/app/json")
+        self.assertEqual(settings.estat_cpi_stats_data_id, "")
 
     def test_env_override(self) -> None:
         settings = load_settings(
@@ -61,6 +66,11 @@ class LoadSettingsTest(unittest.TestCase):
                 "GROK_SNS_PER_TICKER_COOLDOWN_HOURS": "12",
                 "GROK_SNS_PROMPT_TEMPLATE": "重要SNS投稿を要約し、投稿者とURLを含めてください。",
                 "INTEL_NOTIFICATION_MAX_AGE_DAYS": "14",
+                "EDINET_API_KEY": "edinet-key",
+                "EDINET_API_BASE_URL": "https://api.edinet-fsa.go.jp/api/v2",
+                "ESTAT_APP_ID": "estat-app-id",
+                "ESTAT_API_BASE_URL": "https://api.e-stat.go.jp/rest/3.0/app/json",
+                "ESTAT_CPI_STATS_DATA_ID": "0003412313",
             },
             dotenv_path="does-not-exist.env",
         )
@@ -88,6 +98,11 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.grok_sns_per_ticker_cooldown_hours, 12)
         self.assertEqual(settings.grok_sns_prompt_template, "重要SNS投稿を要約し、投稿者とURLを含めてください。")
         self.assertEqual(settings.intel_notification_max_age_days, 14)
+        self.assertEqual(settings.edinet_api_key, "edinet-key")
+        self.assertEqual(settings.edinet_api_base_url, "https://api.edinet-fsa.go.jp/api/v2")
+        self.assertEqual(settings.estat_app_id, "estat-app-id")
+        self.assertEqual(settings.estat_api_base_url, "https://api.e-stat.go.jp/rest/3.0/app/json")
+        self.assertEqual(settings.estat_cpi_stats_data_id, "0003412313")
 
     def test_dotenv_loaded_when_env_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

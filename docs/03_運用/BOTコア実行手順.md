@@ -117,6 +117,8 @@ PYTHONPATH=src python scripts/run_immediate_window_job.py --window close --disco
   - `cooldown_hours` と `immediate_schedule.*` を `global_settings.runtime` から解決
 - `run_baseline_research_job.py`:
   - `baseline_monthly_scheduled_time`（JST `HH:MM`）で月次更新の実行時刻を制御
+  - `EDINET_API_KEY` / `ESTAT_APP_ID` / `ESTAT_CPI_STATS_DATA_ID` 設定時は基礎調査に一次情報エンリッチを追加
+  - e-Stat の最新値欠損時は `raw.estat.missing_reason=latest_value_not_found` と `summary.macro_note` を保存して可視化
 - `run_intelligence_job.py`:
   - `cooldown_hours`
   - `intel_notification_max_age_days`

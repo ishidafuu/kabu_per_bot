@@ -53,6 +53,11 @@ class AppSettings:
     grok_sns_per_ticker_cooldown_hours: int = 24
     grok_sns_prompt_template: str = field(default_factory=default_grok_prompt_template)
     intel_notification_max_age_days: int = DEFAULT_INTEL_NOTIFICATION_MAX_AGE_DAYS
+    edinet_api_key: str = ""
+    edinet_api_base_url: str = "https://api.edinet-fsa.go.jp/api/v2"
+    estat_app_id: str = ""
+    estat_api_base_url: str = "https://api.e-stat.go.jp/rest/3.0/app/json"
+    estat_cpi_stats_data_id: str = ""
 
 
 def _read_dotenv(dotenv_path: Path) -> dict[str, str]:
@@ -179,4 +184,9 @@ def load_settings(
             "INTEL_NOTIFICATION_MAX_AGE_DAYS",
             DEFAULT_INTEL_NOTIFICATION_MAX_AGE_DAYS,
         ),
+        edinet_api_key=merged.get("EDINET_API_KEY", "").strip(),
+        edinet_api_base_url=_get_str(merged, "EDINET_API_BASE_URL", "https://api.edinet-fsa.go.jp/api/v2"),
+        estat_app_id=merged.get("ESTAT_APP_ID", "").strip(),
+        estat_api_base_url=_get_str(merged, "ESTAT_API_BASE_URL", "https://api.e-stat.go.jp/rest/3.0/app/json"),
+        estat_cpi_stats_data_id=merged.get("ESTAT_CPI_STATS_DATA_ID", "").strip(),
     )

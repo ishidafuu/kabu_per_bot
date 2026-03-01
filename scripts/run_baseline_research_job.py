@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from kabu_per_bot.baseline_research_service import DefaultBaselineResearchCollector, refresh_baseline_research
 from kabu_per_bot.discord_notifier import DiscordNotifier
 from kabu_per_bot.market_data import create_default_market_data_source
+from kabu_per_bot.public_primary_data import EStatApiClient, EdinetApiClient
 from kabu_per_bot.runtime_settings import GlobalRuntimeSettings, resolve_runtime_settings
 from kabu_per_bot.settings import load_settings
 from kabu_per_bot.storage.firestore_baseline_research_repository import FirestoreBaselineResearchRepository
@@ -186,7 +187,24 @@ def main() -> int:
     collector = DefaultBaselineResearchCollector(
         create_default_market_data_source(
             jquants_api_key=getattr(args, "jquants_api_key", ""),
-        )
+        ),
+        edinet_client=(
+            EdinetApiClient(
+                api_key=settings.edinet_api_key,
+                base_url=settings.edinet_api_base_url,
+            )
+            if settings.edinet_api_key
+            else None
+        ),
+        estat_client=(
+            EStatApiClient(
+                app_id=settings.estat_app_id,
+                base_url=settings.estat_api_base_url,
+            )
+            if settings.estat_app_id
+            else None
+        ),
+        estat_cpi_stats_data_id=settings.estat_cpi_stats_data_id,
     )
     result = refresh_baseline_research(
         watchlist_items=items,
