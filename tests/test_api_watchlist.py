@@ -305,7 +305,7 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(create_1.json()["ticker"], "3901:TSE")
         self.assertEqual(create_1.json()["priority"], "MEDIUM")
         self.assertFalse(create_1.json()["evaluation_enabled"])
-        self.assertEqual(create_1.json()["evaluation_notify_mode"], "TOP_N")
+        self.assertEqual(create_1.json()["evaluation_notify_mode"], "ALERT_ONLY")
         self.assertEqual(create_1.json()["evaluation_top_n"], 3)
         self.assertEqual(create_1.json()["evaluation_min_strength"], 4)
 

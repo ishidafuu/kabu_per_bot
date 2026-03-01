@@ -161,6 +161,8 @@ class GlobalSettingsRepository(Protocol):
         intel_notification_max_age_days: int | None = None,
         immediate_schedule: ImmediateSchedule | None = None,
         grok_sns_settings: GrokSnsSettings | None = None,
+        committee_daily_scheduled_time: str | None = None,
+        baseline_monthly_scheduled_time: str | None = None,
         updated_at: str,
         updated_by: str | None,
     ) -> None:

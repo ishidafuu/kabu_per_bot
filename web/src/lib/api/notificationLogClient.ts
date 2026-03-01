@@ -1,16 +1,20 @@
-import type { NotificationLogListResponse } from '../../types/notificationLog';
+import type { CommitteeLogSummary, NotificationLogListResponse } from '../../types/notificationLog';
 import type { WatchPriority } from '../../types/watchlist';
 import { HttpClient } from './httpClient';
 
 export interface ListNotificationLogParams {
   ticker?: string;
   priority?: WatchPriority;
+  category?: string;
+  evaluationConfidenceMin?: number;
+  evaluationStrengthMin?: number;
   limit?: number;
   offset?: number;
 }
 
 export interface NotificationLogClient {
   list(params?: ListNotificationLogParams): Promise<NotificationLogListResponse>;
+  getCommitteeSummary(days?: number): Promise<CommitteeLogSummary>;
 }
 
 export class HttpNotificationLogClient implements NotificationLogClient {
@@ -29,6 +33,15 @@ export class HttpNotificationLogClient implements NotificationLogClient {
     if (params.priority) {
       query.set('priority', params.priority);
     }
+    if (params.category) {
+      query.set('category', params.category);
+    }
+    if (params.evaluationConfidenceMin != null) {
+      query.set('evaluation_confidence_min', String(params.evaluationConfidenceMin));
+    }
+    if (params.evaluationStrengthMin != null) {
+      query.set('evaluation_strength_min', String(params.evaluationStrengthMin));
+    }
 
     if (params.limit != null) {
       query.set('limit', String(params.limit));
@@ -44,5 +57,14 @@ export class HttpNotificationLogClient implements NotificationLogClient {
     return this.httpClient.request<NotificationLogListResponse>(path, {
       method: 'GET',
     });
+  }
+
+  async getCommitteeSummary(days = 7): Promise<CommitteeLogSummary> {
+    return this.httpClient.request<CommitteeLogSummary>(
+      `/notifications/logs/committee-summary?days=${days}`,
+      {
+        method: 'GET',
+      },
+    );
   }
 }

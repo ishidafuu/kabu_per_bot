@@ -6,6 +6,7 @@ from hashlib import sha1
 import logging
 from typing import Protocol
 
+from kabu_per_bot.baseline_research import BaselineResearchRecord
 from kabu_per_bot.committee import CommitteeContext, CommitteeEvaluation, CommitteeEvaluationEngine
 from kabu_per_bot.market_data import MarketDataError, MarketDataSource
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
@@ -41,6 +42,11 @@ class NotificationLogRepository(Protocol):
         """Get recent notification log rows."""
 
 
+class BaselineResearchRepository(Protocol):
+    def get_latest(self, ticker: str) -> BaselineResearchRecord | None:
+        """Get latest baseline research."""
+
+
 @dataclass(frozen=True)
 class CommitteePipelineConfig:
     trade_date: str
@@ -69,6 +75,7 @@ def run_committee_pipeline(
     sender: MessageSender,
     config: CommitteePipelineConfig,
     engine: CommitteeEvaluationEngine | None = None,
+    baseline_repository: BaselineResearchRepository | None = None,
 ) -> PipelineResult:
     evaluator = engine or CommitteeEvaluationEngine()
     candidates: list[_EvaluationCandidate] = []
@@ -96,6 +103,7 @@ def run_committee_pipeline(
                 data_fetched_at = snapshot.fetched_at
             except MarketDataError as exc:
                 LOGGER.warning("委員会評価の市場データ取得失敗: ticker=%s error=%s", item.ticker, exc)
+            baseline = baseline_repository.get_latest(item.ticker) if baseline_repository is not None else None
 
             context = CommitteeContext(
                 ticker=item.ticker,
@@ -106,6 +114,9 @@ def run_committee_pipeline(
                 recent_metrics=tuple(recent_metrics),
                 latest_medians=latest_medians,
                 market_snapshot=snapshot,
+                baseline_summary=baseline.summary if baseline is not None else None,
+                baseline_reliability_score=baseline.reliability_score if baseline is not None else None,
+                baseline_updated_at=baseline.updated_at if baseline is not None else None,
             )
             evaluation = evaluator.evaluate(context)
             candidates.append(
@@ -151,6 +162,8 @@ def run_committee_pipeline(
                 sender=sender,
                 confidence=candidate.evaluation.confidence,
                 strength=candidate.evaluation.strength,
+                lens_strengths={lens.key.value: lens.strength for lens in candidate.evaluation.lenses},
+                lens_confidences={lens.key.value: lens.confidence for lens in candidate.evaluation.lenses},
             )
             result = result.merge(PipelineResult(sent_notifications=sent, skipped_notifications=skipped))
         except Exception as exc:
@@ -189,6 +202,8 @@ def _dispatch_with_cooldown(
     sender: MessageSender,
     confidence: int,
     strength: int,
+    lens_strengths: dict[str, int],
+    lens_confidences: dict[str, int],
 ) -> tuple[int, int]:
     recent = notification_log_repo.list_recent(ticker, limit=100)
     decision = evaluate_cooldown(
@@ -218,6 +233,8 @@ def _dispatch_with_cooldown(
         data_fetched_at=data_fetched_at,
         evaluation_confidence=confidence,
         evaluation_strength=strength,
+        evaluation_lens_strengths=lens_strengths,
+        evaluation_lens_confidences=lens_confidences,
     )
     notification_log_repo.append(entry)
     return (1, 0)

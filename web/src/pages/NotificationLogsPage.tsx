@@ -4,7 +4,7 @@ import { AppLayout } from '../components/AppLayout';
 import { createNotificationLogClient } from '../lib/api';
 import { toUserMessage } from '../lib/api/errors';
 import { appConfig } from '../lib/config';
-import type { NotificationLogItem } from '../types/notificationLog';
+import type { CommitteeLogSummary, NotificationLogItem } from '../types/notificationLog';
 import type { WatchPriority } from '../types/watchlist';
 
 const getPageLabel = (offset: number, limit: number): number => {
@@ -44,10 +44,14 @@ export const NotificationLogsPage = () => {
   const [tickerInput, setTickerInput] = useState('');
   const [ticker, setTicker] = useState('');
   const [priority, setPriority] = useState<WatchPriority | ''>('');
+  const [category, setCategory] = useState<string>('');
+  const [evaluationConfidenceMin, setEvaluationConfidenceMin] = useState<number | ''>('');
+  const [evaluationStrengthMin, setEvaluationStrengthMin] = useState<number | ''>('');
   const [offset, setOffset] = useState(0);
   const limit = appConfig.pageSize;
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [committeeSummary, setCommitteeSummary] = useState<CommitteeLogSummary | null>(null);
 
   const fetchLogs = useCallback(async (): Promise<void> => {
     setIsLoading(true);
@@ -57,19 +61,25 @@ export const NotificationLogsPage = () => {
       const response = await client.list({
         ticker: ticker || undefined,
         priority: priority || undefined,
+        category: category || undefined,
+        evaluationConfidenceMin: evaluationConfidenceMin === '' ? undefined : evaluationConfidenceMin,
+        evaluationStrengthMin: evaluationStrengthMin === '' ? undefined : evaluationStrengthMin,
         limit,
         offset,
       });
       setItems(response.items);
       setTotal(response.total);
+      const summary = await client.getCommitteeSummary(7);
+      setCommitteeSummary(summary);
     } catch (error) {
       setLoadError(toUserMessage(error));
       setItems([]);
       setTotal(0);
+      setCommitteeSummary(null);
     } finally {
       setIsLoading(false);
     }
-  }, [client, ticker, priority, limit, offset]);
+  }, [client, ticker, priority, category, evaluationConfidenceMin, evaluationStrengthMin, limit, offset]);
 
   useEffect(() => {
     void fetchLogs();
@@ -119,6 +129,49 @@ export const NotificationLogsPage = () => {
             <option value="MEDIUM">MEDIUM</option>
             <option value="LOW">LOW</option>
           </select>
+          <select
+            value={category}
+            onChange={(event) => {
+              setOffset(0);
+              setCategory(event.target.value);
+            }}
+            aria-label="カテゴリで絞り込み"
+          >
+            <option value="">カテゴリ: すべて</option>
+            <option value="委員会評価">委員会評価</option>
+          </select>
+          <select
+            value={evaluationConfidenceMin}
+            onChange={(event) => {
+              setOffset(0);
+              const raw = event.target.value;
+              setEvaluationConfidenceMin(raw ? Number(raw) : '');
+            }}
+            aria-label="自信下限で絞り込み"
+          >
+            <option value="">自信下限: なし</option>
+            <option value="1">1以上</option>
+            <option value="2">2以上</option>
+            <option value="3">3以上</option>
+            <option value="4">4以上</option>
+            <option value="5">5以上</option>
+          </select>
+          <select
+            value={evaluationStrengthMin}
+            onChange={(event) => {
+              setOffset(0);
+              const raw = event.target.value;
+              setEvaluationStrengthMin(raw ? Number(raw) : '');
+            }}
+            aria-label="強さ下限で絞り込み"
+          >
+            <option value="">強さ下限: なし</option>
+            <option value="1">1以上</option>
+            <option value="2">2以上</option>
+            <option value="3">3以上</option>
+            <option value="4">4以上</option>
+            <option value="5">5以上</option>
+          </select>
         </div>
 
         <div className="meta-row">
@@ -127,7 +180,21 @@ export const NotificationLogsPage = () => {
           <span>表示件数: {limit}</span>
           <span>絞り込み: {ticker || 'なし'}</span>
           <span>優先度: {priority || 'すべて'}</span>
+          <span>カテゴリ: {category || 'すべて'}</span>
         </div>
+        {committeeSummary && (
+          <div className="meta-row">
+            <span>委員会評価(7日): {committeeSummary.total}件</span>
+            <span>
+              強さ分布:
+              {` 1:${committeeSummary.strength_distribution['1']} 2:${committeeSummary.strength_distribution['2']} 3:${committeeSummary.strength_distribution['3']} 4:${committeeSummary.strength_distribution['4']} 5:${committeeSummary.strength_distribution['5']}`}
+            </span>
+            <span>
+              自信分布:
+              {` 1:${committeeSummary.confidence_distribution['1']} 2:${committeeSummary.confidence_distribution['2']} 3:${committeeSummary.confidence_distribution['3']} 4:${committeeSummary.confidence_distribution['4']} 5:${committeeSummary.confidence_distribution['5']}`}
+            </span>
+          </div>
+        )}
       </section>
 
       {loadError && <p className="error-text">{loadError}</p>}
@@ -145,6 +212,8 @@ export const NotificationLogsPage = () => {
                 <th>条件キー</th>
                 <th>データソース</th>
                 <th>取得時刻</th>
+                <th>自信</th>
+                <th>強さ</th>
                 <th>本文</th>
                 <th>通知ID</th>
               </tr>
@@ -152,7 +221,7 @@ export const NotificationLogsPage = () => {
             <tbody>
               {isLoading && items.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="empty-cell">
+                  <td colSpan={12} className="empty-cell">
                     読み込み中...
                   </td>
                 </tr>
@@ -160,7 +229,7 @@ export const NotificationLogsPage = () => {
 
               {!isLoading && items.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="empty-cell">
+                  <td colSpan={12} className="empty-cell">
                     通知ログがありません。
                   </td>
                 </tr>
@@ -176,6 +245,8 @@ export const NotificationLogsPage = () => {
                   <td>{item.condition_key}</td>
                   <td>{item.data_source ?? '-'}</td>
                   <td>{formatDateTime(item.data_fetched_at)}</td>
+                  <td>{item.evaluation_confidence ?? '-'}</td>
+                  <td>{item.evaluation_strength ?? '-'}</td>
                   <td className="detail-body-cell">{item.body ?? '-'}</td>
                   <td>{item.entry_id}</td>
                 </tr>

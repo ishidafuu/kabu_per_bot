@@ -102,7 +102,7 @@ class WatchlistItem:
     ai_enabled: bool = True
     is_active: bool = True
     evaluation_enabled: bool = False
-    evaluation_notify_mode: EvaluationNotifyMode = EvaluationNotifyMode.TOP_N
+    evaluation_notify_mode: EvaluationNotifyMode = EvaluationNotifyMode.ALERT_ONLY
     evaluation_top_n: int = 3
     evaluation_min_strength: int = 4
     ir_urls: tuple[str, ...] = ()
@@ -321,7 +321,7 @@ class WatchlistService:
         ai_enabled: bool = True,
         is_active: bool = True,
         evaluation_enabled: bool = False,
-        evaluation_notify_mode: EvaluationNotifyMode | str = EvaluationNotifyMode.TOP_N,
+        evaluation_notify_mode: EvaluationNotifyMode | str = EvaluationNotifyMode.ALERT_ONLY,
         evaluation_top_n: int = 3,
         evaluation_min_strength: int = 4,
         ir_urls: list[str] | tuple[str, ...] | None = None,
@@ -553,10 +553,10 @@ def _parse_priority(value: Any) -> WatchPriority:
 
 def _parse_evaluation_notify_mode(value: Any) -> EvaluationNotifyMode:
     if value is None:
-        return EvaluationNotifyMode.TOP_N
+        return EvaluationNotifyMode.ALERT_ONLY
     normalized = str(value).strip().upper()
     if not normalized:
-        return EvaluationNotifyMode.TOP_N
+        return EvaluationNotifyMode.ALERT_ONLY
     return EvaluationNotifyMode(normalized)
 
 

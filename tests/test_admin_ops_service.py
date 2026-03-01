@@ -4,7 +4,13 @@ from datetime import datetime, timezone
 import unittest
 from unittest.mock import Mock, patch
 
-from kabu_per_bot.admin_ops import AdminOpsConfigError, AdminOpsJob, CloudRunAdminOpsService, JobExecution
+from kabu_per_bot.admin_ops import (
+    AdminOpsConfigError,
+    AdminOpsJob,
+    CloudRunAdminOpsService,
+    JobExecution,
+    _load_default_jobs,
+)
 
 
 def _execution(*, name: str, status: str, created_at: str) -> JobExecution:
@@ -25,6 +31,11 @@ def _execution(*, name: str, status: str, created_at: str) -> JobExecution:
 
 
 class AdminOpsServiceTest(unittest.TestCase):
+    def test_load_default_jobs_includes_baseline_refresh(self) -> None:
+        jobs = _load_default_jobs()
+        keys = {job.key for job in jobs}
+        self.assertIn("committee_baseline_refresh", keys)
+
     def test_run_job_waits_for_new_execution(self) -> None:
         service = object.__new__(CloudRunAdminOpsService)
         job = AdminOpsJob(key="daily", label="日次", job_name="kabu-daily")

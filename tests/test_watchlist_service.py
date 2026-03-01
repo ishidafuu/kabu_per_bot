@@ -138,7 +138,7 @@ class WatchlistServiceTest(unittest.TestCase):
             notify_timing=NotifyTiming.IMMEDIATE,
         )
         self.assertFalse(created.evaluation_enabled)
-        self.assertEqual(created.evaluation_notify_mode, EvaluationNotifyMode.TOP_N)
+        self.assertEqual(created.evaluation_notify_mode, EvaluationNotifyMode.ALERT_ONLY)
         self.assertEqual(created.evaluation_top_n, 3)
         self.assertEqual(created.evaluation_min_strength, 4)
 

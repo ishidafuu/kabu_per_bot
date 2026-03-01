@@ -48,6 +48,10 @@ const JOB_GUIDES: Record<VisibleJobKey, JobGuide> = {
     summary: '翌日決算分の通知候補を作成し、明日決算通知を送信します。',
     schedule: '通常は毎日21:00に定期実行',
   },
+  committee_baseline_refresh: {
+    summary: '委員会評価で使う基礎調査データ（raw/structured/summary）を月次更新します。',
+    schedule: '通常は毎月1日（設定時刻）に定期実行',
+  },
 };
 
 const formatExecutionStatus = (value: string): string => {
@@ -133,6 +137,8 @@ export const OpsPage = () => {
   const [grokScheduledTimeInput, setGrokScheduledTimeInput] = useState('21:10');
   const [grokCooldownHoursInput, setGrokCooldownHoursInput] = useState('24');
   const [grokPromptTemplateInput, setGrokPromptTemplateInput] = useState('');
+  const [committeeDailyScheduledTimeInput, setCommitteeDailyScheduledTimeInput] = useState('18:00');
+  const [baselineMonthlyScheduledTimeInput, setBaselineMonthlyScheduledTimeInput] = useState('18:00');
   const [isSavingGlobalSettings, setIsSavingGlobalSettings] = useState(false);
   const [historyPageIndex, setHistoryPageIndex] = useState(0);
 
@@ -151,6 +157,8 @@ export const OpsPage = () => {
     setGrokScheduledTimeInput(value.grok_sns.scheduled_time);
     setGrokCooldownHoursInput(String(value.grok_sns.per_ticker_cooldown_hours));
     setGrokPromptTemplateInput(value.grok_sns.prompt_template);
+    setCommitteeDailyScheduledTimeInput(value.committee_daily_scheduled_time);
+    setBaselineMonthlyScheduledTimeInput(value.baseline_monthly_scheduled_time);
   }, []);
 
   const refreshOps = useCallback(async (): Promise<void> => {
@@ -308,6 +316,14 @@ export const OpsPage = () => {
       setOpsError('Grok定時取得時刻は HH:MM 形式で入力してください。');
       return;
     }
+    if (!hhmm.test(committeeDailyScheduledTimeInput)) {
+      setOpsError('委員会評価の日次時刻は HH:MM 形式で入力してください。');
+      return;
+    }
+    if (!hhmm.test(baselineMonthlyScheduledTimeInput)) {
+      setOpsError('基礎調査の月次時刻は HH:MM 形式で入力してください。');
+      return;
+    }
     const openInterval = Number(openWindowIntervalInput.trim());
     const closeInterval = Number(closeWindowIntervalInput.trim());
     const grokCooldownHours = Number(grokCooldownHoursInput.trim());
@@ -350,6 +366,8 @@ export const OpsPage = () => {
           per_ticker_cooldown_hours: grokCooldownHours,
           prompt_template: grokPromptTemplateInput.trim(),
         },
+        committee_daily_scheduled_time: committeeDailyScheduledTimeInput,
+        baseline_monthly_scheduled_time: baselineMonthlyScheduledTimeInput,
       });
       applyGlobalSettings(response);
       setOpNotice(`全体設定を更新しました（クールダウン: ${response.cooldown_hours}時間）。`);
@@ -360,7 +378,9 @@ export const OpsPage = () => {
     }
   }, [
     applyGlobalSettings,
+    baselineMonthlyScheduledTimeInput,
     client,
+    committeeDailyScheduledTimeInput,
     closeWindowEndInput,
     closeWindowIntervalInput,
     closeWindowStartInput,
@@ -450,6 +470,7 @@ export const OpsPage = () => {
           <p className="muted">
             あわせてIMMEDIATEの寄り付き帯/引け帯の実行時間帯と間隔（分）を設定できます。タイムゾーンはJST固定です。
           </p>
+          <p className="muted">委員会評価の日次時刻と、基礎調査（月次・毎月1日）の時刻もこの画面で更新できます。</p>
           <p className="muted">GrokによるSNS取得の定時時刻・再取得間隔・プロンプトテンプレートもここで設定できます。</p>
           <p className="muted">
             Grok残高: {formatGrokBalance(globalSettings, isLoading)}
@@ -554,6 +575,26 @@ export const OpsPage = () => {
             </label>
           </div>
           <div className="settings-inline">
+            <label className="inline-field">
+              委員会評価 日次時刻（HH:MM JST）
+              <input
+                type="text"
+                value={committeeDailyScheduledTimeInput}
+                onChange={(event) => setCommitteeDailyScheduledTimeInput(event.target.value)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+            </label>
+            <label className="inline-field">
+              基礎調査 月次時刻（毎月1日 HH:MM JST）
+              <input
+                type="text"
+                value={baselineMonthlyScheduledTimeInput}
+                onChange={(event) => setBaselineMonthlyScheduledTimeInput(event.target.value)}
+                disabled={opsForbidden || isSavingGlobalSettings || isLoading}
+              />
+            </label>
+          </div>
+          <div className="settings-inline">
             <label className="inline-checkbox">
               <input
                 type="checkbox"
@@ -637,6 +678,12 @@ export const OpsPage = () => {
             <p className="muted">
               Grok SNS: {globalSettings.grok_sns.enabled ? '有効' : '無効'} / 定時 {globalSettings.grok_sns.scheduled_time} /
               再取得間隔 {globalSettings.grok_sns.per_ticker_cooldown_hours}時間
+            </p>
+          )}
+          {globalSettings && (
+            <p className="muted">
+              委員会評価: 毎日 {globalSettings.committee_daily_scheduled_time} / 基礎調査: 毎月1日{' '}
+              {globalSettings.baseline_monthly_scheduled_time}
             </p>
           )}
           {globalSettings?.updated_at && (

@@ -4,6 +4,7 @@ import unittest
 
 from kabu_per_bot.storage.firestore_schema import (
     ALL_COLLECTIONS,
+    COLLECTION_BASELINE_RESEARCH,
     COLLECTION_DAILY_METRICS,
     COLLECTION_EARNINGS_CALENDAR,
     COLLECTION_GLOBAL_SETTINGS,
@@ -38,6 +39,7 @@ class FirestoreSchemaTest(unittest.TestCase):
                 COLLECTION_JOB_RUN,
                 COLLECTION_INTEL_SEEN,
                 COLLECTION_GLOBAL_SETTINGS,
+                COLLECTION_BASELINE_RESEARCH,
             },
         )
 

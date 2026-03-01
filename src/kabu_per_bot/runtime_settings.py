@@ -13,6 +13,8 @@ class GlobalRuntimeSettings:
     intel_notification_max_age_days: int | None = None
     immediate_schedule: ImmediateSchedule | None = None
     grok_sns_settings: GrokSnsSettings | None = None
+    committee_daily_scheduled_time: str | None = None
+    baseline_monthly_scheduled_time: str | None = None
     updated_at: str | None = None
     updated_by: str | None = None
 
@@ -24,6 +26,8 @@ class RuntimeSettings:
     source: str
     grok_sns_settings: GrokSnsSettings
     intel_notification_max_age_days: int = 30
+    committee_daily_scheduled_time: str = "18:00"
+    baseline_monthly_scheduled_time: str = "18:00"
     updated_at: str | None = None
     updated_by: str | None = None
 
@@ -39,6 +43,8 @@ def resolve_runtime_settings(
     default_intel_notification_max_age_days: int = 30,
     default_immediate_schedule: ImmediateSchedule | None = None,
     default_grok_sns_settings: GrokSnsSettings | None = None,
+    default_committee_daily_scheduled_time: str = "18:00",
+    default_baseline_monthly_scheduled_time: str = "18:00",
     global_settings: GlobalRuntimeSettings,
 ) -> RuntimeSettings:
     cooldown_hours = (
@@ -51,6 +57,16 @@ def resolve_runtime_settings(
     )
     immediate_schedule = global_settings.immediate_schedule or default_immediate_schedule or ImmediateSchedule.default()
     grok_sns_settings = global_settings.grok_sns_settings or default_grok_sns_settings or GrokSnsSettings.default()
+    committee_daily_scheduled_time = (
+        global_settings.committee_daily_scheduled_time
+        if global_settings.committee_daily_scheduled_time is not None
+        else default_committee_daily_scheduled_time
+    )
+    baseline_monthly_scheduled_time = (
+        global_settings.baseline_monthly_scheduled_time
+        if global_settings.baseline_monthly_scheduled_time is not None
+        else default_baseline_monthly_scheduled_time
+    )
     source = (
         "firestore"
         if (
@@ -58,6 +74,8 @@ def resolve_runtime_settings(
             or global_settings.intel_notification_max_age_days is not None
             or global_settings.immediate_schedule is not None
             or global_settings.grok_sns_settings is not None
+            or global_settings.committee_daily_scheduled_time is not None
+            or global_settings.baseline_monthly_scheduled_time is not None
         )
         else "env_default"
     )
@@ -66,6 +84,8 @@ def resolve_runtime_settings(
         intel_notification_max_age_days=intel_notification_max_age_days,
         immediate_schedule=immediate_schedule,
         grok_sns_settings=grok_sns_settings,
+        committee_daily_scheduled_time=committee_daily_scheduled_time,
+        baseline_monthly_scheduled_time=baseline_monthly_scheduled_time,
         source=source,
         updated_at=global_settings.updated_at,
         updated_by=global_settings.updated_by,

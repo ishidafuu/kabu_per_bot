@@ -166,6 +166,8 @@ class InMemoryGlobalSettingsRepository:
             intel_notification_max_age_days=30,
             immediate_schedule=ImmediateSchedule.default(),
             grok_sns_settings=GrokSnsSettings.default(),
+            committee_daily_scheduled_time="18:00",
+            baseline_monthly_scheduled_time="18:00",
             updated_at=None,
             updated_by=None,
         )
@@ -181,6 +183,8 @@ class InMemoryGlobalSettingsRepository:
         intel_notification_max_age_days: int | None = None,
         immediate_schedule: ImmediateSchedule | None = None,
         grok_sns_settings: GrokSnsSettings | None = None,
+        committee_daily_scheduled_time: str | None = None,
+        baseline_monthly_scheduled_time: str | None = None,
         updated_at: str,
         updated_by: str | None,
     ) -> None:
@@ -193,6 +197,16 @@ class InMemoryGlobalSettingsRepository:
             ),
             immediate_schedule=(self.settings.immediate_schedule if immediate_schedule is None else immediate_schedule),
             grok_sns_settings=(self.settings.grok_sns_settings if grok_sns_settings is None else grok_sns_settings),
+            committee_daily_scheduled_time=(
+                self.settings.committee_daily_scheduled_time
+                if committee_daily_scheduled_time is None
+                else committee_daily_scheduled_time
+            ),
+            baseline_monthly_scheduled_time=(
+                self.settings.baseline_monthly_scheduled_time
+                if baseline_monthly_scheduled_time is None
+                else baseline_monthly_scheduled_time
+            ),
             updated_at=updated_at,
             updated_by=updated_by,
         )
@@ -210,6 +224,7 @@ class InMemoryAdminOpsService:
             AdminOpsJob(key="daily_at21", label="21:05ジョブ（AT_21）", job_name="kabu-daily-at21"),
             AdminOpsJob(key="earnings_weekly", label="今週決算ジョブ", job_name="kabu-earnings-weekly"),
             AdminOpsJob(key="earnings_tomorrow", label="明日決算ジョブ", job_name="kabu-earnings-tomorrow"),
+            AdminOpsJob(key="committee_baseline_refresh", label="基礎調査月次更新ジョブ", job_name="kabu-baseline-research"),
             AdminOpsJob(key="backfill", label="バックフィルジョブ", job_name="kabu-backfill"),
         )
 

@@ -38,6 +38,8 @@ class FakeGlobalSettingsRepository:
         intel_notification_max_age_days: int | None = None,
         immediate_schedule: ImmediateSchedule | None = None,
         grok_sns_settings: GrokSnsSettings | None = None,
+        committee_daily_scheduled_time: str | None = None,
+        baseline_monthly_scheduled_time: str | None = None,
         updated_at: str,
         updated_by: str | None,
     ) -> None:
@@ -49,11 +51,23 @@ class FakeGlobalSettingsRepository:
         )
         next_schedule = self.settings.immediate_schedule if immediate_schedule is None else immediate_schedule
         next_grok = self.settings.grok_sns_settings if grok_sns_settings is None else grok_sns_settings
+        next_committee_time = (
+            self.settings.committee_daily_scheduled_time
+            if committee_daily_scheduled_time is None
+            else committee_daily_scheduled_time
+        )
+        next_baseline_time = (
+            self.settings.baseline_monthly_scheduled_time
+            if baseline_monthly_scheduled_time is None
+            else baseline_monthly_scheduled_time
+        )
         self.settings = GlobalRuntimeSettings(
             cooldown_hours=next_cooldown,
             intel_notification_max_age_days=next_intel_max_age_days,
             immediate_schedule=next_schedule,
             grok_sns_settings=next_grok,
+            committee_daily_scheduled_time=next_committee_time,
+            baseline_monthly_scheduled_time=next_baseline_time,
             updated_at=updated_at,
             updated_by=updated_by,
         )
@@ -111,6 +125,8 @@ class AdminSettingsApiTest(unittest.TestCase):
         self.assertFalse(body["grok_sns"]["enabled"])
         self.assertFalse(body["grok_balance"]["configured"])
         self.assertEqual(body["grok_sns"]["scheduled_time"], "21:10")
+        self.assertEqual(body["committee_daily_scheduled_time"], "18:00")
+        self.assertEqual(body["baseline_monthly_scheduled_time"], "18:00")
         self.assertEqual(body["source"], "env_default")
         self.assertIsNone(body["updated_at"])
 
@@ -136,6 +152,8 @@ class AdminSettingsApiTest(unittest.TestCase):
                         per_ticker_cooldown_hours=12,
                         prompt_template="重要度が高いSNS投稿を日本語で要約し、URLを含めてください。",
                     ),
+                    committee_daily_scheduled_time="19:00",
+                    baseline_monthly_scheduled_time="20:00",
                     updated_at="2026-02-18T12:00:00+00:00",
                     updated_by="admin-user",
                 )
@@ -159,6 +177,8 @@ class AdminSettingsApiTest(unittest.TestCase):
         self.assertTrue(body["grok_sns"]["enabled"])
         self.assertFalse(body["grok_balance"]["configured"])
         self.assertEqual(body["grok_sns"]["scheduled_time"], "20:40")
+        self.assertEqual(body["committee_daily_scheduled_time"], "19:00")
+        self.assertEqual(body["baseline_monthly_scheduled_time"], "20:00")
         self.assertEqual(body["source"], "firestore")
         self.assertEqual(body["updated_by"], "admin-user")
 
@@ -338,6 +358,31 @@ class AdminSettingsApiTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 422)
+
+    def test_patch_global_settings_updates_committee_and_baseline_times(self) -> None:
+        repository = FakeGlobalSettingsRepository()
+        app = create_app(
+            global_settings_repository=repository,
+            token_verifier=FakeTokenVerifier(),
+        )
+        client = TestClient(app)
+
+        with patch(
+            "kabu_per_bot.api.routes.admin_settings.load_settings",
+            return_value=_app_settings(cooldown_hours=2),
+        ):
+            response = client.patch(
+                "/api/v1/admin/settings/global",
+                headers=_auth_header("admin-token"),
+                json={
+                    "committee_daily_scheduled_time": "19:10",
+                    "baseline_monthly_scheduled_time": "20:20",
+                },
+            )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["committee_daily_scheduled_time"], "19:10")
+        self.assertEqual(body["baseline_monthly_scheduled_time"], "20:20")
 
 
 if __name__ == "__main__":

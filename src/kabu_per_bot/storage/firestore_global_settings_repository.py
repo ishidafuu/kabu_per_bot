@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
+import re
 
 from kabu_per_bot.grok_sns_settings import GrokSnsSettings, validate_grok_sns_settings
 from kabu_per_bot.immediate_schedule import ImmediateSchedule, JST_TIMEZONE, validate_immediate_schedule
@@ -10,6 +11,7 @@ from kabu_per_bot.storage.firestore_schema import COLLECTION_GLOBAL_SETTINGS
 
 
 GLOBAL_SETTINGS_DOC_ID = "runtime"
+_HHMM_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
 
 class FirestoreGlobalSettingsRepository:
@@ -28,6 +30,14 @@ class FirestoreGlobalSettingsRepository:
         )
         immediate_schedule = _read_optional_immediate_schedule(data)
         grok_sns_settings = _read_optional_grok_sns_settings(data)
+        committee_daily_scheduled_time = _read_optional_hhmm(
+            data.get("committee_daily_scheduled_time"),
+            key="committee_daily_scheduled_time",
+        )
+        baseline_monthly_scheduled_time = _read_optional_hhmm(
+            data.get("baseline_monthly_scheduled_time"),
+            key="baseline_monthly_scheduled_time",
+        )
         updated_at = _read_optional_datetime_iso(data.get("updated_at"))
         updated_by = _read_optional_string(data.get("updated_by"))
         return GlobalRuntimeSettings(
@@ -35,6 +45,8 @@ class FirestoreGlobalSettingsRepository:
             intel_notification_max_age_days=intel_notification_max_age_days,
             immediate_schedule=immediate_schedule,
             grok_sns_settings=grok_sns_settings,
+            committee_daily_scheduled_time=committee_daily_scheduled_time,
+            baseline_monthly_scheduled_time=baseline_monthly_scheduled_time,
             updated_at=updated_at,
             updated_by=updated_by,
         )
@@ -46,6 +58,8 @@ class FirestoreGlobalSettingsRepository:
         intel_notification_max_age_days: int | None = None,
         immediate_schedule: ImmediateSchedule | None = None,
         grok_sns_settings: GrokSnsSettings | None = None,
+        committee_daily_scheduled_time: str | None = None,
+        baseline_monthly_scheduled_time: str | None = None,
         updated_at: str,
         updated_by: str | None,
     ) -> None:
@@ -54,6 +68,8 @@ class FirestoreGlobalSettingsRepository:
             and intel_notification_max_age_days is None
             and immediate_schedule is None
             and grok_sns_settings is None
+            and committee_daily_scheduled_time is None
+            and baseline_monthly_scheduled_time is None
         ):
             raise ValueError("at least one setting update is required")
         row = {
@@ -91,6 +107,16 @@ class FirestoreGlobalSettingsRepository:
                     "grok_sns_per_ticker_cooldown_hours": int(grok_sns_settings.per_ticker_cooldown_hours),
                     "grok_sns_prompt_template": grok_sns_settings.prompt_template.strip(),
                 }
+            )
+        if committee_daily_scheduled_time is not None:
+            row["committee_daily_scheduled_time"] = _read_optional_hhmm(
+                committee_daily_scheduled_time,
+                key="committee_daily_scheduled_time",
+            )
+        if baseline_monthly_scheduled_time is not None:
+            row["baseline_monthly_scheduled_time"] = _read_optional_hhmm(
+                baseline_monthly_scheduled_time,
+                key="baseline_monthly_scheduled_time",
             )
         self._collection.document(GLOBAL_SETTINGS_DOC_ID).set(row, merge=True)
 
@@ -156,7 +182,7 @@ def _read_optional_hhmm(value: Any, *, key: str) -> str | None:
     normalized = str(value).strip()
     if not normalized:
         return None
-    if len(normalized) != 5:
+    if not _HHMM_PATTERN.match(normalized):
         raise ValueError(f"{key} must match HH:MM format: {value}")
     return normalized
 

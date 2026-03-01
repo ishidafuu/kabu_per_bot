@@ -1,4 +1,4 @@
-import type { NotificationLogItem, NotificationLogListResponse } from '../../types/notificationLog';
+import type { CommitteeLogSummary, NotificationLogItem, NotificationLogListResponse } from '../../types/notificationLog';
 import type { ListNotificationLogParams, NotificationLogClient } from './notificationLogClient';
 
 const watchPriorityByTicker: Record<string, 'HIGH' | 'MEDIUM' | 'LOW'> = {
@@ -76,6 +76,7 @@ export class MockNotificationLogClient implements NotificationLogClient {
     const offset = params.offset ?? 0;
     const ticker = params.ticker?.trim().toUpperCase() ?? '';
     const priority = params.priority;
+    const category = params.category?.trim() ?? '';
 
     const filtered = seedNotificationLogs.filter((item) => {
       if (ticker.length > 0 && item.ticker.toUpperCase() !== ticker) {
@@ -84,12 +85,43 @@ export class MockNotificationLogClient implements NotificationLogClient {
       if (priority && watchPriorityByTicker[item.ticker] !== priority) {
         return false;
       }
+      if (category.length > 0 && item.category !== category) {
+        return false;
+      }
+      if (params.evaluationConfidenceMin != null) {
+        if (item.evaluation_confidence == null || item.evaluation_confidence < params.evaluationConfidenceMin) {
+          return false;
+        }
+      }
+      if (params.evaluationStrengthMin != null) {
+        if (item.evaluation_strength == null || item.evaluation_strength < params.evaluationStrengthMin) {
+          return false;
+        }
+      }
       return true;
     });
 
     return {
       items: filtered.slice(offset, offset + limit),
       total: filtered.length,
+    };
+  }
+
+  async getCommitteeSummary(days = 7): Promise<CommitteeLogSummary> {
+    void days;
+    await wait(120);
+    return {
+      total: 0,
+      lens_hit_counts: {
+        business: 0,
+        financial: 0,
+        valuation: 0,
+        technical: 0,
+        event: 0,
+        risk: 0,
+      },
+      confidence_distribution: { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 },
+      strength_distribution: { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 },
     };
   }
 }

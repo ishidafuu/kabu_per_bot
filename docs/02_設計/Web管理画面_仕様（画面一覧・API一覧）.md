@@ -210,6 +210,10 @@
     - `always_notify_enabled`（任意）
     - `ai_enabled`（任意・互換用。未指定/指定値に関わらず常時有効として扱う）
     - `is_active`（任意）
+    - `evaluation_enabled`（任意: 既定 `false`）
+    - `evaluation_notify_mode`（任意: `ALL` / `TOP_N` / `ALERT_ONLY`, 既定 `ALERT_ONLY`）
+    - `evaluation_top_n`（任意: `TOP_N`時に使用, 1〜100, 既定3）
+    - `evaluation_min_strength`（任意: `ALERT_ONLY`時に使用, 1〜5, 既定4）
   - 201: 作成成功
   - 409: 重複
   - 422: 入力不正
@@ -225,6 +229,10 @@
     - `always_notify_enabled`（任意）
     - `ai_enabled`（任意・互換用。未指定/指定値に関わらず常時有効として扱う）
     - `is_active`（任意）
+    - `evaluation_enabled`（任意）
+    - `evaluation_notify_mode`（任意: `ALL` / `TOP_N` / `ALERT_ONLY`）
+    - `evaluation_top_n`（任意: 1〜100）
+    - `evaluation_min_strength`（任意: 1〜5）
   - 200: 更新成功
   - 404: 該当なし
 
@@ -281,10 +289,22 @@
     - `priority`（任意: HIGH/MEDIUM/LOW）
     - `category`（任意）
     - `strong_only`（任意）
+    - `evaluation_confidence_min`（任意: 1〜5）
+    - `evaluation_strength_min`（任意: 1〜5）
     - `limit` / `offset`（任意）
   - 200レスポンス:
-    - `items[]`（`body` / `data_source` / `data_fetched_at` を含む）
+    - `items[]`（`body` / `data_source` / `data_fetched_at` / `evaluation_confidence` / `evaluation_strength` / `evaluation_lens_*` を含む）
     - `total`
+
+3. `GET /notifications/logs/committee-summary`
+  - 目的: 委員会評価通知の分布集計（運用レビュー向け）
+  - クエリ:
+    - `days`（任意: 1〜30, 既定7）
+  - 200レスポンス:
+    - `total`
+    - `lens_hit_counts`
+    - `confidence_distribution`
+    - `strength_distribution`
 
 ### 4.5 管理運用API（管理者のみ）
 
@@ -332,7 +352,7 @@
 ### 4.6 全体設定API（管理者のみ）
 
 1. `GET /admin/settings/global`
-  - 目的: 全体設定（クールダウン時間 + IR/SNS通知対象期間 + IMMEDIATE時間帯設定 + Grok SNS取得設定）の取得
+  - 目的: 全体設定（クールダウン時間 + IR/SNS通知対象期間 + IMMEDIATE時間帯設定 + Grok SNS取得設定 + 委員会/基礎調査時刻）の取得
   - 200レスポンス:
     - `cooldown_hours`
     - `intel_notification_max_age_days`（1以上の整数）
@@ -350,12 +370,14 @@
       - `scheduled_time`（`HH:MM`, JST）
       - `per_ticker_cooldown_hours`（1〜168）
       - `prompt_template`（20〜4000文字）
+    - `committee_daily_scheduled_time`（`HH:MM`, JST）
+    - `baseline_monthly_scheduled_time`（`HH:MM`, JST, 毎月1日実行想定）
     - `source`（`env_default` / `firestore`）
     - `updated_at`（任意）
     - `updated_by`（任意）
 
 2. `PATCH /admin/settings/global`
-  - 目的: 全体設定（クールダウン時間 + IR/SNS通知対象期間 + IMMEDIATE時間帯設定 + Grok SNS取得設定）の更新
+  - 目的: 全体設定（クールダウン時間 + IR/SNS通知対象期間 + IMMEDIATE時間帯設定 + Grok SNS取得設定 + 委員会/基礎調査時刻）の更新
   - リクエスト:
     - `cooldown_hours`（任意、1以上の整数）
     - `intel_notification_max_age_days`（任意、1以上の整数）
@@ -370,8 +392,10 @@
       - `scheduled_time`（`HH:MM`）
       - `per_ticker_cooldown_hours`（1〜168）
       - `prompt_template`（20〜4000文字）
+    - `committee_daily_scheduled_time`（任意, `HH:MM`）
+    - `baseline_monthly_scheduled_time`（任意, `HH:MM`）
   - バリデーション:
-    - 少なくとも `cooldown_hours` / `intel_notification_max_age_days` / `immediate_schedule` / `grok_sns` のいずれかを含む
+    - 少なくとも `cooldown_hours` / `intel_notification_max_age_days` / `immediate_schedule` / `grok_sns` / `committee_daily_scheduled_time` / `baseline_monthly_scheduled_time` のいずれかを含む
     - `open_window_start < open_window_end`
     - `close_window_start < close_window_end`
     - open/close帯は重複不可

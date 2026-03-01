@@ -97,6 +97,8 @@ class NotificationLogEntry:
     data_fetched_at: str | None = None
     evaluation_confidence: int | None = None
     evaluation_strength: int | None = None
+    evaluation_lens_strengths: dict[str, int] | None = None
+    evaluation_lens_confidences: dict[str, int] | None = None
 
     @classmethod
     def from_document(cls, data: dict[str, Any]) -> "NotificationLogEntry":
@@ -114,6 +116,8 @@ class NotificationLogEntry:
             data_fetched_at=str(data["data_fetched_at"]) if data.get("data_fetched_at") is not None else None,
             evaluation_confidence=_as_int_or_none(data.get("evaluation_confidence")),
             evaluation_strength=_as_int_or_none(data.get("evaluation_strength")),
+            evaluation_lens_strengths=_as_score_map_or_none(data.get("evaluation_lens_strengths")),
+            evaluation_lens_confidences=_as_score_map_or_none(data.get("evaluation_lens_confidences")),
         )
 
     def to_document(self) -> dict[str, Any]:
@@ -137,6 +141,10 @@ class NotificationLogEntry:
             row["evaluation_confidence"] = self.evaluation_confidence
         if self.evaluation_strength is not None:
             row["evaluation_strength"] = self.evaluation_strength
+        if self.evaluation_lens_strengths is not None:
+            row["evaluation_lens_strengths"] = dict(self.evaluation_lens_strengths)
+        if self.evaluation_lens_confidences is not None:
+            row["evaluation_lens_confidences"] = dict(self.evaluation_lens_confidences)
         return row
 
 
@@ -313,6 +321,26 @@ def _as_int_or_none(value: Any) -> int | None:
     if value is None:
         return None
     return int(value)
+
+
+def _as_score_map_or_none(value: Any) -> dict[str, int] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        return None
+    result: dict[str, int] = {}
+    for key, raw in value.items():
+        name = str(key).strip()
+        if not name:
+            continue
+        try:
+            score = int(raw)
+        except (TypeError, ValueError):
+            continue
+        result[name] = score
+    if not result:
+        return None
+    return result
 
 
 def _metric_prefix(condition_key: str) -> str:

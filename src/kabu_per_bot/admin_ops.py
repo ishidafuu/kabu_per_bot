@@ -422,6 +422,11 @@ def _load_default_jobs() -> tuple[AdminOpsJob, ...]:
             job_name=_env_or_default("OPS_EARNINGS_TOMORROW_JOB_NAME", "kabu-earnings-tomorrow"),
         ),
         AdminOpsJob(
+            key="committee_baseline_refresh",
+            label="基礎調査月次更新ジョブ",
+            job_name=_env_or_default("OPS_COMMITTEE_BASELINE_REFRESH_JOB_NAME", "kabu-baseline-research"),
+        ),
+        AdminOpsJob(
             key="backfill",
             label="バックフィルジョブ",
             job_name=_env_or_default("OPS_BACKFILL_JOB_NAME", ""),

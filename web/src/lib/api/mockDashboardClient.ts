@@ -33,6 +33,12 @@ const mockJobs: AdminOpsJob[] = [
   { key: 'daily_at21', label: '21:05ジョブ（AT_21）', job_name: 'kabu-daily-at21', configured: true },
   { key: 'earnings_weekly', label: '今週決算ジョブ', job_name: 'kabu-earnings-weekly', configured: true },
   { key: 'earnings_tomorrow', label: '明日決算ジョブ', job_name: 'kabu-earnings-tomorrow', configured: true },
+  {
+    key: 'committee_baseline_refresh',
+    label: '基礎調査月次更新ジョブ',
+    job_name: 'kabu-baseline-research',
+    configured: true,
+  },
   { key: 'backfill', label: 'バックフィルジョブ', job_name: null, configured: false },
 ];
 
@@ -57,6 +63,8 @@ let mockGlobalSettings: AdminGlobalSettings = {
     prompt_template:
       '以下の銘柄に関連する直近のSNS投稿を要約してください。重要度が高い話題を優先し、投稿者・時刻・URLを必ず含めてください。',
   },
+  committee_daily_scheduled_time: '18:00',
+  baseline_monthly_scheduled_time: '18:00',
   grok_balance: {
     configured: false,
     available: false,
@@ -184,6 +192,10 @@ export class MockDashboardClient implements DashboardClient {
             ...payload.grok_sns,
           }
         : mockGlobalSettings.grok_sns,
+      committee_daily_scheduled_time:
+        payload.committee_daily_scheduled_time ?? mockGlobalSettings.committee_daily_scheduled_time,
+      baseline_monthly_scheduled_time:
+        payload.baseline_monthly_scheduled_time ?? mockGlobalSettings.baseline_monthly_scheduled_time,
       grok_balance: mockGlobalSettings.grok_balance,
       source: 'firestore',
       updated_at: new Date().toISOString(),

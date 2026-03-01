@@ -51,6 +51,7 @@ PYTHONPATH=src python -m unittest discover -s tests
 | 明日決算 | `scripts/run_earnings_job.py --job tomorrow` | `notify_timing=AT_21` | 常に実行（翌日決算を抽出） |
 | IR通知 | `scripts/run_intelligence_job.py --intel-source ir_only` | `IMMEDIATE/AT_21`（`--execution-mode`準拠） | 常に実行 |
 | Grok SNS通知 | `scripts/run_intelligence_job.py --intel-source grok_only --respect-grok-schedule` | `IMMEDIATE/AT_21`（`--execution-mode`準拠） | `grok_sns.enabled=true` かつ JST定時一致時のみ |
+| 基礎調査（月次） | `scripts/run_baseline_research_job.py` | なし（委員会評価入力データ更新） | 毎月1日18:00 JST想定 |
 | 増分バックフィル | `scripts/run_incremental_backfill_job.py` | なし（補完処理） | 常に実行 |
 
 ```bash
@@ -65,7 +66,7 @@ PYTHONPATH=src python scripts/run_daily_job.py
   - `daily`: `notify_timing=IMMEDIATE` の銘柄のみ
   - `at_21`: `notify_timing=AT_21` の銘柄のみ
   - `all`: 両方
-- `--enable-phase-a` を指定すると、保有銘柄向けフェイズAブリーフ（RL/Earnings Gate/候補アクション）を追加で送信する。
+- 委員会評価通知は既定で有効。停止する場合のみ `--disable-committee` を指定する。
 - 標準出力のJSONは `processed` / `sent` / `skipped` / `errors` を返す。
 - 通知条件（割安/データ不明/常時通知ON時の状況通知）に一致しなければ `sent=0` でも正常（ジョブ成功）である。
 - クールダウン時間は `global_settings/runtime.cooldown_hours` があればそれを優先し、未設定時は `COOLDOWN_HOURS` を使用する。
@@ -120,6 +121,7 @@ PYTHONPATH=src python scripts/run_immediate_window_job.py --window close --disco
 - `kabu-daily-at21` <- `sc-kabu-daily-at21`（平日21:05 JST）
 - `kabu-intelligence` <- `sc-kabu-intelligence`（平日21:05 JST、IR中心）
 - `kabu-grok` <- `sc-kabu-grok`（毎分起動、管理画面の Grok定時取得時刻と一致した分のみ実処理）
+- `kabu-baseline-research` <- `sc-kabu-baseline-research`（毎月1日 18:00 JST）
 - `kabu-backfill-incremental` <- `sc-kabu-backfill-incremental`（平日21:15 JST）
 - `kabu-earnings-weekly` <- `sc-kabu-earnings-weekly`（土曜21:00 JST）
 - `kabu-earnings-tomorrow` <- `sc-kabu-earnings-tomorrow`（毎日21:00 JST）

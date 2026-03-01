@@ -12,6 +12,7 @@ export type AdminJobKey =
   | 'daily_at21'
   | 'earnings_weekly'
   | 'earnings_tomorrow'
+  | 'committee_baseline_refresh'
   | 'backfill';
 
 export interface AdminOpsJob {
@@ -63,6 +64,8 @@ export interface AdminGlobalSettings {
   intel_notification_max_age_days: number;
   immediate_schedule: AdminImmediateSchedule;
   grok_sns: AdminGrokSnsSettings;
+  committee_daily_scheduled_time: string;
+  baseline_monthly_scheduled_time: string;
   grok_balance: AdminGrokBalance;
   source: 'env_default' | 'firestore';
   updated_at?: string | null;
@@ -103,6 +106,8 @@ export interface AdminGlobalSettingsUpdatePayload {
     per_ticker_cooldown_hours: number;
     prompt_template: string;
   };
+  committee_daily_scheduled_time?: string;
+  baseline_monthly_scheduled_time?: string;
 }
 
 export interface BackfillRunPayload {

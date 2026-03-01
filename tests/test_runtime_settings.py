@@ -18,6 +18,8 @@ class RuntimeSettingsTest(unittest.TestCase):
         self.assertEqual(resolved.intel_notification_max_age_days, 30)
         self.assertEqual(resolved.immediate_schedule, ImmediateSchedule.default())
         self.assertEqual(resolved.grok_sns_settings.scheduled_time, "21:10")
+        self.assertEqual(resolved.committee_daily_scheduled_time, "18:00")
+        self.assertEqual(resolved.baseline_monthly_scheduled_time, "18:00")
         self.assertEqual(resolved.source, "env_default")
 
     def test_resolve_uses_firestore_when_schedule_overridden(self) -> None:
@@ -69,6 +71,16 @@ class RuntimeSettingsTest(unittest.TestCase):
 
         self.assertTrue(resolved.grok_sns_settings.enabled)
         self.assertEqual(resolved.grok_sns_settings.scheduled_time, "20:40")
+        self.assertEqual(resolved.source, "firestore")
+
+    def test_resolve_uses_firestore_when_committee_schedule_overridden(self) -> None:
+        resolved = resolve_runtime_settings(
+            default_cooldown_hours=2,
+            global_settings=GlobalRuntimeSettings(
+                committee_daily_scheduled_time="19:30",
+            ),
+        )
+        self.assertEqual(resolved.committee_daily_scheduled_time, "19:30")
         self.assertEqual(resolved.source, "firestore")
 
 

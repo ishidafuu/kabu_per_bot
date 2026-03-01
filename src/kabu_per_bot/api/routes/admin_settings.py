@@ -68,6 +68,8 @@ def update_admin_global_settings(
             intel_notification_max_age_days=payload.intel_notification_max_age_days,
             immediate_schedule=immediate_schedule,
             grok_sns_settings=grok_sns_settings,
+            committee_daily_scheduled_time=payload.committee_daily_scheduled_time,
+            baseline_monthly_scheduled_time=payload.baseline_monthly_scheduled_time,
             updated_at=datetime.now(timezone.utc).isoformat(),
             updated_by=uid,
         )
@@ -100,6 +102,8 @@ def _build_global_settings_response(*, repository: GlobalSettingsRepository) -> 
         intel_notification_max_age_days=runtime_settings.intel_notification_max_age_days,
         immediate_schedule=AdminImmediateScheduleResponse.from_domain(runtime_settings.immediate_schedule),
         grok_sns=AdminGrokSnsSettingsResponse.from_domain(runtime_settings.grok_sns_settings),
+        committee_daily_scheduled_time=runtime_settings.committee_daily_scheduled_time,
+        baseline_monthly_scheduled_time=runtime_settings.baseline_monthly_scheduled_time,
         grok_balance=AdminGrokBalanceResponse(
             configured=grok_balance.configured,
             available=grok_balance.available,

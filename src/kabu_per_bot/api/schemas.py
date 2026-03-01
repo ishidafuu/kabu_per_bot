@@ -133,7 +133,7 @@ class WatchlistCreateRequest(BaseModel):
     ai_enabled: bool = True
     is_active: bool = True
     evaluation_enabled: bool = False
-    evaluation_notify_mode: EvaluationNotifyMode = EvaluationNotifyMode.TOP_N
+    evaluation_notify_mode: EvaluationNotifyMode = EvaluationNotifyMode.ALERT_ONLY
     evaluation_top_n: int = Field(default=3, ge=1, le=100)
     evaluation_min_strength: int = Field(default=4, ge=1, le=5)
     reason: str | None = Field(default=None, max_length=200)
@@ -393,6 +393,8 @@ class AdminGlobalSettingsResponse(BaseModel):
     intel_notification_max_age_days: int = Field(ge=1)
     immediate_schedule: AdminImmediateScheduleResponse
     grok_sns: AdminGrokSnsSettingsResponse
+    committee_daily_scheduled_time: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    baseline_monthly_scheduled_time: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
     grok_balance: AdminGrokBalanceResponse
     source: str
     updated_at: str | None = None
@@ -404,6 +406,8 @@ class AdminGlobalSettingsUpdateRequest(BaseModel):
     intel_notification_max_age_days: int | None = Field(default=None, ge=1)
     immediate_schedule: AdminImmediateScheduleUpdateRequest | None = None
     grok_sns: AdminGrokSnsSettingsUpdateRequest | None = None
+    committee_daily_scheduled_time: str | None = Field(default=None, pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    baseline_monthly_scheduled_time: str | None = Field(default=None, pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
     @model_validator(mode="after")
     def validate_has_updates(self) -> "AdminGlobalSettingsUpdateRequest":
@@ -412,6 +416,8 @@ class AdminGlobalSettingsUpdateRequest(BaseModel):
             and self.intel_notification_max_age_days is None
             and self.immediate_schedule is None
             and self.grok_sns is None
+            and self.committee_daily_scheduled_time is None
+            and self.baseline_monthly_scheduled_time is None
         ):
             raise ValueError("at least one setting update is required")
         return self
@@ -466,6 +472,8 @@ class NotificationLogItemResponse(BaseModel):
     data_fetched_at: str | None = None
     evaluation_confidence: int | None = Field(default=None, ge=1, le=5)
     evaluation_strength: int | None = Field(default=None, ge=1, le=5)
+    evaluation_lens_strengths: dict[str, int] | None = None
+    evaluation_lens_confidences: dict[str, int] | None = None
 
     @classmethod
     def from_domain(cls, entry: NotificationLogEntry) -> "NotificationLogItemResponse":
@@ -483,12 +491,21 @@ class NotificationLogItemResponse(BaseModel):
             data_fetched_at=entry.data_fetched_at,
             evaluation_confidence=entry.evaluation_confidence,
             evaluation_strength=entry.evaluation_strength,
+            evaluation_lens_strengths=entry.evaluation_lens_strengths,
+            evaluation_lens_confidences=entry.evaluation_lens_confidences,
         )
 
 
 class NotificationLogListResponse(BaseModel):
     items: list[NotificationLogItemResponse]
     total: int = Field(ge=0)
+
+
+class CommitteeLogSummaryResponse(BaseModel):
+    total: int = Field(ge=0)
+    lens_hit_counts: dict[str, int]
+    confidence_distribution: dict[str, int]
+    strength_distribution: dict[str, int]
 
 
 class WatchlistDetailResponse(BaseModel):

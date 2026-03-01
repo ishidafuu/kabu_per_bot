@@ -16,6 +16,7 @@ from kabu_per_bot.runtime_settings import resolve_runtime_settings
 from kabu_per_bot.settings import load_settings
 from kabu_per_bot.storage.firestore_daily_metrics_repository import FirestoreDailyMetricsRepository
 from kabu_per_bot.storage.firestore_global_settings_repository import FirestoreGlobalSettingsRepository
+from kabu_per_bot.storage.firestore_baseline_research_repository import FirestoreBaselineResearchRepository
 from kabu_per_bot.storage.firestore_metric_medians_repository import FirestoreMetricMediansRepository
 from kabu_per_bot.storage.firestore_notification_log_repository import FirestoreNotificationLogRepository
 from kabu_per_bot.storage.firestore_schema import normalize_trade_date
@@ -230,6 +231,7 @@ def main() -> int:
     watchlist_repo = FirestoreWatchlistRepository(client)
     daily_repo = FirestoreDailyMetricsRepository(client)
     medians_repo = FirestoreMetricMediansRepository(client)
+    baseline_research_repo = FirestoreBaselineResearchRepository(client)
     signal_repo = FirestoreSignalStateRepository(client)
     log_repo = _resolve_notification_log_repo(args, FirestoreNotificationLogRepository(client))
     watchlist_items = watchlist_repo.list_all()
@@ -278,6 +280,7 @@ def main() -> int:
                 channel=DISCORD_DAILY_CHANNEL,
                 execution_mode=_resolve_execution_mode(args.execution_mode),
             ),
+            baseline_repository=baseline_research_repo,
         )
         LOGGER.info(
             "委員会評価完了: processed=%s sent=%s skipped=%s errors=%s",

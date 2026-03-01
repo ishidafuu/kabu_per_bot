@@ -85,6 +85,8 @@ class FirestoreGlobalSettingsRepositoryTest(unittest.TestCase):
                 per_ticker_cooldown_hours=12,
                 prompt_template="重要SNS投稿を要約し、投稿者・時刻・URLを必ず含めてください。",
             ),
+            committee_daily_scheduled_time="18:30",
+            baseline_monthly_scheduled_time="19:00",
             updated_at="2026-02-18T12:00:00+09:00",
             updated_by="admin-user",
         )
@@ -100,9 +102,23 @@ class FirestoreGlobalSettingsRepositoryTest(unittest.TestCase):
         assert result.grok_sns_settings is not None
         self.assertTrue(result.grok_sns_settings.enabled)
         self.assertEqual(result.grok_sns_settings.scheduled_time, "20:40")
+        self.assertEqual(result.committee_daily_scheduled_time, "18:30")
+        self.assertEqual(result.baseline_monthly_scheduled_time, "19:00")
         self.assertEqual(result.updated_by, "admin-user")
         self.assertEqual(result.updated_at, "2026-02-18T03:00:00+00:00")
         self.assertIn(f"{COLLECTION_GLOBAL_SETTINGS}/{GLOBAL_SETTINGS_DOC_ID}", client.db)
+
+    def test_get_raises_for_invalid_committee_daily_scheduled_time(self) -> None:
+        client = FakeFirestoreClient(
+            db={
+                f"{COLLECTION_GLOBAL_SETTINGS}/{GLOBAL_SETTINGS_DOC_ID}": {
+                    "committee_daily_scheduled_time": "99:00",
+                }
+            }
+        )
+        repo = FirestoreGlobalSettingsRepository(client)
+        with self.assertRaises(ValueError):
+            repo.get_global_settings()
 
     def test_get_raises_for_invalid_cooldown_hours(self) -> None:
         client = FakeFirestoreClient(

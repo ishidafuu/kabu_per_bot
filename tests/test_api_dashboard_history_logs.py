@@ -559,6 +559,97 @@ class DashboardHistoryLogsApiTest(unittest.TestCase):
         self.assertEqual(body["items"][0]["data_source"], "株探")
         self.assertEqual(body["items"][0]["data_fetched_at"], "2026-02-12T11:58:00+09:00")
 
+    def test_notification_logs_support_committee_score_filters(self) -> None:
+        client = _build_client(
+            notification_rows=[
+                NotificationLogEntry(
+                    entry_id="committee-1",
+                    ticker="3901:TSE",
+                    category="委員会評価",
+                    condition_key="COMMITTEE:2026-03-01:3:2",
+                    sent_at="2026-03-01T18:00:00+09:00",
+                    channel="DISCORD",
+                    payload_hash="h1",
+                    is_strong=False,
+                    evaluation_confidence=3,
+                    evaluation_strength=2,
+                ),
+                NotificationLogEntry(
+                    entry_id="committee-2",
+                    ticker="6758:TSE",
+                    category="委員会評価",
+                    condition_key="COMMITTEE:2026-03-01:5:4",
+                    sent_at="2026-03-01T18:10:00+09:00",
+                    channel="DISCORD",
+                    payload_hash="h2",
+                    is_strong=True,
+                    evaluation_confidence=5,
+                    evaluation_strength=4,
+                ),
+            ]
+        )
+
+        response = client.get(
+            "/api/v1/notifications/logs?category=委員会評価&evaluation_confidence_min=4&evaluation_strength_min=4",
+            headers=_auth_header(),
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["total"], 1)
+        self.assertEqual(body["items"][0]["entry_id"], "committee-2")
+        self.assertEqual(body["items"][0]["evaluation_confidence"], 5)
+        self.assertEqual(body["items"][0]["evaluation_strength"], 4)
+
+    def test_committee_summary_endpoint_aggregates_distributions(self) -> None:
+        now = datetime.now(timezone.utc)
+        recent = now.isoformat()
+        older = (now - timedelta(days=14)).isoformat()
+        client = _build_client(
+            notification_rows=[
+                NotificationLogEntry(
+                    entry_id="committee-1",
+                    ticker="3901:TSE",
+                    category="委員会評価",
+                    condition_key="COMMITTEE:2026-03-01:4:4",
+                    sent_at=recent,
+                    channel="DISCORD",
+                    payload_hash="h1",
+                    is_strong=True,
+                    evaluation_confidence=4,
+                    evaluation_strength=4,
+                    evaluation_lens_strengths={
+                        "business": 4,
+                        "financial": 3,
+                        "valuation": 4,
+                        "technical": 2,
+                        "event": 5,
+                        "risk": 4,
+                    },
+                ),
+                NotificationLogEntry(
+                    entry_id="committee-old",
+                    ticker="3901:TSE",
+                    category="委員会評価",
+                    condition_key="COMMITTEE:2026-02-01:5:5",
+                    sent_at=older,
+                    channel="DISCORD",
+                    payload_hash="h2",
+                    is_strong=True,
+                    evaluation_confidence=5,
+                    evaluation_strength=5,
+                ),
+            ]
+        )
+
+        response = client.get("/api/v1/notifications/logs/committee-summary?days=7", headers=_auth_header())
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["total"], 1)
+        self.assertEqual(body["confidence_distribution"]["4"], 1)
+        self.assertEqual(body["strength_distribution"]["4"], 1)
+        self.assertEqual(body["lens_hit_counts"]["business"], 1)
+        self.assertEqual(body["lens_hit_counts"]["financial"], 0)
+
     def test_validation_errors(self) -> None:
         client = _build_client()
 
