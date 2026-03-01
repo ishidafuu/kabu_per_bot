@@ -430,6 +430,83 @@ class RunDailyJobTest(TestCase):
         self.assertEqual(code, 0)
         self.assertTrue(mocked_phase_a.called)
 
+    def test_main_merges_phase_a_result_into_summary(self) -> None:
+        args = run_daily_job.argparse.Namespace(
+            trade_date="2026-02-12",
+            now_iso="2026-02-12T09:00:00+00:00",
+            discord_webhook_url="",
+            execution_mode="daily",
+            stdout=True,
+            no_notification_log=False,
+            enable_phase_a=True,
+        )
+        settings = AppSettings(
+            app_env="test",
+            timezone="Asia/Tokyo",
+            window_1w_days=2,
+            window_3m_days=2,
+            window_1y_days=2,
+            cooldown_hours=2,
+            firestore_project_id="",
+            ai_notifications_enabled=False,
+            x_api_bearer_token="",
+        )
+
+        with (
+            patch.object(run_daily_job, "parse_args", return_value=args),
+            patch.object(run_daily_job, "load_settings", return_value=settings),
+            patch.object(run_daily_job, "_create_firestore_client", return_value=FakeFirestoreClient()),
+            patch.object(run_daily_job, "create_default_market_data_source", return_value=StaticMarketDataSource()),
+            patch.object(
+                run_daily_job,
+                "run_daily_pipeline",
+                return_value=run_daily_job.PipelineResult(processed_tickers=1, sent_notifications=2, skipped_notifications=3, errors=4),
+            ),
+            patch.object(
+                run_daily_job,
+                "run_holdings_phase_a_pipeline",
+                return_value=run_daily_job.PhaseAResult(
+                    processed_tickers=5,
+                    sent_notifications=6,
+                    skipped_notifications=7,
+                    errors=8,
+                ),
+            ),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            code = run_daily_job.main()
+
+        self.assertEqual(code, 0)
+        lines = [line for line in stdout.getvalue().splitlines() if line.strip()]
+        summary = json.loads(lines[-1])
+        self.assertEqual(summary, {"processed": 6, "sent": 8, "skipped": 10, "errors": 12})
+
+    def test_cached_market_data_source_uses_cache_for_same_ticker(self) -> None:
+        class CountingSource:
+            def __init__(self) -> None:
+                self.calls = 0
+                self.source_name = "counting"
+
+            def fetch_snapshot(self, ticker: str) -> MarketDataSnapshot:
+                self.calls += 1
+                return MarketDataSnapshot.create(
+                    ticker=ticker,
+                    close_price=100.0,
+                    eps_forecast=10.0,
+                    sales_forecast=100.0,
+                    source="株探",
+                    earnings_date="2026-05-10",
+                )
+
+        base = CountingSource()
+        cached = run_daily_job.CachedMarketDataSource(base)
+
+        first = cached.fetch_snapshot("3901:TSE")
+        second = cached.fetch_snapshot("3901:TSE")
+
+        self.assertEqual(base.calls, 1)
+        self.assertIs(first, second)
+
 
 if __name__ == "__main__":
     import unittest

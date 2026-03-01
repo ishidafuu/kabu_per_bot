@@ -131,21 +131,25 @@ def run_holdings_phase_a_pipeline(
 
     focus_briefs = _select_focus_briefs(briefs=briefs, max_items=config.max_focus_items)
     for brief in focus_briefs:
-        body = _format_phase_a_message(brief=brief, trade_date=trade_date, config=config)
-        sent, skipped = _dispatch_with_cooldown(
-            ticker=brief.ticker,
-            body=body,
-            condition_key=f"PHASE_A:{trade_date}:{brief.risk_level}:{brief.earnings_gate_code}",
-            is_strong=brief.risk_rank >= 2,
-            now_iso=config.now_iso,
-            cooldown_hours=config.cooldown_hours,
-            channel=config.channel,
-            data_source=brief.data_source,
-            data_fetched_at=brief.data_fetched_at,
-            notification_log_repo=notification_log_repo,
-            sender=sender,
-        )
-        result = result.merge(PhaseAResult(sent_notifications=sent, skipped_notifications=skipped))
+        try:
+            body = _format_phase_a_message(brief=brief, trade_date=trade_date, config=config)
+            sent, skipped = _dispatch_with_cooldown(
+                ticker=brief.ticker,
+                body=body,
+                condition_key=f"PHASE_A:{trade_date}:{brief.risk_level}:{brief.earnings_gate_code}",
+                is_strong=brief.risk_rank >= 2,
+                now_iso=config.now_iso,
+                cooldown_hours=config.cooldown_hours,
+                channel=config.channel,
+                data_source=brief.data_source,
+                data_fetched_at=brief.data_fetched_at,
+                notification_log_repo=notification_log_repo,
+                sender=sender,
+            )
+            result = result.merge(PhaseAResult(sent_notifications=sent, skipped_notifications=skipped))
+        except Exception as exc:
+            LOGGER.exception("フェイズA通知失敗: ticker=%s error=%s", brief.ticker, exc)
+            result = result.merge(PhaseAResult(errors=1))
     return result
 
 

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from kabu_per_bot.discord_notifier import DiscordNotifier
-from kabu_per_bot.holdings_phase_a import PhaseAHoldingsConfig, run_holdings_phase_a_pipeline
+from kabu_per_bot.holdings_phase_a import PhaseAHoldingsConfig, PhaseAResult, run_holdings_phase_a_pipeline
 from kabu_per_bot.market_data import create_default_market_data_source
 from kabu_per_bot.pipeline import DailyPipelineConfig, NotificationExecutionMode, PipelineResult, run_daily_pipeline
 from kabu_per_bot.runtime_settings import resolve_runtime_settings
@@ -46,6 +46,34 @@ class NotificationLogBypassRepository:
     def append(self, entry) -> None:
         _ = entry
         return None
+
+
+class CachedMarketDataSource:
+    """Cache per-ticker market-data snapshots for a single job run."""
+
+    def __init__(self, source) -> None:
+        self._source = source
+        self._snapshot_cache: dict[str, object] = {}
+        self._error_cache: dict[str, Exception] = {}
+
+    @property
+    def source_name(self) -> str:
+        return getattr(self._source, "source_name", "cached")
+
+    def fetch_snapshot(self, ticker: str):
+        normalized = str(ticker).strip().upper()
+        if normalized in self._snapshot_cache:
+            return self._snapshot_cache[normalized]
+        cached_error = self._error_cache.get(normalized)
+        if cached_error is not None:
+            raise cached_error
+        try:
+            snapshot = self._source.fetch_snapshot(ticker)
+        except Exception as exc:
+            self._error_cache[normalized] = exc
+            raise
+        self._snapshot_cache[normalized] = snapshot
+        return snapshot
 
 
 def parse_args() -> argparse.Namespace:
@@ -189,6 +217,15 @@ def _resolve_runtime_cooldown_hours(*, settings, client) -> int:
         return settings.cooldown_hours
 
 
+def _as_pipeline_result(result: PhaseAResult) -> PipelineResult:
+    return PipelineResult(
+        processed_tickers=result.processed_tickers,
+        sent_notifications=result.sent_notifications,
+        skipped_notifications=result.skipped_notifications,
+        errors=result.errors,
+    )
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args()
@@ -205,8 +242,10 @@ def main() -> int:
     signal_repo = FirestoreSignalStateRepository(client)
     log_repo = _resolve_notification_log_repo(args, FirestoreNotificationLogRepository(client))
     watchlist_items = watchlist_repo.list_all()
-    market_data_source = create_default_market_data_source(
-        jquants_api_key=getattr(args, "jquants_api_key", ""),
+    market_data_source = CachedMarketDataSource(
+        create_default_market_data_source(
+            jquants_api_key=getattr(args, "jquants_api_key", ""),
+        )
     )
 
     LOGGER.info("日次ジョブ開始: trade_date=%s watchlist_items=%s", trade_date, len(watchlist_items))
@@ -232,6 +271,7 @@ def main() -> int:
             execution_mode=_resolve_execution_mode(args.execution_mode),
         ),
     )
+    total_result = result
     if getattr(args, "enable_phase_a", False):
         phase_a_result = run_holdings_phase_a_pipeline(
             watchlist_items=watchlist_items,
@@ -254,7 +294,8 @@ def main() -> int:
             phase_a_result.skipped_notifications,
             phase_a_result.errors,
         )
-    payload = _result_payload(result)
+        total_result = total_result.merge(_as_pipeline_result(phase_a_result))
+    payload = _result_payload(total_result)
     print(json.dumps(payload, ensure_ascii=False))
     LOGGER.info(
         "日次ジョブ完了: processed=%s sent=%s skipped=%s errors=%s",
