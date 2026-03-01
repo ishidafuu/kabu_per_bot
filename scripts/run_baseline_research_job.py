@@ -11,10 +11,12 @@ from zoneinfo import ZoneInfo
 from kabu_per_bot.baseline_research_service import DefaultBaselineResearchCollector, refresh_baseline_research
 from kabu_per_bot.discord_notifier import DiscordNotifier
 from kabu_per_bot.market_data import create_default_market_data_source
+from kabu_per_bot.runtime_settings import GlobalRuntimeSettings, resolve_runtime_settings
 from kabu_per_bot.settings import load_settings
 from kabu_per_bot.storage.firestore_baseline_research_repository import FirestoreBaselineResearchRepository
+from kabu_per_bot.storage.firestore_global_settings_repository import FirestoreGlobalSettingsRepository
 from kabu_per_bot.storage.firestore_watchlist_repository import FirestoreWatchlistRepository
-from kabu_per_bot.storage.firestore_schema import normalize_ticker
+from kabu_per_bot.storage.firestore_schema import normalize_ticker, normalize_trade_date
 
 
 LOGGER = logging.getLogger(__name__)
@@ -61,6 +63,11 @@ def parse_args() -> argparse.Namespace:
         default=os.environ.get("JQUANTS_API_KEY", "").strip(),
         help="J-Quants API key.",
     )
+    parser.add_argument(
+        "--ignore-baseline-schedule",
+        action="store_true",
+        help="Run even when current JST date/time does not match monthly schedule setting.",
+    )
     return parser.parse_args()
 
 
@@ -97,7 +104,7 @@ def _resolve_sender(args: argparse.Namespace):
 
 def _resolve_trade_date(*, trade_date: str | None, now_iso: str | None) -> str:
     if trade_date:
-        return trade_date
+        return normalize_trade_date(trade_date)
     now = datetime.now(timezone.utc) if now_iso is None else datetime.fromisoformat(now_iso)
     if now.tzinfo is None:
         raise ValueError("now_iso must include timezone offset")
@@ -105,7 +112,32 @@ def _resolve_trade_date(*, trade_date: str | None, now_iso: str | None) -> str:
 
 
 def _resolve_as_of_month(*, trade_date: str) -> str:
-    return trade_date[:7]
+    parsed = datetime.fromisoformat(f"{normalize_trade_date(trade_date)}T00:00:00+00:00")
+    return parsed.strftime("%Y-%m")
+
+
+def _resolve_runtime_baseline_scheduled_time(*, settings, client) -> str:
+    try:
+        repository = FirestoreGlobalSettingsRepository(client)
+        runtime_settings = resolve_runtime_settings(
+            default_cooldown_hours=settings.cooldown_hours,
+            global_settings=repository.get_global_settings(),
+        )
+        return runtime_settings.baseline_monthly_scheduled_time
+    except Exception as exc:
+        LOGGER.warning("全体設定の取得に失敗したため環境変数設定を使用: %s", exc)
+        return resolve_runtime_settings(
+            default_cooldown_hours=settings.cooldown_hours,
+            global_settings=GlobalRuntimeSettings(),
+        ).baseline_monthly_scheduled_time
+
+
+def _should_run_monthly_now(*, now_iso: str | None, scheduled_time: str) -> bool:
+    now = datetime.now(timezone.utc) if now_iso is None else datetime.fromisoformat(now_iso)
+    if now.tzinfo is None:
+        raise ValueError("now_iso must include timezone offset")
+    jst_now = now.astimezone(ZoneInfo(JST_TIMEZONE))
+    return jst_now.day == 1 and jst_now.strftime("%H:%M") == scheduled_time
 
 
 def _format_failure_message(
@@ -131,6 +163,18 @@ def main() -> int:
     as_of_month = _resolve_as_of_month(trade_date=trade_date)
 
     client = _create_firestore_client(project_id=settings.firestore_project_id)
+    scheduled_time = _resolve_runtime_baseline_scheduled_time(settings=settings, client=client)
+    if not args.tickers and not getattr(args, "ignore_baseline_schedule", False):
+        if not _should_run_monthly_now(now_iso=args.now_iso, scheduled_time=scheduled_time):
+            payload = {"processed": 0, "updated": 0, "failed": 0}
+            print(json.dumps(payload, ensure_ascii=False))
+            LOGGER.info(
+                "基礎調査更新を時刻条件でスキップ: scheduled=%s JST (毎月1日) trade_date=%s",
+                scheduled_time,
+                trade_date,
+            )
+            return 0
+
     watchlist_repo = FirestoreWatchlistRepository(client)
     baseline_repo = FirestoreBaselineResearchRepository(client)
 

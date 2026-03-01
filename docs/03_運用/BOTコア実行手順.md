@@ -42,16 +42,16 @@ PYTHONPATH=src python -m unittest discover -s tests
 
 | 種別 | 実行スクリプト/引数 | 通知タイミング対象 | 実処理の実行条件 |
 | --- | --- | --- | --- |
-| 日次（IMMEDIATE） | `scripts/run_daily_job.py --execution-mode daily` | `notify_timing=IMMEDIATE` | 常に実行 |
-| 日次（AT_21） | `scripts/run_daily_job.py --execution-mode at_21` | `notify_timing=AT_21` | 常に実行 |
-| 日次（両方） | `scripts/run_daily_job.py --execution-mode all` | `IMMEDIATE` + `AT_21` | 常に実行 |
+| 日次（IMMEDIATE） | `scripts/run_daily_job.py --execution-mode daily` | `notify_timing=IMMEDIATE` | 日次判定は常に実行（委員会評価は時刻一致時のみ） |
+| 日次（AT_21） | `scripts/run_daily_job.py --execution-mode at_21` | `notify_timing=AT_21` | 日次判定は常に実行（委員会評価は時刻一致時のみ） |
+| 日次（両方） | `scripts/run_daily_job.py --execution-mode all` | `IMMEDIATE` + `AT_21` | 日次判定は常に実行（委員会評価は時刻一致時のみ） |
 | 寄り付き帯 | `scripts/run_immediate_window_job.py --window open` | `notify_timing=IMMEDIATE` | `immediate_schedule` の時間帯・間隔一致時のみ |
 | 引け帯 | `scripts/run_immediate_window_job.py --window close` | `notify_timing=IMMEDIATE` | `immediate_schedule` の時間帯・間隔一致時のみ |
 | 今週決算 | `scripts/run_earnings_job.py --job weekly` | `notify_timing=AT_21` | 常に実行（来週決算を抽出） |
 | 明日決算 | `scripts/run_earnings_job.py --job tomorrow` | `notify_timing=AT_21` | 常に実行（翌日決算を抽出） |
 | IR通知 | `scripts/run_intelligence_job.py --intel-source ir_only` | `IMMEDIATE/AT_21`（`--execution-mode`準拠） | 常に実行 |
 | Grok SNS通知 | `scripts/run_intelligence_job.py --intel-source grok_only --respect-grok-schedule` | `IMMEDIATE/AT_21`（`--execution-mode`準拠） | `grok_sns.enabled=true` かつ JST定時一致時のみ |
-| 基礎調査（月次） | `scripts/run_baseline_research_job.py` | なし（委員会評価入力データ更新） | 毎月1日18:00 JST想定 |
+| 基礎調査（月次） | `scripts/run_baseline_research_job.py` | なし（委員会評価入力データ更新） | JSTで毎月1日かつ `baseline_monthly_scheduled_time` 一致時のみ |
 | 増分バックフィル | `scripts/run_incremental_backfill_job.py` | なし（補完処理） | 常に実行 |
 
 ```bash
@@ -66,7 +66,9 @@ PYTHONPATH=src python scripts/run_daily_job.py
   - `daily`: `notify_timing=IMMEDIATE` の銘柄のみ
   - `at_21`: `notify_timing=AT_21` の銘柄のみ
   - `all`: 両方
-- 委員会評価通知は既定で有効。停止する場合のみ `--disable-committee` を指定する。
+- 委員会評価通知は既定で有効。`global_settings/runtime.committee_daily_scheduled_time`（JST `HH:MM`）と一致した時刻のみ実行される。
+- 委員会評価を停止する場合のみ `--disable-committee` を指定する。
+- 時刻一致を無視して委員会評価も同時実行する場合は `--ignore-committee-schedule` を指定する（手動再実行用途）。
 - 標準出力のJSONは `processed` / `sent` / `skipped` / `errors` を返す。
 - 通知条件（割安/データ不明/常時通知ON時の状況通知）に一致しなければ `sent=0` でも正常（ジョブ成功）である。
 - クールダウン時間は `global_settings/runtime.cooldown_hours` があればそれを優先し、未設定時は `COOLDOWN_HOURS` を使用する。
@@ -81,6 +83,12 @@ PYTHONPATH=src python scripts/run_daily_job.py --stdout
 
 ```bash
 PYTHONPATH=src python scripts/run_daily_job.py --execution-mode at_21 --discord-webhook-url <DISCORD_WEBHOOK_URL_DAILY>
+```
+
+委員会評価を時刻条件を無視して実行する場合:
+
+```bash
+PYTHONPATH=src python scripts/run_daily_job.py --ignore-committee-schedule --discord-webhook-url <DISCORD_WEBHOOK_URL_DAILY>
 ```
 
 IMMEDIATEの寄り付き帯/引け帯ジョブを実行する場合:
@@ -103,8 +111,12 @@ PYTHONPATH=src python scripts/run_immediate_window_job.py --window close --disco
 
 - `run_daily_job.py` / `run_earnings_job.py`:
   - `cooldown_hours` は `global_settings.runtime.cooldown_hours` を優先
+- `run_daily_job.py`:
+  - `committee_daily_scheduled_time`（JST `HH:MM`）で委員会評価の実行時刻を制御
 - `run_immediate_window_job.py`:
   - `cooldown_hours` と `immediate_schedule.*` を `global_settings.runtime` から解決
+- `run_baseline_research_job.py`:
+  - `baseline_monthly_scheduled_time`（JST `HH:MM`）で月次更新の実行時刻を制御
 - `run_intelligence_job.py`:
   - `cooldown_hours`
   - `intel_notification_max_age_days`

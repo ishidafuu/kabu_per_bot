@@ -12,7 +12,7 @@ from kabu_per_bot.committee_pipeline import CommitteePipelineConfig, run_committ
 from kabu_per_bot.discord_notifier import DiscordNotifier
 from kabu_per_bot.market_data import create_default_market_data_source
 from kabu_per_bot.pipeline import DailyPipelineConfig, NotificationExecutionMode, PipelineResult, run_daily_pipeline
-from kabu_per_bot.runtime_settings import resolve_runtime_settings
+from kabu_per_bot.runtime_settings import GlobalRuntimeSettings, resolve_runtime_settings
 from kabu_per_bot.settings import load_settings
 from kabu_per_bot.storage.firestore_daily_metrics_repository import FirestoreDailyMetricsRepository
 from kabu_per_bot.storage.firestore_global_settings_repository import FirestoreGlobalSettingsRepository
@@ -115,6 +115,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable committee evaluation notifications.",
     )
+    parser.add_argument(
+        "--ignore-committee-schedule",
+        action="store_true",
+        help="Run committee evaluation even when current JST time does not match global setting.",
+    )
     return parser.parse_args()
 
 
@@ -200,7 +205,7 @@ def _resolve_execution_mode(raw: str) -> NotificationExecutionMode:
     return mapping[raw]
 
 
-def _resolve_runtime_cooldown_hours(*, settings, client) -> int:
+def _resolve_runtime_settings(*, settings, client):
     try:
         repository = FirestoreGlobalSettingsRepository(client)
         runtime_settings = resolve_runtime_settings(
@@ -212,10 +217,18 @@ def _resolve_runtime_cooldown_hours(*, settings, client) -> int:
             runtime_settings.cooldown_hours,
             runtime_settings.source,
         )
-        return runtime_settings.cooldown_hours
+        return runtime_settings
     except Exception as exc:
         LOGGER.warning("全体設定の取得に失敗したため環境変数設定を使用: %s", exc)
-        return settings.cooldown_hours
+        return resolve_runtime_settings(
+            default_cooldown_hours=settings.cooldown_hours,
+            global_settings=GlobalRuntimeSettings(),
+        )
+
+
+def _should_run_committee_now(*, now_iso: str, scheduled_time: str) -> bool:
+    now = _parse_now_iso(now_iso).astimezone(ZoneInfo(JST_TIMEZONE))
+    return now.strftime("%H:%M") == scheduled_time
 
 
 def main() -> int:
@@ -227,7 +240,8 @@ def main() -> int:
     sender = _resolve_sender(args)
 
     client = _create_firestore_client(project_id=settings.firestore_project_id)
-    cooldown_hours = _resolve_runtime_cooldown_hours(settings=settings, client=client)
+    runtime_settings = _resolve_runtime_settings(settings=settings, client=client)
+    cooldown_hours = runtime_settings.cooldown_hours
     watchlist_repo = FirestoreWatchlistRepository(client)
     daily_repo = FirestoreDailyMetricsRepository(client)
     medians_repo = FirestoreMetricMediansRepository(client)
@@ -265,7 +279,20 @@ def main() -> int:
         ),
     )
     total_result = result
-    if not getattr(args, "disable_committee", False):
+    should_run_committee = not getattr(args, "disable_committee", False)
+    if should_run_committee and not getattr(args, "ignore_committee_schedule", False):
+        if not _should_run_committee_now(
+            now_iso=now_iso,
+            scheduled_time=runtime_settings.committee_daily_scheduled_time,
+        ):
+            LOGGER.info(
+                "委員会評価を時刻条件でスキップ: now=%s scheduled=%s",
+                _parse_now_iso(now_iso).astimezone(ZoneInfo(JST_TIMEZONE)).strftime("%H:%M"),
+                runtime_settings.committee_daily_scheduled_time,
+            )
+            should_run_committee = False
+
+    if should_run_committee:
         committee_result = run_committee_pipeline(
             watchlist_items=watchlist_items,
             market_data_source=market_data_source,

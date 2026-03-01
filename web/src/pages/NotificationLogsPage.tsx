@@ -58,19 +58,32 @@ export const NotificationLogsPage = () => {
     setLoadError('');
 
     try {
-      const response = await client.list({
-        ticker: ticker || undefined,
-        priority: priority || undefined,
-        category: category || undefined,
-        evaluationConfidenceMin: evaluationConfidenceMin === '' ? undefined : evaluationConfidenceMin,
-        evaluationStrengthMin: evaluationStrengthMin === '' ? undefined : evaluationStrengthMin,
-        limit,
-        offset,
-      });
-      setItems(response.items);
-      setTotal(response.total);
-      const summary = await client.getCommitteeSummary(7);
-      setCommitteeSummary(summary);
+      const [listResult, summaryResult] = await Promise.allSettled([
+        client.list({
+          ticker: ticker || undefined,
+          priority: priority || undefined,
+          category: category || undefined,
+          evaluationConfidenceMin: evaluationConfidenceMin === '' ? undefined : evaluationConfidenceMin,
+          evaluationStrengthMin: evaluationStrengthMin === '' ? undefined : evaluationStrengthMin,
+          limit,
+          offset,
+        }),
+        client.getCommitteeSummary(7),
+      ]);
+
+      if (listResult.status === 'rejected') {
+        throw listResult.reason;
+      }
+
+      setItems(listResult.value.items);
+      setTotal(listResult.value.total);
+
+      if (summaryResult.status === 'fulfilled') {
+        setCommitteeSummary(summaryResult.value);
+      } else {
+        setCommitteeSummary(null);
+        setLoadError('委員会評価サマリの取得に失敗しました。ログ一覧のみ表示しています。');
+      }
     } catch (error) {
       setLoadError(toUserMessage(error));
       setItems([]);

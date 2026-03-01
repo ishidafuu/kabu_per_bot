@@ -405,6 +405,7 @@ class RunDailyJobTest(TestCase):
             stdout=True,
             no_notification_log=False,
             disable_committee=False,
+            ignore_committee_schedule=False,
         )
         settings = AppSettings(
             app_env="test",
@@ -445,6 +446,7 @@ class RunDailyJobTest(TestCase):
             stdout=True,
             no_notification_log=False,
             disable_committee=False,
+            ignore_committee_schedule=False,
         )
         settings = AppSettings(
             app_env="test",
@@ -496,6 +498,7 @@ class RunDailyJobTest(TestCase):
             stdout=True,
             no_notification_log=False,
             disable_committee=True,
+            ignore_committee_schedule=False,
         )
         settings = AppSettings(
             app_env="test",
@@ -521,6 +524,82 @@ class RunDailyJobTest(TestCase):
 
         self.assertEqual(code, 0)
         mocked_committee.assert_not_called()
+
+    def test_main_skips_committee_when_not_scheduled_time(self) -> None:
+        args = run_daily_job.argparse.Namespace(
+            trade_date="2026-02-12",
+            now_iso="2026-02-12T10:00:00+00:00",
+            discord_webhook_url="",
+            execution_mode="daily",
+            stdout=True,
+            no_notification_log=False,
+            disable_committee=False,
+            ignore_committee_schedule=False,
+        )
+        settings = AppSettings(
+            app_env="test",
+            timezone="Asia/Tokyo",
+            window_1w_days=2,
+            window_3m_days=2,
+            window_1y_days=2,
+            cooldown_hours=2,
+            firestore_project_id="",
+            ai_notifications_enabled=False,
+            x_api_bearer_token="",
+        )
+        with (
+            patch.object(run_daily_job, "parse_args", return_value=args),
+            patch.object(run_daily_job, "load_settings", return_value=settings),
+            patch.object(run_daily_job, "_create_firestore_client", return_value=FakeFirestoreClient()),
+            patch.object(run_daily_job, "create_default_market_data_source", return_value=StaticMarketDataSource()),
+            patch.object(run_daily_job, "run_daily_pipeline", return_value=run_daily_job.PipelineResult()),
+            patch.object(run_daily_job, "run_committee_pipeline") as mocked_committee,
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            code = run_daily_job.main()
+
+        self.assertEqual(code, 0)
+        mocked_committee.assert_not_called()
+
+    def test_main_runs_committee_when_schedule_ignored(self) -> None:
+        args = run_daily_job.argparse.Namespace(
+            trade_date="2026-02-12",
+            now_iso="2026-02-12T10:00:00+00:00",
+            discord_webhook_url="",
+            execution_mode="daily",
+            stdout=True,
+            no_notification_log=False,
+            disable_committee=False,
+            ignore_committee_schedule=True,
+        )
+        settings = AppSettings(
+            app_env="test",
+            timezone="Asia/Tokyo",
+            window_1w_days=2,
+            window_3m_days=2,
+            window_1y_days=2,
+            cooldown_hours=2,
+            firestore_project_id="",
+            ai_notifications_enabled=False,
+            x_api_bearer_token="",
+        )
+        with (
+            patch.object(run_daily_job, "parse_args", return_value=args),
+            patch.object(run_daily_job, "load_settings", return_value=settings),
+            patch.object(run_daily_job, "_create_firestore_client", return_value=FakeFirestoreClient()),
+            patch.object(run_daily_job, "create_default_market_data_source", return_value=StaticMarketDataSource()),
+            patch.object(run_daily_job, "run_daily_pipeline", return_value=run_daily_job.PipelineResult()),
+            patch.object(
+                run_daily_job,
+                "run_committee_pipeline",
+                return_value=run_daily_job.PipelineResult(),
+            ) as mocked_committee,
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            code = run_daily_job.main()
+
+        self.assertEqual(code, 0)
+        self.assertTrue(mocked_committee.called)
 
     def test_cached_market_data_source_uses_cache_for_same_ticker(self) -> None:
         class CountingSource:
