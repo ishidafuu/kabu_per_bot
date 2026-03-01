@@ -304,6 +304,10 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertTrue(create_1.json()["always_notify_enabled"])
         self.assertEqual(create_1.json()["ticker"], "3901:TSE")
         self.assertEqual(create_1.json()["priority"], "MEDIUM")
+        self.assertFalse(create_1.json()["evaluation_enabled"])
+        self.assertEqual(create_1.json()["evaluation_notify_mode"], "TOP_N")
+        self.assertEqual(create_1.json()["evaluation_top_n"], 3)
+        self.assertEqual(create_1.json()["evaluation_min_strength"], 4)
 
         create_2 = client.post(
             "/api/v1/watchlist",
@@ -336,13 +340,25 @@ class WatchlistApiTest(unittest.TestCase):
         update = client.patch(
             "/api/v1/watchlist/3901:TSE",
             headers=_auth_header(),
-            json={"always_notify_enabled": False, "is_active": False, "priority": "HIGH"},
+            json={
+                "always_notify_enabled": False,
+                "is_active": False,
+                "priority": "HIGH",
+                "evaluation_enabled": True,
+                "evaluation_notify_mode": "ALERT_ONLY",
+                "evaluation_top_n": 5,
+                "evaluation_min_strength": 5,
+            },
         )
         self.assertEqual(update.status_code, 200)
         self.assertEqual(update.json()["notify_channel"], "DISCORD")
         self.assertFalse(update.json()["always_notify_enabled"])
         self.assertEqual(update.json()["is_active"], False)
         self.assertEqual(update.json()["priority"], "HIGH")
+        self.assertTrue(update.json()["evaluation_enabled"])
+        self.assertEqual(update.json()["evaluation_notify_mode"], "ALERT_ONLY")
+        self.assertEqual(update.json()["evaluation_top_n"], 5)
+        self.assertEqual(update.json()["evaluation_min_strength"], 5)
 
         delete = client.delete("/api/v1/watchlist/3901:TSE", headers=_auth_header())
         self.assertEqual(delete.status_code, 204)

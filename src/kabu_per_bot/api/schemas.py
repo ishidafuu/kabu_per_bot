@@ -5,7 +5,15 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from kabu_per_bot.grok_sns_settings import GrokSnsSettings, validate_grok_sns_settings
 from kabu_per_bot.immediate_schedule import ImmediateSchedule, validate_immediate_schedule
 from kabu_per_bot.signal import NotificationLogEntry
-from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchPriority, WatchlistItem, XAccountLink
+from kabu_per_bot.watchlist import (
+    EvaluationNotifyMode,
+    MetricType,
+    NotifyChannel,
+    NotifyTiming,
+    WatchPriority,
+    WatchlistItem,
+    XAccountLink,
+)
 from kabu_per_bot.watchlist import WatchlistHistoryRecord
 
 
@@ -31,6 +39,10 @@ class WatchlistItemResponse(BaseModel):
     always_notify_enabled: bool
     ai_enabled: bool
     is_active: bool
+    evaluation_enabled: bool
+    evaluation_notify_mode: EvaluationNotifyMode
+    evaluation_top_n: int = Field(ge=1, le=100)
+    evaluation_min_strength: int = Field(ge=1, le=5)
     ir_urls: list[str]
     x_official_account: str | None = None
     x_executive_accounts: list[XAccountLinkResponse]
@@ -77,6 +89,10 @@ class WatchlistItemResponse(BaseModel):
             always_notify_enabled=item.always_notify_enabled,
             ai_enabled=item.ai_enabled,
             is_active=item.is_active,
+            evaluation_enabled=item.evaluation_enabled,
+            evaluation_notify_mode=item.evaluation_notify_mode,
+            evaluation_top_n=item.evaluation_top_n,
+            evaluation_min_strength=item.evaluation_min_strength,
             ir_urls=list(item.ir_urls),
             x_official_account=item.x_official_account,
             x_executive_accounts=[WatchlistItemResponse.XAccountLinkResponse.from_domain(row) for row in item.x_executive_accounts],
@@ -116,6 +132,10 @@ class WatchlistCreateRequest(BaseModel):
     always_notify_enabled: bool = False
     ai_enabled: bool = True
     is_active: bool = True
+    evaluation_enabled: bool = False
+    evaluation_notify_mode: EvaluationNotifyMode = EvaluationNotifyMode.TOP_N
+    evaluation_top_n: int = Field(default=3, ge=1, le=100)
+    evaluation_min_strength: int = Field(default=4, ge=1, le=5)
     reason: str | None = Field(default=None, max_length=200)
     ir_urls: list[str] = Field(default_factory=list, max_length=10)
     x_official_account: str | None = Field(default=None, max_length=16)
@@ -142,6 +162,10 @@ class WatchlistUpdateRequest(BaseModel):
     always_notify_enabled: bool | None = None
     ai_enabled: bool | None = None
     is_active: bool | None = None
+    evaluation_enabled: bool | None = None
+    evaluation_notify_mode: EvaluationNotifyMode | None = None
+    evaluation_top_n: int | None = Field(default=None, ge=1, le=100)
+    evaluation_min_strength: int | None = Field(default=None, ge=1, le=5)
     ir_urls: list[str] | None = Field(default=None, max_length=10)
     x_official_account: str | None = Field(default=None, max_length=16)
     x_executive_accounts: list[XAccountLinkRequest] | None = Field(default=None, max_length=10)
@@ -167,6 +191,10 @@ class WatchlistUpdateRequest(BaseModel):
                 # 互換性維持: 旧クライアントの ai_enabled 単独PATCHを受け付ける。
                 self.ai_enabled is not None,
                 self.is_active is not None,
+                self.evaluation_enabled is not None,
+                self.evaluation_notify_mode is not None,
+                self.evaluation_top_n is not None,
+                self.evaluation_min_strength is not None,
                 self.ir_urls is not None,
                 self.x_official_account is not None,
                 self.x_executive_accounts is not None,

@@ -5,6 +5,7 @@ import unittest
 
 from kabu_per_bot.watchlist import (
     CreateResult,
+    EvaluationNotifyMode,
     MetricType,
     NotifyChannel,
     NotifyTiming,
@@ -124,6 +125,34 @@ class WatchlistServiceTest(unittest.TestCase):
         )
         self.assertEqual(updated.priority, WatchPriority.HIGH)
         self.assertEqual(updated.updated_at, "2026-02-13T00:00:00+00:00")
+
+    def test_evaluation_settings_defaults_and_update(self) -> None:
+        repo = InMemoryWatchlistRepository()
+        service = WatchlistService(repo)
+
+        created = service.add_item(
+            ticker="3901:TSE",
+            name="富士フイルム",
+            metric_type=MetricType.PER,
+            notify_channel=NotifyChannel.DISCORD,
+            notify_timing=NotifyTiming.IMMEDIATE,
+        )
+        self.assertFalse(created.evaluation_enabled)
+        self.assertEqual(created.evaluation_notify_mode, EvaluationNotifyMode.TOP_N)
+        self.assertEqual(created.evaluation_top_n, 3)
+        self.assertEqual(created.evaluation_min_strength, 4)
+
+        updated = service.update_item(
+            "3901:TSE",
+            evaluation_enabled=True,
+            evaluation_notify_mode=EvaluationNotifyMode.ALERT_ONLY,
+            evaluation_top_n=5,
+            evaluation_min_strength=5,
+        )
+        self.assertTrue(updated.evaluation_enabled)
+        self.assertEqual(updated.evaluation_notify_mode, EvaluationNotifyMode.ALERT_ONLY)
+        self.assertEqual(updated.evaluation_top_n, 5)
+        self.assertEqual(updated.evaluation_min_strength, 5)
 
     def test_limit_exceeded_raises(self) -> None:
         repo = InMemoryWatchlistRepository()
@@ -249,6 +278,19 @@ class WatchlistServiceTest(unittest.TestCase):
                     "always_notify_enabled": "not-bool",
                     "ai_enabled": "not-bool",
                     "is_active": True,
+                }
+            )
+
+    def test_from_document_invalid_evaluation_int_range_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            WatchlistItem.from_document(
+                {
+                    "ticker": "3901:tse",
+                    "name": "A",
+                    "metric_type": "per",
+                    "notify_channel": "discord",
+                    "notify_timing": "immediate",
+                    "evaluation_top_n": 0,
                 }
             )
 

@@ -4,6 +4,7 @@ export type NotifyChannel = 'DISCORD' | 'OFF';
 
 export type NotifyTiming = 'IMMEDIATE' | 'AT_21' | 'OFF';
 export type WatchPriority = 'HIGH' | 'MEDIUM' | 'LOW';
+export type EvaluationNotifyMode = 'ALL' | 'TOP_N' | 'ALERT_ONLY';
 
 export interface XAccountLink {
   handle: string;
@@ -20,6 +21,10 @@ export interface WatchlistItem {
   always_notify_enabled?: boolean;
   is_active: boolean;
   ai_enabled: boolean;
+  evaluation_enabled?: boolean;
+  evaluation_notify_mode?: EvaluationNotifyMode;
+  evaluation_top_n?: number;
+  evaluation_min_strength?: number;
   ir_urls: string[];
   x_official_account?: string | null;
   x_executive_accounts: XAccountLink[];
@@ -50,6 +55,10 @@ export interface WatchlistCreateInput {
   notify_timing: NotifyTiming;
   priority?: WatchPriority;
   always_notify_enabled?: boolean;
+  evaluation_enabled?: boolean;
+  evaluation_notify_mode?: EvaluationNotifyMode;
+  evaluation_top_n?: number;
+  evaluation_min_strength?: number;
   reason?: string;
   ir_urls?: string[];
   x_official_account?: string;
@@ -65,6 +74,10 @@ export interface WatchlistUpdateInput {
   notify_timing?: NotifyTiming;
   priority?: WatchPriority;
   always_notify_enabled?: boolean;
+  evaluation_enabled?: boolean;
+  evaluation_notify_mode?: EvaluationNotifyMode;
+  evaluation_top_n?: number;
+  evaluation_min_strength?: number;
   ir_urls?: string[];
   x_official_account?: string;
   x_executive_accounts?: XAccountLink[];

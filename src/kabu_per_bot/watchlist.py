@@ -60,6 +60,12 @@ class WatchPriority(str, Enum):
     LOW = "LOW"
 
 
+class EvaluationNotifyMode(str, Enum):
+    ALL = "ALL"
+    TOP_N = "TOP_N"
+    ALERT_ONLY = "ALERT_ONLY"
+
+
 class WatchlistHistoryAction(str, Enum):
     ADD = "ADD"
     REMOVE = "REMOVE"
@@ -95,6 +101,10 @@ class WatchlistItem:
     always_notify_enabled: bool = False
     ai_enabled: bool = True
     is_active: bool = True
+    evaluation_enabled: bool = False
+    evaluation_notify_mode: EvaluationNotifyMode = EvaluationNotifyMode.TOP_N
+    evaluation_top_n: int = 3
+    evaluation_min_strength: int = 4
     ir_urls: tuple[str, ...] = ()
     x_official_account: str | None = None
     x_executive_accounts: tuple[XAccountLink, ...] = ()
@@ -103,6 +113,26 @@ class WatchlistItem:
 
     @classmethod
     def from_document(cls, data: dict[str, Any]) -> WatchlistItem:
+        evaluation_enabled = _coerce_bool(
+            data.get("evaluation_enabled"),
+            field_name="evaluation_enabled",
+            default=False,
+        )
+        evaluation_notify_mode = _parse_evaluation_notify_mode(data.get("evaluation_notify_mode"))
+        evaluation_top_n = _coerce_int_range(
+            data.get("evaluation_top_n"),
+            field_name="evaluation_top_n",
+            default=3,
+            minimum=1,
+            maximum=100,
+        )
+        evaluation_min_strength = _coerce_int_range(
+            data.get("evaluation_min_strength"),
+            field_name="evaluation_min_strength",
+            default=4,
+            minimum=1,
+            maximum=5,
+        )
         return cls(
             ticker=normalize_ticker(str(data["ticker"])),
             name=str(data["name"]).strip(),
@@ -118,6 +148,10 @@ class WatchlistItem:
             # 廃止済みの個別トグル。互換のため保持するが、常時有効として扱う。
             ai_enabled=True,
             is_active=_coerce_bool(data.get("is_active"), field_name="is_active", default=True),
+            evaluation_enabled=evaluation_enabled,
+            evaluation_notify_mode=evaluation_notify_mode,
+            evaluation_top_n=evaluation_top_n,
+            evaluation_min_strength=evaluation_min_strength,
             ir_urls=_parse_ir_urls(data.get("ir_urls")),
             x_official_account=_normalize_optional_x_handle(data.get("x_official_account")),
             x_executive_accounts=_parse_x_executive_accounts(data.get("x_executive_accounts")),
@@ -136,6 +170,10 @@ class WatchlistItem:
             "always_notify_enabled": self.always_notify_enabled,
             "ai_enabled": self.ai_enabled,
             "is_active": self.is_active,
+            "evaluation_enabled": self.evaluation_enabled,
+            "evaluation_notify_mode": self.evaluation_notify_mode.value,
+            "evaluation_top_n": self.evaluation_top_n,
+            "evaluation_min_strength": self.evaluation_min_strength,
             "ir_urls": list(self.ir_urls),
             "x_official_account": self.x_official_account,
             "x_executive_accounts": [entry.to_document() for entry in self.x_executive_accounts],
@@ -282,6 +320,10 @@ class WatchlistService:
         always_notify_enabled: bool = False,
         ai_enabled: bool = True,
         is_active: bool = True,
+        evaluation_enabled: bool = False,
+        evaluation_notify_mode: EvaluationNotifyMode | str = EvaluationNotifyMode.TOP_N,
+        evaluation_top_n: int = 3,
+        evaluation_min_strength: int = 4,
         ir_urls: list[str] | tuple[str, ...] | None = None,
         x_official_account: str | None = None,
         x_executive_accounts: list[XAccountLink | dict[str, Any]] | tuple[XAccountLink | dict[str, Any], ...] | None = None,
@@ -301,6 +343,22 @@ class WatchlistService:
             always_notify_enabled=bool(always_notify_enabled),
             ai_enabled=True,
             is_active=bool(is_active),
+            evaluation_enabled=bool(evaluation_enabled),
+            evaluation_notify_mode=EvaluationNotifyMode(self._enum_input(evaluation_notify_mode)),
+            evaluation_top_n=_coerce_int_range(
+                evaluation_top_n,
+                field_name="evaluation_top_n",
+                default=3,
+                minimum=1,
+                maximum=100,
+            ),
+            evaluation_min_strength=_coerce_int_range(
+                evaluation_min_strength,
+                field_name="evaluation_min_strength",
+                default=4,
+                minimum=1,
+                maximum=5,
+            ),
             ir_urls=_normalize_ir_urls(ir_urls),
             x_official_account=_normalize_optional_x_handle(x_official_account),
             x_executive_accounts=_normalize_x_executive_accounts(x_executive_accounts),
@@ -358,6 +416,10 @@ class WatchlistService:
         always_notify_enabled: bool | None = None,
         ai_enabled: bool | None = None,
         is_active: bool | None = None,
+        evaluation_enabled: bool | None = None,
+        evaluation_notify_mode: EvaluationNotifyMode | str | None = None,
+        evaluation_top_n: int | None = None,
+        evaluation_min_strength: int | None = None,
         ir_urls: list[str] | tuple[str, ...] | None = None,
         x_official_account: str | None = None,
         x_executive_accounts: list[XAccountLink | dict[str, Any]] | tuple[XAccountLink | dict[str, Any], ...] | None = None,
@@ -394,6 +456,34 @@ class WatchlistService:
             ),
             ai_enabled=True,
             is_active=existing.is_active if is_active is None else bool(is_active),
+            evaluation_enabled=existing.evaluation_enabled if evaluation_enabled is None else bool(evaluation_enabled),
+            evaluation_notify_mode=(
+                existing.evaluation_notify_mode
+                if evaluation_notify_mode is None
+                else EvaluationNotifyMode(self._enum_input(evaluation_notify_mode))
+            ),
+            evaluation_top_n=(
+                existing.evaluation_top_n
+                if evaluation_top_n is None
+                else _coerce_int_range(
+                    evaluation_top_n,
+                    field_name="evaluation_top_n",
+                    default=3,
+                    minimum=1,
+                    maximum=100,
+                )
+            ),
+            evaluation_min_strength=(
+                existing.evaluation_min_strength
+                if evaluation_min_strength is None
+                else _coerce_int_range(
+                    evaluation_min_strength,
+                    field_name="evaluation_min_strength",
+                    default=4,
+                    minimum=1,
+                    maximum=5,
+                )
+            ),
             ir_urls=existing.ir_urls if ir_urls is None else _normalize_ir_urls(ir_urls),
             x_official_account=(
                 existing.x_official_account
@@ -461,6 +551,15 @@ def _parse_priority(value: Any) -> WatchPriority:
     return WatchPriority(normalized)
 
 
+def _parse_evaluation_notify_mode(value: Any) -> EvaluationNotifyMode:
+    if value is None:
+        return EvaluationNotifyMode.TOP_N
+    normalized = str(value).strip().upper()
+    if not normalized:
+        return EvaluationNotifyMode.TOP_N
+    return EvaluationNotifyMode(normalized)
+
+
 def _coerce_bool(value: Any, *, field_name: str, default: bool) -> bool:
     if value is None:
         return default
@@ -476,6 +575,25 @@ def _coerce_bool(value: Any, *, field_name: str, default: bool) -> bool:
         if lowered in {"0", "false", "no", "off"}:
             return False
     raise WatchlistError(f"{field_name} must be boolean-compatible.")
+
+
+def _coerce_int_range(
+    value: Any,
+    *,
+    field_name: str,
+    default: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    if value is None:
+        return default
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise WatchlistError(f"{field_name} must be integer.") from exc
+    if parsed < minimum or parsed > maximum:
+        raise WatchlistError(f"{field_name} must be in range [{minimum}, {maximum}].")
+    return parsed
 
 
 def _normalize_reason(reason: Any) -> str | None:

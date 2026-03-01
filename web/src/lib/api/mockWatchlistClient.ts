@@ -407,6 +407,10 @@ export class MockWatchlistClient implements WatchlistClient {
       notify_timing: normalizedInput.notify_timing,
       priority: normalizedInput.priority ?? 'MEDIUM',
       always_notify_enabled: normalizedInput.always_notify_enabled ?? false,
+      evaluation_enabled: normalizedInput.evaluation_enabled ?? false,
+      evaluation_notify_mode: normalizedInput.evaluation_notify_mode ?? 'TOP_N',
+      evaluation_top_n: normalizedInput.evaluation_top_n ?? 3,
+      evaluation_min_strength: normalizedInput.evaluation_min_strength ?? 4,
       ir_urls: normalizedInput.ir_urls ?? [],
       x_official_account: normalizedInput.x_official_account ?? null,
       x_executive_accounts: normalizedInput.x_executive_accounts ?? [],
@@ -438,6 +442,10 @@ export class MockWatchlistClient implements WatchlistClient {
       ...input,
       name: input.name != null ? input.name.trim() : current.name,
       ai_enabled: true,
+      evaluation_enabled: input.evaluation_enabled ?? current.evaluation_enabled ?? false,
+      evaluation_notify_mode: input.evaluation_notify_mode ?? current.evaluation_notify_mode ?? 'TOP_N',
+      evaluation_top_n: input.evaluation_top_n ?? current.evaluation_top_n ?? 3,
+      evaluation_min_strength: input.evaluation_min_strength ?? current.evaluation_min_strength ?? 4,
     };
 
     mockStore = [

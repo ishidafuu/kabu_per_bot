@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import type {
+  EvaluationNotifyMode,
   IrUrlCandidate,
   MetricType,
   NotifyTiming,
@@ -15,6 +16,10 @@ export interface WatchlistFormValues {
   notify_timing: NotifyTiming;
   priority: WatchPriority;
   always_notify_enabled: boolean;
+  evaluation_enabled: boolean;
+  evaluation_notify_mode: EvaluationNotifyMode;
+  evaluation_top_n: number;
+  evaluation_min_strength: number;
   reason: string;
   ir_urls_text: string;
   x_official_account: string;
@@ -43,6 +48,10 @@ const buildInitialValues = (item?: WatchlistItem): WatchlistFormValues => {
     notify_timing: item?.notify_timing ?? 'IMMEDIATE',
     priority: item?.priority ?? 'MEDIUM',
     always_notify_enabled: item?.always_notify_enabled ?? false,
+    evaluation_enabled: item?.evaluation_enabled ?? false,
+    evaluation_notify_mode: item?.evaluation_notify_mode ?? 'TOP_N',
+    evaluation_top_n: item?.evaluation_top_n ?? 3,
+    evaluation_min_strength: item?.evaluation_min_strength ?? 4,
     reason: '',
     ir_urls_text: (item?.ir_urls ?? []).join('\n'),
     x_official_account: item?.x_official_account ?? '',
@@ -171,6 +180,22 @@ export const WatchlistForm = ({
       setLocalError('会社名は必須です。');
       return;
     }
+    if (
+      values.evaluation_enabled
+      && values.evaluation_notify_mode === 'TOP_N'
+      && (values.evaluation_top_n < 1 || values.evaluation_top_n > 100)
+    ) {
+      setLocalError('TOP_N は 1〜100 の範囲で入力してください。');
+      return;
+    }
+    if (
+      values.evaluation_enabled
+      && values.evaluation_notify_mode === 'ALERT_ONLY'
+      && (values.evaluation_min_strength < 1 || values.evaluation_min_strength > 5)
+    ) {
+      setLocalError('最小強さは 1〜5 の範囲で入力してください。');
+      return;
+    }
 
     await onSubmit({
       ...values,
@@ -270,6 +295,64 @@ export const WatchlistForm = ({
             placeholder="例: 決算前の監視強化"
           />
         </label>
+
+        <fieldset className="check-field">
+          <legend>委員会評価設定</legend>
+          <label>
+            <input
+              type="checkbox"
+              checked={values.evaluation_enabled}
+              onChange={(event) => {
+                updateField('evaluation_enabled', event.target.checked);
+              }}
+            />
+            評価対象チェックを有効化
+          </label>
+          <label>
+            通知モード
+            <select
+              value={values.evaluation_notify_mode}
+              onChange={(event) => {
+                updateField('evaluation_notify_mode', event.target.value as EvaluationNotifyMode);
+              }}
+              disabled={!values.evaluation_enabled}
+            >
+              <option value="TOP_N">TOP_N（強さ上位N件）</option>
+              <option value="ALERT_ONLY">ALERT_ONLY（強さ閾値以上のみ）</option>
+              <option value="ALL">ALL（全件通知）</option>
+            </select>
+          </label>
+          {values.evaluation_notify_mode === 'TOP_N' && (
+            <label>
+              TOP_N（1〜100）
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={values.evaluation_top_n}
+                onChange={(event) => {
+                  updateField('evaluation_top_n', Number(event.target.value));
+                }}
+                disabled={!values.evaluation_enabled}
+              />
+            </label>
+          )}
+          {values.evaluation_notify_mode === 'ALERT_ONLY' && (
+            <label>
+              最小強さ（1〜5）
+              <input
+                type="number"
+                min={1}
+                max={5}
+                value={values.evaluation_min_strength}
+                onChange={(event) => {
+                  updateField('evaluation_min_strength', Number(event.target.value));
+                }}
+                disabled={!values.evaluation_enabled}
+              />
+            </label>
+          )}
+        </fieldset>
 
         <label>
           IR URL（改行区切り）

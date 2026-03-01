@@ -37,6 +37,20 @@ const formatEarningsDays = (days?: number | null): string => {
   return `${days}日`;
 };
 
+const formatEvaluationSetting = (item: WatchlistItem): string => {
+  if (!item.evaluation_enabled) {
+    return 'OFF';
+  }
+  const mode = item.evaluation_notify_mode ?? 'TOP_N';
+  if (mode === 'TOP_N') {
+    return `TOP_N(${item.evaluation_top_n ?? 3})`;
+  }
+  if (mode === 'ALERT_ONLY') {
+    return `ALERT_ONLY(${item.evaluation_min_strength ?? 4})`;
+  }
+  return 'ALL';
+};
+
 export const WatchlistPage = () => {
   const navigate = useNavigate();
   const { getIdToken } = useAuth();
@@ -282,6 +296,7 @@ export const WatchlistPage = () => {
                 <th>優先度</th>
                 <th>通知タイミング</th>
                 <th>常時通知</th>
+                <th>委員会評価</th>
                 <th>有効状態</th>
                 <th>現在値</th>
                 <th>中央値（1W/3M/1Y）</th>
@@ -295,7 +310,7 @@ export const WatchlistPage = () => {
             <tbody>
               {!isLoading && items.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="empty-cell">
+                  <td colSpan={15} className="empty-cell">
                     データがありません。
                   </td>
                 </tr>
@@ -309,6 +324,7 @@ export const WatchlistPage = () => {
                   <td>{item.priority}</td>
                   <td>{item.notify_timing}</td>
                   <td>{item.always_notify_enabled ? 'true' : 'false'}</td>
+                  <td>{formatEvaluationSetting(item)}</td>
                   <td>{item.is_active ? 'true' : 'false'}</td>
                   <td>{formatMetric(item.current_metric_value)}</td>
                   <td>
