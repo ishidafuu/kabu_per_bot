@@ -137,7 +137,7 @@ PYTHONPATH=src python scripts/run_immediate_window_job.py --window close --disco
 - `kabu-intelligence` <- `sc-kabu-intelligence`（平日21:05 JST、IR中心）
 - `kabu-grok` <- `sc-kabu-grok`（毎分起動、管理画面の Grok定時取得時刻と一致した分のみ実処理）
 - `kabu-baseline-research` <- `sc-kabu-baseline-research`（毎月1日 18:00 JST）
-- `kabu-backfill-incremental` <- `sc-kabu-backfill-incremental`（平日21:15 JST）
+- `kabu-backfill-incremental` <- `sc-kabu-backfill-incremental`（土曜21:15 JST）
 - `kabu-earnings-weekly` <- `sc-kabu-earnings-weekly`（土曜21:00 JST）
 - `kabu-earnings-tomorrow` <- `sc-kabu-earnings-tomorrow`（毎日21:00 JST）
 
