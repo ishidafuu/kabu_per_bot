@@ -106,6 +106,40 @@ class CommitteeEvaluationEngineTest(unittest.TestCase):
         self.assertLessEqual(len(business.lines), 3)
         self.assertGreaterEqual(business.strength, 1)
 
+    def test_evaluate_marks_stale_earnings_date_as_event_risk(self) -> None:
+        recent = (
+            _metric(trade_date="2026-03-01", close_price=120.0, per=20.0),
+            _metric(trade_date="2026-02-28", close_price=122.0, per=20.1),
+            _metric(trade_date="2026-02-27", close_price=121.0, per=20.2),
+            _metric(trade_date="2026-02-26", close_price=118.0, per=19.9),
+            _metric(trade_date="2026-02-25", close_price=119.0, per=20.3),
+            _metric(trade_date="2026-02-24", close_price=117.0, per=19.7),
+        )
+        context = CommitteeContext(
+            ticker="3901:TSE",
+            company_name="富士フイルム",
+            trade_date="2026-03-01",
+            metric_type=MetricType.PER,
+            latest_metric=recent[0],
+            recent_metrics=recent,
+            latest_medians=None,
+            market_snapshot=MarketDataSnapshot.create(
+                ticker="3901:TSE",
+                close_price=120.0,
+                eps_forecast=10.0,
+                sales_forecast=100.0,
+                earnings_date="2026-02-13",
+                source="株探",
+                fetched_at="2026-03-01T09:00:00+00:00",
+            ),
+        )
+
+        result = CommitteeEvaluationEngine().evaluate(context)
+        event = next(item for item in result.lenses if item.key.value == "event")
+
+        self.assertIn("earnings_date_stale", event.missing_fields)
+        self.assertTrue(any("既に通過" in row for row in event.lines))
+
 
 if __name__ == "__main__":
     unittest.main()

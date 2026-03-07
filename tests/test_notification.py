@@ -5,12 +5,14 @@ import unittest
 from kabu_per_bot.intelligence import AiInsight, IntelEvent, IntelKind
 from kabu_per_bot.notification import (
     format_ai_attention_message,
+    format_committee_evaluation_message,
     format_data_unknown_message,
     format_earnings_message,
     format_intel_update_message,
     format_signal_message,
     format_signal_status_message,
 )
+from kabu_per_bot.committee.types import CommitteeEvaluation, LensDirection, LensEvaluation, LensKey
 from kabu_per_bot.signal import SignalState
 from kabu_per_bot.watchlist import MetricType
 
@@ -288,6 +290,53 @@ class NotificationFormatterTest(unittest.TestCase):
         self.assertIn("🎯 確信度：", message.body)
         self.assertIn("根拠：https://x.com/fujifilm_ir/status/1", message.body)
         self.assertEqual(message.category, "AI注目")
+
+    def test_committee_evaluation_message_format_with_plain_explanation(self) -> None:
+        evaluation = CommitteeEvaluation(
+            ticker="9271:TSE",
+            company_name="和心",
+            trade_date="2026-03-01",
+            confidence=2,
+            strength=5,
+            lenses=(
+                LensEvaluation(
+                    key=LensKey.BUSINESS,
+                    title="事業",
+                    direction=LensDirection.NEGATIVE,
+                    confidence=2,
+                    strength=4,
+                    lines=(
+                        "主軸: 基礎調査の確認が必要です。",
+                        "成長要因: 追加確認中です。",
+                        "懸念: 開示が不足しています。",
+                    ),
+                ),
+                LensEvaluation(
+                    key=LensKey.RISK,
+                    title="リスク",
+                    direction=LensDirection.NEGATIVE,
+                    confidence=4,
+                    strength=5,
+                    lines=(
+                        "欠損: market_snapshot",
+                        "日次変動: +2.9%",
+                        "週次変動: +16.8%（高変動）",
+                    ),
+                ),
+            ),
+            missing_fields=("market_snapshot",),
+        )
+
+        message = format_committee_evaluation_message(evaluation=evaluation)
+
+        self.assertIn("【委員会評価】9271:TSE 和心", message.body)
+        self.assertIn("総合: 自信2/5 / 強さ5/5", message.body)
+        self.assertIn("見方: 自信=根拠データの十分さ / 強さ=相場シグナルの強さ", message.body)
+        self.assertIn("総合コメント:", message.body)
+        self.assertIn("欠損データ: market_snapshot", message.body)
+        self.assertIn("[事業] 自信2/5 / 強さ4/5 / 方向=ネガ", message.body)
+        self.assertIn("理由: 主軸: 基礎調査の確認が必要です。 / 成長要因: 追加確認中です。 / 懸念: 開示が不足しています。", message.body)
+        self.assertEqual(message.category, "委員会評価")
 
 
 if __name__ == "__main__":

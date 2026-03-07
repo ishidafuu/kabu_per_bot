@@ -23,19 +23,27 @@ class EventLens:
             strength = 4
             confidence = 2
         else:
-            lines.append(f"決算まで: {earnings_days}日")
-            if earnings_days <= 5:
+            if earnings_days < 0:
+                lines.append(f"決算日: 既に通過（{abs(earnings_days)}日前）")
+                lines.append("次回決算日の更新待ち: イベント日付を再確認。")
+                missing_fields.append("earnings_date_stale")
+                direction = LensDirection.NEGATIVE
+                strength = 4
+                confidence = 2
+            else:
+                lines.append(f"決算まで: {earnings_days}日")
+            if 0 <= earnings_days <= 5:
                 lines.append("直前イベント帯: 変動リスクが高く静観寄り。")
                 direction = LensDirection.NEGATIVE
                 strength = 5
-            elif earnings_days <= 10:
+            elif 6 <= earnings_days <= 10:
                 lines.append("イベント接近: 新規判断は段階的に。")
                 direction = LensDirection.NEGATIVE
                 strength = 4
-            elif earnings_days <= 15:
+            elif 11 <= earnings_days <= 15:
                 lines.append("注意帯: 追加情報の確認優先。")
                 strength = 3
-            else:
+            elif earnings_days >= 16:
                 lines.append("イベント距離: 直近イベント圧力は限定的。")
 
         if snapshot is None:

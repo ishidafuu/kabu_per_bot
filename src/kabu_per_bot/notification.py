@@ -303,19 +303,26 @@ def format_committee_evaluation_message(
     normalized_ticker = normalize_ticker(evaluation.ticker)
     lines = [
         f"【委員会評価】{normalized_ticker} {evaluation.company_name}",
-        f"自信: {evaluation.confidence}/5",
-        f"強さ: {evaluation.strength}/5",
+        f"総合: 自信{evaluation.confidence}/5 / 強さ{evaluation.strength}/5",
+        "見方: 自信=根拠データの十分さ / 強さ=相場シグナルの強さ",
+        (
+            "総合コメント: "
+            f"{_committee_confidence_meaning(evaluation.confidence)}。"
+            f"{_committee_strength_meaning(evaluation.strength)}。"
+            f"{_committee_overall_guidance(evaluation.confidence, evaluation.strength)}"
+        ),
     ]
 
     if evaluation.missing_fields:
         preview = ", ".join(evaluation.missing_fields[:5])
-        lines.append(f"欠損: {preview}")
+        lines.append(f"欠損データ: {preview}")
 
     for lens in evaluation.lenses:
         direction = _lens_direction_label(lens.direction)
-        lines.append(f"[{lens.title}] {direction} / 自信{lens.confidence} / 強さ{lens.strength}")
-        for row in lens.lines:
-            lines.append(f"- {row}")
+        lines.append(
+            f"[{lens.title}] 自信{lens.confidence}/5 / 強さ{lens.strength}/5 / 方向={direction}"
+        )
+        lines.append(f"理由: {' / '.join(lens.lines)}")
 
     lines.append("※ 売買の断言はせず、追加確認の材料として利用してください。")
     condition_key = f"COMMITTEE:{evaluation.trade_date}:{evaluation.confidence}:{evaluation.strength}"
@@ -340,6 +347,34 @@ def _lens_direction_label(value: LensDirection) -> str:
     if value is LensDirection.NEGATIVE:
         return "ネガ"
     return "中立"
+
+
+def _committee_confidence_meaning(confidence: int) -> str:
+    if confidence <= 2:
+        return "根拠データは不足気味"
+    if confidence == 3:
+        return "根拠データは一部不足"
+    return "根拠データは比較的そろっています"
+
+
+def _committee_strength_meaning(strength: int) -> str:
+    if strength <= 2:
+        return "相場シグナルは落ち着いた状態"
+    if strength == 3:
+        return "相場シグナルは中程度"
+    if strength == 4:
+        return "相場シグナルは強め"
+    return "相場シグナルは非常に強い状態"
+
+
+def _committee_overall_guidance(confidence: int, strength: int) -> str:
+    if confidence <= 2 and strength >= 4:
+        return "データ補強を優先し、短期の値動きだけで判断しないでください"
+    if confidence >= 4 and strength >= 4:
+        return "根拠はある程度そろっていますが、値動きが大きいため分割判断が安全です"
+    if confidence <= 2 and strength <= 2:
+        return "材料不足なので、まず一次情報の確認を優先してください"
+    return "追加で一次情報を確認し、前提が崩れていないか点検してください"
 
 
 def _build_metric_difference_lines(
