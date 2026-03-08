@@ -84,6 +84,26 @@ def signal_state_doc_id(ticker: str, trade_date: str) -> str:
     return f"{normalize_ticker(ticker)}|{normalize_trade_date(trade_date)}"
 
 
+def price_bars_daily_doc_id(ticker: str, trade_date: str) -> str:
+    return f"{normalize_ticker(ticker)}|{normalize_trade_date(trade_date)}"
+
+
+def technical_indicators_daily_doc_id(ticker: str, trade_date: str) -> str:
+    return f"{normalize_ticker(ticker)}|{normalize_trade_date(trade_date)}"
+
+
+def technical_sync_state_doc_id(ticker: str) -> str:
+    return normalize_ticker(ticker)
+
+
+def technical_alert_rule_doc_id(ticker: str, rule_id: str) -> str:
+    return f"{normalize_ticker(ticker)}|{normalize_document_suffix(rule_id, field_name='rule_id')}"
+
+
+def technical_alert_state_doc_id(ticker: str, rule_id: str) -> str:
+    return f"{normalize_ticker(ticker)}|{normalize_document_suffix(rule_id, field_name='rule_id')}"
+
+
 def earnings_calendar_doc_id(
     ticker: str,
     earnings_date: str,
@@ -107,3 +127,12 @@ def notification_condition_key(
 ) -> str:
     raw = f"{normalize_ticker(ticker)}|{category.strip()}|{condition.strip()}"
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
+
+
+def normalize_document_suffix(value: str, *, field_name: str) -> str:
+    normalized = str(value).strip()
+    if not normalized:
+        raise ValueError(f"{field_name} is required")
+    if "|" in normalized:
+        raise ValueError(f"{field_name} must not contain '|'.")
+    return normalized

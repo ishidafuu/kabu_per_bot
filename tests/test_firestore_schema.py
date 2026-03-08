@@ -25,7 +25,12 @@ from kabu_per_bot.storage.firestore_schema import (
     earnings_calendar_doc_id,
     normalize_ticker,
     notification_condition_key,
+    price_bars_daily_doc_id,
     signal_state_doc_id,
+    technical_alert_rule_doc_id,
+    technical_alert_state_doc_id,
+    technical_indicators_daily_doc_id,
+    technical_sync_state_doc_id,
     watchlist_doc_id,
 )
 
@@ -88,6 +93,23 @@ class FirestoreSchemaTest(unittest.TestCase):
         self.assertEqual(
             signal_state_doc_id("3901:tse", "2026-02-12"),
             "3901:TSE|2026-02-12",
+        )
+        self.assertEqual(
+            price_bars_daily_doc_id("3901:tse", "2026-02-12"),
+            "3901:TSE|2026-02-12",
+        )
+        self.assertEqual(
+            technical_indicators_daily_doc_id("3901:tse", "2026-02-12"),
+            "3901:TSE|2026-02-12",
+        )
+        self.assertEqual(technical_sync_state_doc_id("3901:tse"), "3901:TSE")
+        self.assertEqual(
+            technical_alert_rule_doc_id("3901:tse", "rule-1"),
+            "3901:TSE|rule-1",
+        )
+        self.assertEqual(
+            technical_alert_state_doc_id("3901:tse", "rule-1"),
+            "3901:TSE|rule-1",
         )
         self.assertEqual(
             earnings_calendar_doc_id("3901:tse", "2026-05-10", "1Q"),
