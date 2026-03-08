@@ -42,6 +42,17 @@ class BackfillRunRequest:
 
 
 @dataclass(frozen=True)
+class TickerScopedRunRequest:
+    tickers: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not self.tickers:
+            raise AdminOpsConfigError("tickers を1件以上指定してください。")
+        normalized = tuple(normalize_ticker(ticker) for ticker in self.tickers)
+        object.__setattr__(self, "tickers", normalized)
+
+
+@dataclass(frozen=True)
 class AdminOpsJob:
     key: str
     label: str
@@ -105,7 +116,13 @@ class CloudRunAdminOpsService:
     def list_jobs(self) -> tuple[AdminOpsJob, ...]:
         return self._jobs
 
-    def run_job(self, *, job_key: str, backfill: BackfillRunRequest | None = None) -> JobExecution:
+    def run_job(
+        self,
+        *,
+        job_key: str,
+        backfill: BackfillRunRequest | None = None,
+        ticker_scope: TickerScopedRunRequest | None = None,
+    ) -> JobExecution:
         job = self._resolve_job(job_key)
         job_name = self._require_job_name(job)
         if self._has_running_execution(job_key=job.key):
@@ -115,9 +132,15 @@ class CloudRunAdminOpsService:
         if job.key == "backfill":
             if backfill is None:
                 raise AdminOpsConfigError("backfill 実行には from/to の指定が必要です。")
+            if ticker_scope is not None:
+                raise AdminOpsConfigError("ticker指定は job=backfill では使用できません。")
             payload = {"overrides": {"containerOverrides": [{"args": _build_backfill_args(backfill)}]}}
         elif backfill is not None:
             raise AdminOpsConfigError("backfill指定は job=backfill でのみ使用できます。")
+        elif ticker_scope is not None:
+            if job.key not in {"technical_daily", "technical_full_refresh"}:
+                raise AdminOpsConfigError("ticker指定は技術ジョブでのみ使用できます。")
+            payload = {"overrides": {"containerOverrides": [{"args": _build_ticker_scope_args(ticker_scope)}]}}
 
         requested_at = datetime.now(timezone.utc)
         self._request_json(
@@ -542,3 +565,7 @@ def _build_backfill_args(request: BackfillRunRequest) -> list[str]:
     if request.dry_run:
         args.append("--dry-run")
     return args
+
+
+def _build_ticker_scope_args(request: TickerScopedRunRequest) -> list[str]:
+    return ["--tickers", ",".join(request.tickers)]

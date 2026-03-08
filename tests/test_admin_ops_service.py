@@ -9,6 +9,7 @@ from kabu_per_bot.admin_ops import (
     AdminOpsJob,
     CloudRunAdminOpsService,
     JobExecution,
+    TickerScopedRunRequest,
     _load_default_jobs,
 )
 
@@ -55,6 +56,40 @@ class AdminOpsServiceTest(unittest.TestCase):
 
         self.assertEqual(actual.execution_name, "new")
         self.assertEqual(service._request_json.call_count, 1)
+
+    def test_run_job_passes_ticker_scope_args_for_technical_full_refresh(self) -> None:
+        service = object.__new__(CloudRunAdminOpsService)
+        job = AdminOpsJob(key="technical_full_refresh", label="技術全件再同期", job_name="kabu-technical-full-refresh")
+        service._jobs = (job,)
+        service._job_index = {job.key: job}
+        service._base_run_url = "https://example.com"
+        service._request_json = Mock(return_value={})
+        new = JobExecution(
+            job_key="technical_full_refresh",
+            job_label="技術全件再同期",
+            job_name="kabu-technical-full-refresh",
+            execution_name="new",
+            status="PENDING",
+            create_time=datetime.now(timezone.utc).isoformat(),
+            start_time=None,
+            completion_time=None,
+            message=None,
+            log_uri=None,
+            skip_reasons=(),
+            skip_reason_error=None,
+        )
+        service.list_executions = Mock(side_effect=[(), (new,)])
+
+        actual = service.run_job(
+            job_key="technical_full_refresh",
+            ticker_scope=TickerScopedRunRequest(tickers=("6501:TSE",)),
+        )
+
+        self.assertEqual(actual.execution_name, "new")
+        self.assertEqual(
+            service._request_json.call_args.kwargs["payload"],
+            {"overrides": {"containerOverrides": [{"args": ["--tickers", "6501:TSE"]}]}},
+        )
 
     def test_get_summary_skip_only_queries_daily_jobs_only(self) -> None:
         service = object.__new__(CloudRunAdminOpsService)

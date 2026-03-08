@@ -571,6 +571,15 @@ th {
   padding: 0 14px 14px;
 }
 
+.technical-fetch-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 0 14px 14px;
+}
+
 .technical-rule-card {
   border-radius: 18px;
   padding: 14px;

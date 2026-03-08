@@ -51,6 +51,14 @@ export interface TechnicalIndicatorSnapshot {
   values: Record<string, string | number | boolean | null>;
 }
 
+export interface TechnicalInitialFetchResponse {
+  execution_name: string;
+  status: string;
+  job_key: string;
+  job_label: string;
+  message?: string | null;
+}
+
 export interface WatchlistDetailSummary {
   last_notification_at?: string | null;
   last_notification_category?: string | null;

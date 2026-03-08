@@ -10,6 +10,7 @@ from kabu_per_bot.admin_ops import (
     BackfillRunRequest,
     CloudRunAdminOpsService,
     JobExecution,
+    TickerScopedRunRequest,
 )
 from kabu_per_bot.grok_sns_settings import GrokSnsSettings
 from kabu_per_bot.immediate_schedule import ImmediateSchedule
@@ -158,7 +159,13 @@ class AdminOpsReader(Protocol):
     def list_executions(self, *, job_key: str, limit: int = 20) -> tuple[JobExecution, ...]:
         """List executions for a job key."""
 
-    def run_job(self, *, job_key: str, backfill: BackfillRunRequest | None = None) -> JobExecution:
+    def run_job(
+        self,
+        *,
+        job_key: str,
+        backfill: BackfillRunRequest | None = None,
+        ticker_scope: TickerScopedRunRequest | None = None,
+    ) -> JobExecution:
         """Run selected job and return latest execution."""
 
     def get_summary(

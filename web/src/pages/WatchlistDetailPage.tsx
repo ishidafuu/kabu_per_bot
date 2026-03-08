@@ -210,6 +210,9 @@ export const WatchlistDetailPage = () => {
   const [ruleMessage, setRuleMessage] = useState('');
   const [ruleError, setRuleError] = useState('');
   const [isSavingRule, setIsSavingRule] = useState(false);
+  const [initialFetchMessage, setInitialFetchMessage] = useState('');
+  const [initialFetchError, setInitialFetchError] = useState('');
+  const [isRequestingInitialFetch, setIsRequestingInitialFetch] = useState(false);
   const limit = appConfig.pageSize;
   const historyLimit = 10;
   const [isLoading, setIsLoading] = useState(false);
@@ -339,6 +342,26 @@ export const WatchlistDetailPage = () => {
     }))
     .filter((row) => row.value != null);
 
+  const requestTechnicalInitialFetch = async (): Promise<void> => {
+    if (!ticker) {
+      return;
+    }
+    setIsRequestingInitialFetch(true);
+    setInitialFetchMessage('');
+    setInitialFetchError('');
+    try {
+      const response = await client.requestTechnicalInitialFetch(ticker);
+      setInitialFetchMessage(
+        `過去データ取得を受け付けました。job=${response.job_label} execution=${response.execution_name}`,
+      );
+      await fetchDetail();
+    } catch (error) {
+      setInitialFetchError(toUserMessage(error));
+    } finally {
+      setIsRequestingInitialFetch(false);
+    }
+  };
+
   return (
     <AppLayout
       title={item ? `銘柄詳細: ${item.ticker}` : '銘柄詳細'}
@@ -458,8 +481,24 @@ export const WatchlistDetailPage = () => {
             <h2>最新テクニカル</h2>
             <span className="muted">{latestTechnical ? `${latestTechnical.trade_date} 基準` : '未計算'}</span>
           </div>
+          {initialFetchMessage && <p className="success-text">{initialFetchMessage}</p>}
+          {initialFetchError && <p className="error-text">{initialFetchError}</p>}
+          {!latestTechnical && (
+            <div className="technical-fetch-actions">
+              <p className="empty-note">過去データが未取得のため、まだテクニカル指標を表示できません。</p>
+              <button
+                type="button"
+                disabled={isRequestingInitialFetch}
+                onClick={() => {
+                  void requestTechnicalInitialFetch();
+                }}
+              >
+                {isRequestingInitialFetch ? '取得依頼中...' : '過去データを一括取得'}
+              </button>
+            </div>
+          )}
           <div className="detail-status-grid">
-            {latestTechnicalRows.length === 0 && (
+            {latestTechnicalRows.length === 0 && latestTechnical && (
               <p className="empty-note">最新テクニカル指標はまだ保存されていません。</p>
             )}
             {latestTechnicalRows.map((row) => (

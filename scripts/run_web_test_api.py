@@ -7,7 +7,7 @@ from typing import Any
 
 import uvicorn
 
-from kabu_per_bot.admin_ops import AdminOpsJob, AdminOpsSummary, BackfillRunRequest, JobExecution
+from kabu_per_bot.admin_ops import AdminOpsJob, AdminOpsSummary, BackfillRunRequest, JobExecution, TickerScopedRunRequest
 from kabu_per_bot.api.app import create_app
 from kabu_per_bot.api.errors import UnauthorizedError
 from kabu_per_bot.grok_sns_settings import GrokSnsSettings
@@ -235,8 +235,14 @@ class InMemoryAdminOpsService:
         values = [row for row in self.executions if row.job_key == job_key]
         return tuple(values[:limit])
 
-    def run_job(self, *, job_key: str, backfill: BackfillRunRequest | None = None) -> JobExecution:
-        _ = backfill
+    def run_job(
+        self,
+        *,
+        job_key: str,
+        backfill: BackfillRunRequest | None = None,
+        ticker_scope: TickerScopedRunRequest | None = None,
+    ) -> JobExecution:
+        _ = backfill, ticker_scope
         now_iso = datetime.now(timezone.utc).isoformat()
         job = next((row for row in self.list_jobs() if row.key == job_key), None)
         if job is None or not job.job_name:

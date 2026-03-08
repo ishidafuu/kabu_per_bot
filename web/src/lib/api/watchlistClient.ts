@@ -10,6 +10,7 @@ import type {
 import type {
   TechnicalAlertRule,
   TechnicalAlertRuleCreateInput,
+  TechnicalInitialFetchResponse,
   TechnicalAlertRuleUpdateInput,
   WatchlistDetailResponse,
 } from '../../types/watchlistDetail';
@@ -43,6 +44,7 @@ export interface WatchlistClient {
     ruleId: string,
     input: TechnicalAlertRuleUpdateInput,
   ): Promise<TechnicalAlertRule>;
+  requestTechnicalInitialFetch(ticker: string): Promise<TechnicalInitialFetchResponse>;
   suggestIrUrlCandidates(input: IrUrlCandidateSuggestInput): Promise<IrUrlCandidateListResponse>;
   create(input: WatchlistCreateInput): Promise<WatchlistItem>;
   update(ticker: string, input: WatchlistUpdateInput): Promise<WatchlistItem>;
@@ -141,6 +143,15 @@ export class HttpWatchlistClient implements WatchlistClient {
       {
         method: 'PATCH',
         body: JSON.stringify(input),
+      },
+    );
+  }
+
+  async requestTechnicalInitialFetch(ticker: string): Promise<TechnicalInitialFetchResponse> {
+    return this.httpClient.request<TechnicalInitialFetchResponse>(
+      `/watchlist/${encodeURIComponent(ticker)}/technical-initial-fetch`,
+      {
+        method: 'POST',
       },
     );
   }

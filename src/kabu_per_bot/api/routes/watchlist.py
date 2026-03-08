@@ -13,17 +13,20 @@ from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.api.dependencies import (
+    AdminOpsReader,
     NotificationLogReader,
     TechnicalAlertRulesReader,
     TechnicalIndicatorsReader,
     WatchlistHistoryReader,
     create_firestore_client,
+    get_admin_ops_service,
     get_notification_log_repository,
     get_technical_alert_rules_repository,
     get_technical_indicators_repository,
     get_ir_url_candidate_service,
     get_watchlist_history_repository,
     get_watchlist_service,
+    require_admin_user,
 )
 from kabu_per_bot.backfill_service import (
     DEFAULT_INITIAL_LOOKBACK_DAYS,
@@ -43,8 +46,10 @@ from kabu_per_bot.api.errors import (
     TooManyRequestsError,
     UnprocessableEntityError,
 )
+from kabu_per_bot.admin_ops import AdminOpsConfigError, AdminOpsConflictError, AdminOpsNotFoundError, TickerScopedRunRequest
 from kabu_per_bot.api.openapi import error_responses
 from kabu_per_bot.api.schemas import (
+    TechnicalInitialFetchResponse,
     IrUrlCandidateListResponse,
     IrUrlCandidateResponse,
     IrUrlCandidateSuggestRequest,
@@ -439,6 +444,41 @@ def update_technical_alert_rule(
         raise UnprocessableEntityError(str(exc)) from exc
     technical_alert_rules_repo.upsert(updated)
     return TechnicalAlertRuleResponse.from_domain(updated)
+
+
+@router.post(
+    "/{ticker}/technical-initial-fetch",
+    response_model=TechnicalInitialFetchResponse,
+    responses=error_responses(401, 403, 404, 409, 422, 500),
+    dependencies=[Depends(require_admin_user)],
+)
+def trigger_technical_initial_fetch(
+    ticker: str,
+    service: WatchlistService = Depends(get_watchlist_service),
+    admin_ops_service: AdminOpsReader = Depends(get_admin_ops_service),
+) -> TechnicalInitialFetchResponse:
+    with _translate_watchlist_error():
+        item = service.get_item(ticker)
+    try:
+        execution = admin_ops_service.run_job(
+            job_key="technical_full_refresh",
+            ticker_scope=TickerScopedRunRequest(tickers=(item.ticker,)),
+        )
+    except AdminOpsNotFoundError as exc:
+        raise NotFoundError(str(exc)) from exc
+    except AdminOpsConflictError as exc:
+        raise ConflictError(str(exc)) from exc
+    except (AdminOpsConfigError, ValueError) as exc:
+        raise UnprocessableEntityError(str(exc)) from exc
+    except Exception as exc:
+        raise InternalServerError(f"技術過去データ取得ジョブの起動に失敗しました: {exc}") from exc
+    return TechnicalInitialFetchResponse(
+        execution_name=execution.execution_name,
+        status=execution.status,
+        job_key=execution.job_key,
+        job_label=execution.job_label,
+        message=execution.message,
+    )
 
 
 @router.get(

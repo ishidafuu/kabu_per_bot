@@ -10,6 +10,7 @@ import type {
 import type {
   TechnicalAlertRule,
   TechnicalAlertRuleCreateInput,
+  TechnicalInitialFetchResponse,
   TechnicalAlertRuleUpdateInput,
   WatchlistDetailResponse,
 } from '../../types/watchlistDetail';
@@ -221,6 +222,31 @@ let mockTechnicalRules: Record<string, TechnicalAlertRule[]> = {
   ],
 };
 
+let mockLatestTechnical: Record<string, WatchlistDetailResponse['latest_technical']> = {
+  '6501:TSE': {
+    ticker: '6501:TSE',
+    trade_date: '2026-03-08',
+    schema_version: 1,
+    calculated_at: new Date().toISOString(),
+    values: {
+      close_vs_ma25: 1.42,
+      close_vs_ma75: 6.18,
+      close_vs_ma200: 12.44,
+      volume_ratio: 1.73,
+      turnover_ratio: 1.51,
+      atr_pct_14: 2.64,
+      volatility_20d: 22.35,
+      new_high_20d: false,
+      new_high_52w: false,
+      cross_up_ma25: true,
+      cross_down_ma25: false,
+      trend_mid_up: true,
+      perfect_order_flag: false,
+    },
+  },
+  '9432:TSE': null,
+};
+
 const wait = (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -373,27 +399,7 @@ export class MockWatchlistClient implements WatchlistClient {
         items: [...(mockTechnicalRules[normalizedTicker] ?? [])],
         total: (mockTechnicalRules[normalizedTicker] ?? []).length,
       },
-      latest_technical: {
-        ticker: normalizedTicker,
-        trade_date: '2026-03-08',
-        schema_version: 1,
-        calculated_at: recentSentAt,
-        values: {
-          close_vs_ma25: 1.42,
-          close_vs_ma75: 6.18,
-          close_vs_ma200: 12.44,
-          volume_ratio: 1.73,
-          turnover_ratio: 1.51,
-          atr_pct_14: 2.64,
-          volatility_20d: 22.35,
-          new_high_20d: false,
-          new_high_52w: false,
-          cross_up_ma25: true,
-          cross_down_ma25: false,
-          trend_mid_up: true,
-          perfect_order_flag: false,
-        },
-      },
+      latest_technical: mockLatestTechnical[normalizedTicker] ?? null,
       technical_alert_history: {
         items: notificationRows.filter((row) => row.category === '技術アラート'),
         total: notificationRows.filter((row) => row.category === '技術アラート').length,
@@ -460,6 +466,45 @@ export class MockWatchlistClient implements WatchlistClient {
       [normalizedTicker]: currentRules,
     };
     return updated;
+  }
+
+  async requestTechnicalInitialFetch(ticker: string): Promise<TechnicalInitialFetchResponse> {
+    await wait(120);
+    const normalizedTicker = ticker.trim().toUpperCase();
+    const found = mockStore.find((item) => item.ticker === normalizedTicker);
+    if (!found) {
+      throw new ApiError(404, 'データなし');
+    }
+    const nowIso = new Date().toISOString();
+    if ((mockLatestTechnical[normalizedTicker] ?? null) == null) {
+      mockLatestTechnical = {
+        ...mockLatestTechnical,
+        [normalizedTicker]: {
+          ticker: normalizedTicker,
+          trade_date: '2026-03-08',
+          schema_version: 1,
+          calculated_at: nowIso,
+          values: {
+            close_vs_ma25: 0.84,
+            close_vs_ma75: 3.18,
+            close_vs_ma200: 7.44,
+            volume_ratio: 1.22,
+            turnover_ratio: 1.11,
+            atr_pct_14: 1.64,
+            volatility_20d: 18.35,
+            new_high_20d: false,
+            cross_up_ma25: false,
+          },
+        },
+      };
+    }
+    return {
+      execution_name: `mock-technical-full-refresh-${Date.now()}`,
+      status: 'RUNNING',
+      job_key: 'technical_full_refresh',
+      job_label: '技術全件再同期ジョブ',
+      message: `${normalizedTicker} の過去データ取得を開始しました。`,
+    };
   }
 
   async suggestIrUrlCandidates(input: IrUrlCandidateSuggestInput): Promise<IrUrlCandidateListResponse> {
@@ -630,6 +675,30 @@ export const resetMockWatchlist = (): void => {
         updated_at: '2026-03-07T09:00:00+09:00',
       },
     ],
+  };
+  mockLatestTechnical = {
+    '6501:TSE': {
+      ticker: '6501:TSE',
+      trade_date: '2026-03-08',
+      schema_version: 1,
+      calculated_at: new Date().toISOString(),
+      values: {
+        close_vs_ma25: 1.42,
+        close_vs_ma75: 6.18,
+        close_vs_ma200: 12.44,
+        volume_ratio: 1.73,
+        turnover_ratio: 1.51,
+        atr_pct_14: 2.64,
+        volatility_20d: 22.35,
+        new_high_20d: false,
+        new_high_52w: false,
+        cross_up_ma25: true,
+        cross_down_ma25: false,
+        trend_mid_up: true,
+        perfect_order_flag: false,
+      },
+    },
+    '9432:TSE': null,
   };
 };
 

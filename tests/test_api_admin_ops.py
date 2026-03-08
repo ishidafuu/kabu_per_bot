@@ -14,6 +14,7 @@ from kabu_per_bot.admin_ops import (
     BackfillRunRequest,
     JobExecution,
     SkipReasonCount,
+    TickerScopedRunRequest,
 )
 from kabu_per_bot.api.app import create_app
 from kabu_per_bot.api.errors import UnauthorizedError
@@ -68,6 +69,7 @@ class FakeAdminOpsService:
     )
     raise_conflict: bool = False
     last_backfill: BackfillRunRequest | None = None
+    last_ticker_scope: TickerScopedRunRequest | None = None
     discord_sent_at: str = "2026-02-18T13:05:00+00:00"
     summary_call_args: tuple[int, bool, bool] | None = None
 
@@ -83,13 +85,21 @@ class FakeAdminOpsService:
             raise AdminOpsNotFoundError("jobが見つかりません。")
         return (self.execution,)
 
-    def run_job(self, *, job_key: str, backfill: BackfillRunRequest | None = None) -> JobExecution:
+    def run_job(
+        self,
+        *,
+        job_key: str,
+        backfill: BackfillRunRequest | None = None,
+        ticker_scope: TickerScopedRunRequest | None = None,
+    ) -> JobExecution:
         if self.raise_conflict:
             raise AdminOpsConflictError("実行中です。")
         if job_key not in {"daily", "backfill"}:
             raise AdminOpsNotFoundError("jobが見つかりません。")
         if job_key != "backfill" and backfill is not None:
             raise AdminOpsConfigError("backfill は backfill job のみ指定できます。")
+        if ticker_scope is not None:
+            self.last_ticker_scope = ticker_scope
         if job_key == "backfill":
             if backfill is None:
                 raise AdminOpsConfigError("backfill payload が必要です。")

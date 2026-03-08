@@ -628,3 +628,11 @@ class WatchlistDetailResponse(BaseModel):
     technical_rules: TechnicalAlertRuleListResponse
     latest_technical: TechnicalIndicatorSnapshotResponse | None = None
     technical_alert_history: NotificationLogListResponse
+
+
+class TechnicalInitialFetchResponse(BaseModel):
+    execution_name: str
+    status: str
+    job_key: str
+    job_label: str
+    message: str | None = None

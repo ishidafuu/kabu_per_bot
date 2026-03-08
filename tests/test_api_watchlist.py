@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
+from kabu_per_bot.admin_ops import JobExecution, TickerScopedRunRequest
 from kabu_per_bot.api.app import create_app
 import kabu_per_bot.api.routes.watchlist as watchlist_route
 from kabu_per_bot.api.errors import ForbiddenError, UnauthorizedError
@@ -209,9 +210,54 @@ class FakeTokenVerifier:
     def verify(self, token: str) -> dict[str, str]:
         if token == "valid-token":
             return {"uid": "user-1"}
+        if token == "admin-token":
+            return {"uid": "admin-user", "admin": True}
         if token == "forbidden-token":
             raise ForbiddenError("権限がありません。")
         raise UnauthorizedError("認証に失敗しました。")
+
+
+@dataclass
+class FakeAdminOpsService:
+    execution: JobExecution = field(
+        default_factory=lambda: JobExecution(
+            job_key="technical_full_refresh",
+            job_label="技術全件再同期ジョブ",
+            job_name="kabu-technical-full-refresh",
+            execution_name="kabu-technical-full-refresh-001",
+            status="RUNNING",
+            create_time="2026-03-08T00:00:00+00:00",
+            start_time="2026-03-08T00:00:05+00:00",
+            completion_time=None,
+            message="Started technical scoped refresh.",
+            log_uri=None,
+            skip_reasons=(),
+            skip_reason_error=None,
+        )
+    )
+    last_ticker_scope: TickerScopedRunRequest | None = None
+
+    def list_jobs(self):
+        return ()
+
+    def list_executions(self, *, job_key: str, limit: int = 20):
+        _ = job_key, limit
+        return (self.execution,)
+
+    def run_job(self, *, job_key: str, backfill=None, ticker_scope: TickerScopedRunRequest | None = None) -> JobExecution:
+        _ = backfill
+        self.last_ticker_scope = ticker_scope
+        if job_key != "technical_full_refresh":
+            raise ValueError("unexpected job_key")
+        return self.execution
+
+    def get_summary(self, *, limit_per_job: int = 5, include_recent_executions: bool = True, include_skip_reasons: bool = True):
+        _ = limit_per_job, include_recent_executions, include_skip_reasons
+        raise NotImplementedError
+
+    def send_discord_test(self, *, requested_uid: str) -> str:
+        _ = requested_uid
+        raise NotImplementedError
 
 
 class StaticIrUrlCandidateService:
@@ -259,6 +305,7 @@ def _build_client(
     earnings_calendar_repository=None,
     technical_alert_rules_repository=None,
     technical_indicators_repository=None,
+    admin_ops_service=None,
 ) -> TestClient:
     repository = InMemoryWatchlistRepository()
     service = WatchlistService(repository, max_items=max_items)
@@ -272,6 +319,7 @@ def _build_client(
         earnings_calendar_repository=earnings_calendar_repository,
         technical_alert_rules_repository=technical_alert_rules_repository,
         technical_indicators_repository=technical_indicators_repository,
+        admin_ops_service=admin_ops_service,
         ir_url_candidate_service=ir_url_candidate_service,
         token_verifier=FakeTokenVerifier(),
     )
@@ -1113,6 +1161,57 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(body["technical_rules"]["items"][0]["rule_id"], "rule-1")
         self.assertEqual(body["latest_technical"]["trade_date"], "2026-03-08")
         self.assertEqual(body["latest_technical"]["values"]["close_vs_ma25"], 0.5)
+
+    def test_trigger_technical_initial_fetch_runs_scoped_refresh_for_ticker(self) -> None:
+        admin_ops_service = FakeAdminOpsService()
+        client = _build_client(admin_ops_service=admin_ops_service)
+        create_response = client.post(
+            "/api/v1/watchlist",
+            headers=_auth_header(),
+            json={
+                "ticker": "3901:TSE",
+                "name": "富士フイルム",
+                "metric_type": "PER",
+                "notify_channel": "DISCORD",
+                "notify_timing": "IMMEDIATE",
+            },
+        )
+        self.assertEqual(create_response.status_code, 201)
+
+        response = client.post(
+            "/api/v1/watchlist/3901:TSE/technical-initial-fetch",
+            headers=_auth_header("admin-token"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["job_key"], "technical_full_refresh")
+        self.assertEqual(body["execution_name"], "kabu-technical-full-refresh-001")
+        self.assertIsNotNone(admin_ops_service.last_ticker_scope)
+        self.assertEqual(admin_ops_service.last_ticker_scope.tickers, ("3901:TSE",))
+
+    def test_trigger_technical_initial_fetch_requires_admin(self) -> None:
+        client = _build_client(admin_ops_service=FakeAdminOpsService())
+        create_response = client.post(
+            "/api/v1/watchlist",
+            headers=_auth_header(),
+            json={
+                "ticker": "3901:TSE",
+                "name": "富士フイルム",
+                "metric_type": "PER",
+                "notify_channel": "DISCORD",
+                "notify_timing": "IMMEDIATE",
+            },
+        )
+        self.assertEqual(create_response.status_code, 201)
+
+        response = client.post(
+            "/api/v1/watchlist/3901:TSE/technical-initial-fetch",
+            headers=_auth_header(),
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["error"]["code"], "forbidden")
 
     def test_watchlist_list_include_status(self) -> None:
         repository = InMemoryWatchlistRepository()
