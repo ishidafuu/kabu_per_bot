@@ -457,6 +457,7 @@ export class MockWatchlistClient implements WatchlistClient {
       ...current,
       ...input,
       rule_name: input.rule_name?.trim() ?? current.rule_name,
+      is_active: input.is_active ?? current.is_active,
       note: input.note != null ? (input.note.trim() || null) : current.note,
       updated_at: new Date().toISOString(),
     };
