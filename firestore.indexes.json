@@ -55,8 +55,23 @@
         { "fieldPath": "category", "order": "ASCENDING" },
         { "fieldPath": "sent_at", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "price_bars_daily",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ticker", "order": "ASCENDING" },
+        { "fieldPath": "trade_date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "technical_indicators_daily",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ticker", "order": "ASCENDING" },
+        { "fieldPath": "trade_date", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
 }
-

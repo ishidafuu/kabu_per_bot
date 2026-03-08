@@ -12,9 +12,15 @@ from kabu_per_bot.storage.firestore_schema import (
     COLLECTION_JOB_RUN,
     COLLECTION_METRIC_MEDIANS,
     COLLECTION_NOTIFICATION_LOG,
+    COLLECTION_PRICE_BARS_DAILY,
     COLLECTION_SIGNAL_STATE,
+    COLLECTION_TECHNICAL_ALERT_RULES,
+    COLLECTION_TECHNICAL_ALERT_STATE,
+    COLLECTION_TECHNICAL_INDICATORS_DAILY,
+    COLLECTION_TECHNICAL_SYNC_STATE,
     COLLECTION_WATCHLIST,
     COLLECTION_WATCHLIST_HISTORY,
+    INITIAL_COLLECTIONS,
     daily_metrics_doc_id,
     earnings_calendar_doc_id,
     normalize_ticker,
@@ -25,7 +31,25 @@ from kabu_per_bot.storage.firestore_schema import (
 
 
 class FirestoreSchemaTest(unittest.TestCase):
-    def test_collections_match_mvp_set(self) -> None:
+    def test_initial_collections_match_mvp_set(self) -> None:
+        self.assertEqual(
+            set(INITIAL_COLLECTIONS),
+            {
+                COLLECTION_WATCHLIST,
+                COLLECTION_WATCHLIST_HISTORY,
+                COLLECTION_DAILY_METRICS,
+                COLLECTION_METRIC_MEDIANS,
+                COLLECTION_SIGNAL_STATE,
+                COLLECTION_EARNINGS_CALENDAR,
+                COLLECTION_NOTIFICATION_LOG,
+                COLLECTION_JOB_RUN,
+                COLLECTION_INTEL_SEEN,
+                COLLECTION_GLOBAL_SETTINGS,
+                COLLECTION_BASELINE_RESEARCH,
+            },
+        )
+
+    def test_all_collections_include_technical_set(self) -> None:
         self.assertEqual(
             set(ALL_COLLECTIONS),
             {
@@ -40,6 +64,11 @@ class FirestoreSchemaTest(unittest.TestCase):
                 COLLECTION_INTEL_SEEN,
                 COLLECTION_GLOBAL_SETTINGS,
                 COLLECTION_BASELINE_RESEARCH,
+                COLLECTION_PRICE_BARS_DAILY,
+                COLLECTION_TECHNICAL_INDICATORS_DAILY,
+                COLLECTION_TECHNICAL_SYNC_STATE,
+                COLLECTION_TECHNICAL_ALERT_RULES,
+                COLLECTION_TECHNICAL_ALERT_STATE,
             },
         )
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 
 from kabu_per_bot.storage.firestore_schema import (
-    ALL_COLLECTIONS,
+    INITIAL_COLLECTIONS,
     MIGRATION_ID,
     SCHEMA_VERSION,
 )
@@ -52,7 +52,7 @@ def build_initial_migration_operations(applied_at: str) -> list[MigrationOperati
             merge=True,
         ),
     ]
-    for collection_name in ALL_COLLECTIONS:
+    for collection_name in INITIAL_COLLECTIONS:
         ops.append(
             MigrationOperation(
                 path=f"{COLLECTION_REGISTRY_PATH}/{collection_name}",

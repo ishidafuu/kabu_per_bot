@@ -10,7 +10,7 @@ from kabu_per_bot.storage.firestore_migration import (
     apply_initial_migration,
     build_initial_migration_operations,
 )
-from kabu_per_bot.storage.firestore_schema import ALL_COLLECTIONS
+from kabu_per_bot.storage.firestore_schema import INITIAL_COLLECTIONS
 
 
 @dataclass
@@ -41,7 +41,7 @@ class InMemoryStore:
 class FirestoreMigrationTest(unittest.TestCase):
     def test_build_operations_contains_all_collections(self) -> None:
         operations = build_initial_migration_operations("2026-02-12T00:00:00+00:00")
-        self.assertEqual(len(operations), len(ALL_COLLECTIONS) + 2)
+        self.assertEqual(len(operations), len(INITIAL_COLLECTIONS) + 2)
         self.assertEqual(operations[-1].path, MIGRATION_DOC_PATH)
 
     def test_apply_migration_once(self) -> None:
@@ -75,7 +75,7 @@ class FirestoreMigrationTest(unittest.TestCase):
 
         migration_doc = store.docs[MIGRATION_DOC_PATH]
         self.assertEqual(migration_doc["status"], "completed")
-        for collection_name in ALL_COLLECTIONS:
+        for collection_name in INITIAL_COLLECTIONS:
             registry_path = f"{COLLECTION_REGISTRY_PATH}/{collection_name}"
             self.assertIn(registry_path, store.docs)
 
