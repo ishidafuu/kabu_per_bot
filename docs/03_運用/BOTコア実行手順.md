@@ -107,13 +107,14 @@ PYTHONPATH=src python scripts/run_immediate_window_job.py --window close --disco
 価格・需給テクニカルの日次ジョブを実行する場合:
 
 ```bash
-PYTHONPATH=src python scripts/run_technical_daily_job.py --discord-webhook-url <DISCORD_WEBHOOK_URL_DAILY>
+PYTHONPATH=src python scripts/run_technical_daily_job.py --discord-webhook-url <DISCORD_WEBHOOK_URL_TECHNICAL>
 PYTHONPATH=src python scripts/run_technical_daily_job.py --stdout
 ```
 
 - `watchlist.is_active=true` の銘柄を対象に `price_bars_daily` 同期、`technical_indicators_daily` 再計算、技術アラート通知をまとめて実行する。
 - 実行結果は `price_bars_daily` / `technical_indicators_daily` / `technical_sync_state` / `technical_alert_state` / `notification_log` に反映される。
 - 標準出力JSONは `processed_tickers` / `sent_notifications` / `skipped_notifications` / `errors` を返す。
+- `--stdout` 未指定時は `--discord-webhook-url` または `DISCORD_WEBHOOK_URL_TECHNICAL`（fallback: `DISCORD_WEBHOOK_URL_DAILY` -> `DISCORD_WEBHOOK_URL`）が必要。
 
 価格・需給テクニカルの全件再同期を実行する場合:
 
@@ -232,6 +233,7 @@ PYTHONPATH=src python scripts/run_intelligence_job.py --intel-source grok_only -
 Webhook分割（任意）:
 
 - 日次/IMMEDIATE: `DISCORD_WEBHOOK_URL_DAILY`
+- 技術アラート: `DISCORD_WEBHOOK_URL_TECHNICAL`
 - 決算: `DISCORD_WEBHOOK_URL_EARNINGS`
 - IR: `DISCORD_WEBHOOK_URL_INTELLIGENCE_IR`
 - SNS/AI: `DISCORD_WEBHOOK_URL_INTELLIGENCE_SNS`

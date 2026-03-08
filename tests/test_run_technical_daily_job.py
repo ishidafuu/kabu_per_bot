@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import os
 import unittest
 from unittest.mock import patch
 
@@ -68,6 +69,47 @@ def _watch_item(ticker: str) -> WatchlistItem:
 
 
 class TechnicalDailyJobScriptTest(unittest.TestCase):
+    def test_resolve_discord_webhook_default_prefers_technical_env(self) -> None:
+        env = {
+            target.DISCORD_WEBHOOK_TECHNICAL_ENV: "https://example.com/technical",
+            target.DISCORD_WEBHOOK_DAILY_ENV: "https://example.com/daily",
+            target.DISCORD_WEBHOOK_DEFAULT_ENV: "https://example.com/default",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            value = target._resolve_discord_webhook_default(
+                target.DISCORD_WEBHOOK_TECHNICAL_ENV,
+                target.DISCORD_WEBHOOK_DAILY_ENV,
+            )
+        self.assertEqual(value, "https://example.com/technical")
+
+    def test_resolve_discord_webhook_default_fallbacks_daily_then_default(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                target.DISCORD_WEBHOOK_DAILY_ENV: "https://example.com/daily",
+                target.DISCORD_WEBHOOK_DEFAULT_ENV: "https://example.com/default",
+            },
+            clear=True,
+        ):
+            value = target._resolve_discord_webhook_default(
+                target.DISCORD_WEBHOOK_TECHNICAL_ENV,
+                target.DISCORD_WEBHOOK_DAILY_ENV,
+            )
+        self.assertEqual(value, "https://example.com/daily")
+
+        with patch.dict(
+            os.environ,
+            {
+                target.DISCORD_WEBHOOK_DEFAULT_ENV: "https://example.com/default",
+            },
+            clear=True,
+        ):
+            value = target._resolve_discord_webhook_default(
+                target.DISCORD_WEBHOOK_TECHNICAL_ENV,
+                target.DISCORD_WEBHOOK_DAILY_ENV,
+            )
+        self.assertEqual(value, "https://example.com/default")
+
     def test_main_runs_job_and_records_job_run(self) -> None:
         args = target.argparse.Namespace(
             to_date="2026-03-08",
@@ -186,6 +228,12 @@ class TechnicalDailyJobScriptTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue(mocked_run.call_args.kwargs["full_refresh"])
         self.assertFalse(mocked_run.call_args.kwargs["alerts_enabled"])
+
+    def test_resolve_sender_requires_technical_or_fallback_webhook(self) -> None:
+        args = target.argparse.Namespace(stdout=False, discord_webhook_url="")
+
+        with self.assertRaisesRegex(ValueError, "DISCORD_WEBHOOK_URL_TECHNICAL"):
+            target._resolve_sender(args)
 
 
 if __name__ == "__main__":

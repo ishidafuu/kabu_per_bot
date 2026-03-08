@@ -32,8 +32,9 @@ from kabu_per_bot.technical_sync import DEFAULT_TECHNICAL_INITIAL_LOOKBACK_DAYS,
 LOGGER = logging.getLogger(__name__)
 JST_TIMEZONE = "Asia/Tokyo"
 DISCORD_WEBHOOK_DEFAULT_ENV = "DISCORD_WEBHOOK_URL"
+DISCORD_WEBHOOK_TECHNICAL_ENV = "DISCORD_WEBHOOK_URL_TECHNICAL"
 DISCORD_WEBHOOK_DAILY_ENV = "DISCORD_WEBHOOK_URL_DAILY"
-DISCORD_DAILY_CHANNEL = "DISCORD_DAILY"
+DISCORD_TECHNICAL_CHANNEL = "DISCORD_TECHNICAL"
 
 
 class StdoutSender:
@@ -72,10 +73,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--discord-webhook-url",
-        default=_resolve_discord_webhook_default(DISCORD_WEBHOOK_DAILY_ENV),
+        default=_resolve_discord_webhook_default(DISCORD_WEBHOOK_TECHNICAL_ENV, DISCORD_WEBHOOK_DAILY_ENV),
         help=(
             "Discord webhook URL. Required unless --stdout is set. "
-            f"Default: {DISCORD_WEBHOOK_DAILY_ENV} (fallback: {DISCORD_WEBHOOK_DEFAULT_ENV})."
+            f"Default: {DISCORD_WEBHOOK_TECHNICAL_ENV} "
+            f"(fallback: {DISCORD_WEBHOOK_DAILY_ENV} -> {DISCORD_WEBHOOK_DEFAULT_ENV})."
         ),
     )
     parser.add_argument(
@@ -115,10 +117,11 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _resolve_discord_webhook_default(primary_env_key: str) -> str:
-    primary = os.environ.get(primary_env_key, "").strip()
-    if primary:
-        return primary
+def _resolve_discord_webhook_default(primary_env_key: str, *fallback_env_keys: str) -> str:
+    for env_key in (primary_env_key, *fallback_env_keys):
+        value = os.environ.get(env_key, "").strip()
+        if value:
+            return value
     return os.environ.get(DISCORD_WEBHOOK_DEFAULT_ENV, "").strip()
 
 
@@ -159,9 +162,11 @@ def _resolve_sender(args: argparse.Namespace):
     if not webhook_url:
         raise ValueError(
             "Discord webhook URL が必要です。"
-            f"--discord-webhook-url または {DISCORD_WEBHOOK_DAILY_ENV}/{DISCORD_WEBHOOK_DEFAULT_ENV} を設定してください。"
+            f"--discord-webhook-url または "
+            f"{DISCORD_WEBHOOK_TECHNICAL_ENV}/{DISCORD_WEBHOOK_DAILY_ENV}/{DISCORD_WEBHOOK_DEFAULT_ENV} "
+            "を設定してください。"
         )
-    LOGGER.info("送信先: Discord webhook (channel=%s)", DISCORD_DAILY_CHANNEL)
+    LOGGER.info("送信先: Discord webhook (channel=%s)", DISCORD_TECHNICAL_CHANNEL)
     return DiscordNotifier(webhook_url)
 
 
@@ -281,7 +286,7 @@ def _run(
             sender=sender,
             cooldown_hours=runtime_settings.cooldown_hours,
             now_iso=now_iso,
-            channel=DISCORD_DAILY_CHANNEL,
+            channel=DISCORD_TECHNICAL_CHANNEL,
             execution_mode=_resolve_execution_mode(args.execution_mode),
             full_refresh=full_refresh,
             alerts_enabled=alerts_enabled,
