@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
-import { createWatchlistClient } from '../lib/api';
+import { createTechnicalProfilesClient, createWatchlistClient } from '../lib/api';
 import { toUserMessage } from '../lib/api/errors';
 import { appConfig } from '../lib/config';
 import {
@@ -19,6 +19,7 @@ import type {
   TechnicalAlertRuleUpdateInput,
   WatchlistDetailResponse,
 } from '../types/watchlistDetail';
+import type { TechnicalProfile } from '../types/technicalProfiles';
 
 const dateTimeFormatter = new Intl.DateTimeFormat('ja-JP', {
   year: 'numeric',
@@ -184,6 +185,7 @@ export const WatchlistDetailPage = () => {
   const { ticker } = useParams();
   const { getIdToken } = useAuth();
   const client = useMemo(() => createWatchlistClient({ getToken: getIdToken }), [getIdToken]);
+  const technicalProfilesClient = useMemo(() => createTechnicalProfilesClient({ getToken: getIdToken }), [getIdToken]);
 
   const [detail, setDetail] = useState<WatchlistDetailResponse | null>(null);
   const [categoryInput, setCategoryInput] = useState('');
@@ -199,6 +201,12 @@ export const WatchlistDetailPage = () => {
   const [initialFetchMessage, setInitialFetchMessage] = useState('');
   const [initialFetchError, setInitialFetchError] = useState('');
   const [isRequestingInitialFetch, setIsRequestingInitialFetch] = useState(false);
+  const [technicalProfiles, setTechnicalProfiles] = useState<TechnicalProfile[]>([]);
+  const [profileIdInput, setProfileIdInput] = useState('');
+  const [profileManualOverride, setProfileManualOverride] = useState(false);
+  const [profileMessage, setProfileMessage] = useState('');
+  const [profileError, setProfileError] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const limit = appConfig.pageSize;
   const historyLimit = 10;
   const [isLoading, setIsLoading] = useState(false);
@@ -248,6 +256,31 @@ export const WatchlistDetailPage = () => {
   useEffect(() => {
     void fetchDetail();
   }, [fetchDetail]);
+
+  useEffect(() => {
+    let ignore = false;
+    const loadTechnicalProfiles = async (): Promise<void> => {
+      try {
+        const response = await technicalProfilesClient.list();
+        if (!ignore) {
+          setTechnicalProfiles(response.items);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setProfileError(toUserMessage(error));
+        }
+      }
+    };
+    void loadTechnicalProfiles();
+    return () => {
+      ignore = true;
+    };
+  }, [technicalProfilesClient]);
+
+  useEffect(() => {
+    setProfileIdInput(detail?.item.technical_profile_id ?? '');
+    setProfileManualOverride(detail?.item.technical_profile_manual_override ?? false);
+  }, [detail?.item.technical_profile_id, detail?.item.technical_profile_manual_override]);
 
   const handleSearch = (): void => {
     setOffset(0);
@@ -352,6 +385,7 @@ export const WatchlistDetailPage = () => {
 
   const item = detail?.item;
   const summary = detail?.summary;
+  const currentTechnicalProfile = technicalProfiles.find((profile) => profile.profile_id === item?.technical_profile_id) ?? null;
   const technicalRules = detail?.technical_rules.items ?? [];
   const latestTechnical = detail?.latest_technical;
   const latestTechnicalRows = TECHNICAL_HIGHLIGHT_KEYS
@@ -379,6 +413,27 @@ export const WatchlistDetailPage = () => {
       setInitialFetchError(toUserMessage(error));
     } finally {
       setIsRequestingInitialFetch(false);
+    }
+  };
+
+  const saveTechnicalProfileAssignment = async (): Promise<void> => {
+    if (!ticker) {
+      return;
+    }
+    setIsSavingProfile(true);
+    setProfileMessage('');
+    setProfileError('');
+    try {
+      await client.update(ticker, {
+        technical_profile_id: profileIdInput || null,
+        technical_profile_manual_override: profileManualOverride,
+      });
+      setProfileMessage('技術プロファイル設定を更新しました。');
+      await fetchDetail();
+    } catch (error) {
+      setProfileError(toUserMessage(error));
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -496,6 +551,46 @@ export const WatchlistDetailPage = () => {
       </section>
 
       <section className="detail-grid">
+        <article className="panel detail-card">
+          <div className="panel-header">
+            <h2>技術プロファイル</h2>
+            <span className="muted">{currentTechnicalProfile?.profile_type ?? '未設定'}</span>
+          </div>
+          {profileMessage && <p className="success-text">{profileMessage}</p>}
+          {profileError && <p className="error-text">{profileError}</p>}
+          <div className="technical-profile-assignment">
+            <div className="watchlist-meta-item">
+              <span className="muted">現在のプロファイル</span>
+              <strong>{currentTechnicalProfile?.name ?? '未設定'}</strong>
+              <small>{item?.technical_profile_id ?? '-'}</small>
+            </div>
+            <label>
+              技術プロファイル
+              <select value={profileIdInput} onChange={(event) => setProfileIdInput(event.target.value)}>
+                <option value="">未設定</option>
+                {technicalProfiles.map((profile) => (
+                  <option key={profile.profile_id} value={profile.profile_id}>
+                    {profile.name} ({profile.profile_type})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="inline-checkbox">
+              <input
+                type="checkbox"
+                checked={profileManualOverride}
+                onChange={(event) => setProfileManualOverride(event.target.checked)}
+              />
+              manual override を有効にする
+            </label>
+            <div className="inline-actions">
+              <button type="button" onClick={() => void saveTechnicalProfileAssignment()} disabled={isSavingProfile}>
+                {isSavingProfile ? '保存中...' : 'プロファイル設定を保存'}
+              </button>
+            </div>
+          </div>
+        </article>
+
         <article className="panel detail-card">
           <div className="panel-header">
             <h2>最新テクニカル</h2>

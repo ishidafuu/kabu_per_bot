@@ -28,6 +28,8 @@ export interface WatchlistItem {
   ir_urls: string[];
   x_official_account?: string | null;
   x_executive_accounts: XAccountLink[];
+  technical_profile_id?: string | null;
+  technical_profile_manual_override?: boolean;
   current_metric_value?: number | null;
   median_1w?: number | null;
   median_3m?: number | null;
@@ -63,6 +65,8 @@ export interface WatchlistCreateInput {
   ir_urls?: string[];
   x_official_account?: string;
   x_executive_accounts?: XAccountLink[];
+  technical_profile_id?: string | null;
+  technical_profile_manual_override?: boolean;
   is_active?: boolean;
   ai_enabled?: boolean;
 }
@@ -81,6 +85,8 @@ export interface WatchlistUpdateInput {
   ir_urls?: string[];
   x_official_account?: string;
   x_executive_accounts?: XAccountLink[];
+  technical_profile_id?: string | null;
+  technical_profile_manual_override?: boolean;
   is_active?: boolean;
   ai_enabled?: boolean;
 }

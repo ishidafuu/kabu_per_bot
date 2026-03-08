@@ -240,6 +240,12 @@ button:disabled {
   color: #64748b;
 }
 
+.technical-profile-assignment {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
 .search-row {
   display: grid;
   grid-template-columns: 1fr auto auto;

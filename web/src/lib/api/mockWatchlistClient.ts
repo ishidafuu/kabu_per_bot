@@ -111,6 +111,8 @@ const seedWatchlist: WatchlistItem[] = [
     x_executive_accounts: [],
     is_active: true,
     ai_enabled: true,
+    technical_profile_id: 'system_large_core',
+    technical_profile_manual_override: false,
     next_earnings_date: '2026-03-02',
     next_earnings_time: '15:00',
     next_earnings_days: 7,
@@ -127,6 +129,8 @@ const seedWatchlist: WatchlistItem[] = [
     x_executive_accounts: [],
     is_active: true,
     ai_enabled: false,
+    technical_profile_id: 'system_small_growth',
+    technical_profile_manual_override: false,
   },
   {
     ticker: '7203:TSE',
@@ -185,6 +189,8 @@ const seedWatchlist: WatchlistItem[] = [
     x_executive_accounts: [],
     is_active: true,
     ai_enabled: false,
+    technical_profile_id: 'system_value_dividend',
+    technical_profile_manual_override: true,
   },
 ];
 
@@ -586,6 +592,8 @@ export class MockWatchlistClient implements WatchlistClient {
       ir_urls: normalizedInput.ir_urls ?? [],
       x_official_account: normalizedInput.x_official_account ?? null,
       x_executive_accounts: normalizedInput.x_executive_accounts ?? [],
+      technical_profile_id: normalizedInput.technical_profile_id ?? null,
+      technical_profile_manual_override: normalizedInput.technical_profile_manual_override ?? false,
       is_active: normalizedInput.is_active ?? true,
       ai_enabled: true,
     };
@@ -618,6 +626,12 @@ export class MockWatchlistClient implements WatchlistClient {
       evaluation_notify_mode: input.evaluation_notify_mode ?? current.evaluation_notify_mode ?? 'TOP_N',
       evaluation_top_n: input.evaluation_top_n ?? current.evaluation_top_n ?? 3,
       evaluation_min_strength: input.evaluation_min_strength ?? current.evaluation_min_strength ?? 4,
+      technical_profile_id:
+        input.technical_profile_id !== undefined ? input.technical_profile_id : current.technical_profile_id ?? null,
+      technical_profile_manual_override:
+        input.technical_profile_manual_override !== undefined
+          ? input.technical_profile_manual_override
+          : current.technical_profile_manual_override ?? false,
     };
 
     mockStore = [
