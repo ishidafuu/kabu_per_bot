@@ -44,11 +44,10 @@ class NotificationFormatterTest(unittest.TestCase):
             median_3m=13.0,
             median_1y=14.0,
         )
-        self.assertIn("🔥 優先度:高 / 推奨アクション:優先確認 / 根拠数値:PER=10.00", message.body)
-        self.assertIn("区分: [新規] 超PER割安", message.body)
-        self.assertIn("under（3日連続）", message.body)
-        self.assertIn("差分(現在-中央値): 1W -2.00 / 3M -3.00 / 1Y -4.00", message.body)
-        self.assertIn("乖離率: 1W -16.7% / 3M -23.1% / 1Y -28.6%", message.body)
+        self.assertIn("🔥 優先度:高 / 推奨:優先確認 / 判断:判定=1Y 3M 1W under / 新規", message.body)
+        self.assertIn("3901:TSE 富士フイルム", message.body)
+        self.assertIn("1Y・3M・1Wの中央値を下回り。3日連続。", message.body)
+        self.assertIn("詳細: PER 10.00 / 3M比 -23.1% / 1Y比 -28.6% / 1W比 -16.7%", message.body)
         self.assertIn("🔥", message.body)
         self.assertEqual(message.category, "超PER割安")
 
@@ -78,7 +77,7 @@ class NotificationFormatterTest(unittest.TestCase):
             median_1y=14.0,
             earnings_days=2,
         )
-        self.assertIn("📅 決算まで: 2日", message.body)
+        self.assertIn("決算まで2日。", message.body)
 
     def test_earnings_message_format(self) -> None:
         message = format_earnings_message(
@@ -116,12 +115,10 @@ class NotificationFormatterTest(unittest.TestCase):
             median_1y=14.0,
             signal_phase="解除",
         )
-        self.assertIn("📘 優先度:中 / 推奨アクション:通常監視へ移行 / 根拠数値:PER=16.00", message.body)
-        self.assertIn("　PER状況", message.body)
-        self.assertIn("シグナル種別: 解除", message.body)
-        self.assertIn("差分(現在-中央値): 1W +4.00 / 3M +3.00 / 1Y +2.00", message.body)
-        self.assertIn("乖離率: 1W +33.3% / 3M +23.1% / 1Y +14.3%", message.body)
-        self.assertIn("判定レベル: 下回りなし", message.body)
+        self.assertIn("📘 優先度:中 / 推奨:通常監視へ移行 / 判断:判定=解除", message.body)
+        self.assertIn("3901:TSE 富士フイルム", message.body)
+        self.assertIn("割安シグナルは解消。", message.body)
+        self.assertIn("詳細: PER 16.00 / 3M比 +23.1% / 1Y比 +14.3% / 1W比 +33.3%", message.body)
         self.assertEqual(message.category, "PER状況")
 
     def test_signal_status_message_format_with_insufficient_windows(self) -> None:
@@ -150,13 +147,11 @@ class NotificationFormatterTest(unittest.TestCase):
             insufficient_windows=["1W", "1Y"],
         )
         self.assertIn(
-            "📘 優先度:中 / 推奨アクション:データ確認 / 根拠数値:PER=16.00 / 乖離率(1W N/A / 3M +23.1% / 1Y N/A) / 中央値不足(1W/1Y)",
+            "📘 優先度:中 / 推奨:データ確認 / 判断:判定=中央値不足(1W/1Y)",
             message.body,
         )
-        self.assertIn("判定レベル: 判定不能（中央値不足: 1W/1Y）", message.body)
-        self.assertIn("差分(現在-中央値): 1W N/A / 3M +3.00 / 1Y N/A", message.body)
-        self.assertIn("乖離率: 1W N/A / 3M +23.1% / 1Y N/A", message.body)
-        self.assertIn("割安通知: 判定保留", message.body)
+        self.assertIn("中央値不足のため判定保留。", message.body)
+        self.assertIn("詳細: PER 16.00 / 3M比 +23.1%", message.body)
         self.assertEqual(message.condition_key, "PER:STATUS:INSUFFICIENT_1W+1Y")
 
     def test_signal_status_message_uses_absolute_median_for_divergence_rate(self) -> None:
@@ -183,9 +178,9 @@ class NotificationFormatterTest(unittest.TestCase):
             median_3m=-8.0,
             median_1y=-6.0,
         )
-        self.assertIn("📘 優先度:低 / 推奨アクション:様子見 / 根拠数値:PER=-5.00", message.body)
-        self.assertIn("差分(現在-中央値): 1W +5.00 / 3M +3.00 / 1Y +1.00", message.body)
-        self.assertIn("乖離率: 1W +50.0% / 3M +37.5% / 1Y +16.7%", message.body)
+        self.assertIn("📘 優先度:低 / 推奨:様子見 / 判断:判定=下回りなし", message.body)
+        self.assertIn("割安シグナルなし。", message.body)
+        self.assertIn("詳細: PER -5.00 / 3M比 +37.5% / 1Y比 +16.7% / 1W比 +50.0%", message.body)
 
     def test_data_unknown_message_format(self) -> None:
         message = format_data_unknown_message(

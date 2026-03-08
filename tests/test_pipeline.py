@@ -178,10 +178,9 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.processed_tickers, 1)
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
-        self.assertIn("🔥 優先度:高 / 推奨アクション:優先確認 / 根拠数値:PER=10.00", sender.messages[0])
-        self.assertIn("区分: [新規] 超PER割安", sender.messages[0])
-        self.assertIn("差分(現在-中央値):", sender.messages[0])
-        self.assertIn("📅 決算まで: 87日", sender.messages[0])
+        self.assertIn("🔥 優先度:高 / 推奨:優先確認 / 判断:判定=1Y 3M 1W under / 新規", sender.messages[0])
+        self.assertIn("1Y・3M・1Wの中央値を下回り。1日連続。決算まで87日。", sender.messages[0])
+        self.assertIn("詳細: PER 10.00", sender.messages[0])
         self.assertEqual(len(log_repo.rows), 1)
         self.assertEqual(log_repo.rows[0].data_source, "株探")
         self.assertIsNotNone(log_repo.rows[0].data_fetched_at)
@@ -257,9 +256,8 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.processed_tickers, 1)
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
-        self.assertIn("🔥 優先度:高 / 推奨アクション:優先確認 / 根拠数値:PER=10.00", sender.messages[0])
-        self.assertIn("区分: [継続] 超PER割安", sender.messages[0])
-        self.assertIn("under（4日連続）", sender.messages[0])
+        self.assertIn("🔥 優先度:高 / 推奨:優先確認 / 判断:判定=1Y 3M 1W under / 継続", sender.messages[0])
+        self.assertIn("1Y・3M・1Wの中央値を下回り。4日連続。", sender.messages[0])
 
     def test_daily_pipeline_sends_status_notification_when_always_notify_enabled(self) -> None:
         market_source = FakeMarketDataSource(
@@ -315,10 +313,9 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.processed_tickers, 1)
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
-        self.assertIn("📘 優先度:低 / 推奨アクション:様子見 / 根拠数値:PER=10.00", sender.messages[0])
-        self.assertIn("　PER状況", sender.messages[0])
-        self.assertIn("乖離率:", sender.messages[0])
-        self.assertIn("判定レベル: 下回りなし", sender.messages[0])
+        self.assertIn("📘 優先度:低 / 推奨:様子見 / 判断:判定=下回りなし", sender.messages[0])
+        self.assertIn("割安シグナルなし。", sender.messages[0])
+        self.assertIn("詳細: PER 10.00", sender.messages[0])
 
     def test_daily_pipeline_marks_status_as_released_when_signal_clears(self) -> None:
         market_source = FakeMarketDataSource(
@@ -391,9 +388,8 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.processed_tickers, 1)
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
-        self.assertIn("📘 優先度:中 / 推奨アクション:通常監視へ移行 / 根拠数値:PER=12.00", sender.messages[0])
-        self.assertIn("　PER状況", sender.messages[0])
-        self.assertIn("シグナル種別: 解除", sender.messages[0])
+        self.assertIn("📘 優先度:中 / 推奨:通常監視へ移行 / 判断:判定=解除", sender.messages[0])
+        self.assertIn("割安シグナルは解消。", sender.messages[0])
 
     def test_daily_pipeline_does_not_mark_release_when_previous_signal_is_stale(self) -> None:
         market_source = FakeMarketDataSource(
@@ -466,9 +462,9 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.processed_tickers, 1)
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
-        self.assertIn("📘 優先度:低 / 推奨アクション:様子見 / 根拠数値:PER=12.00", sender.messages[0])
-        self.assertIn("　PER状況", sender.messages[0])
-        self.assertNotIn("シグナル種別: 解除", sender.messages[0])
+        self.assertIn("📘 優先度:低 / 推奨:様子見 / 判断:判定=下回りなし", sender.messages[0])
+        self.assertIn("割安シグナルなし。", sender.messages[0])
+        self.assertNotIn("シグナル種別:解除", sender.messages[0])
 
     def test_daily_pipeline_sends_insufficient_status_when_medians_missing(self) -> None:
         market_source = FakeMarketDataSource(
@@ -511,11 +507,10 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result.sent_notifications, 1)
         self.assertEqual(len(sender.messages), 1)
         self.assertIn(
-            "📘 優先度:中 / 推奨アクション:データ確認 / 根拠数値:PER=10.00 / 乖離率(1W N/A / 3M N/A / 1Y N/A) / 中央値不足(1W/3M/1Y)",
+            "📘 優先度:中 / 推奨:データ確認 / 判断:判定=中央値不足(1W/3M/1Y)",
             sender.messages[0],
         )
-        self.assertIn("　PER状況", sender.messages[0])
-        self.assertIn("判定レベル: 判定不能（中央値不足: 1W/3M/1Y）", sender.messages[0])
+        self.assertIn("中央値不足のため判定保留。", sender.messages[0])
         self.assertNotIn("シグナル種別: 解除", sender.messages[0])
 
     def test_daily_pipeline_daily_mode_sends_immediate_only(self) -> None:

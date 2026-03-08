@@ -55,22 +55,19 @@ def format_signal_message(
         icon=header_icon,
         priority=priority,
         recommended_action=recommended_action,
-        reason=f"{metric_label}={_fmt(metric_value)} / 乖離率({divergence_line})",
+        reason=f"判定={combo_label} under / {normalized_phase}",
+    )
+    metric_summary_line = _build_metric_summary_line(
+        metric_label=metric_label,
+        metric_value=metric_value,
+        earnings_days=earnings_days,
     )
     lines = [
+        f"{normalized_ticker} {company_name}",
         conclusion_line,
-        "",
-        f"　{normalized_ticker} {company_name}",
-        f"　区分: [{normalized_phase}] {state.category}",
-        f"　🎯 {combo_label} under（{streak_days}日連続）",
-        f"　{metric_label}: {_fmt(metric_value)}",
-        f"　中央値(1W/3M/1Y): {_fmt(median_1w)} / {_fmt(median_3m)} / {_fmt(median_1y)}",
-        f"　差分(現在-中央値): {difference_line}",
-        f"　乖離率: {divergence_line}",
+        f"　{_build_signal_narrative(combo_label=combo_label, streak_days=streak_days, earnings_days=earnings_days)}",
+        f"　詳細: {_build_compact_metric_detail(metric_label=metric_label, metric_value=metric_value, divergence_line=divergence_line)}",
     ]
-    earnings_days_line = _build_earnings_days_line(earnings_days)
-    if earnings_days_line:
-        lines.append(earnings_days_line)
     body = "\n".join(lines)
     return NotificationMessage(
         ticker=normalized_ticker,
@@ -112,39 +109,26 @@ def format_signal_status_message(
         median_1y=median_1y,
     )
     priority, recommended_action, reason = _status_conclusion(
-        metric_label=metric_label,
-        metric_value=metric_value,
-        divergence_line=divergence_line,
         level_key=level_key,
+        level_label=level_label,
         normalized_phase=normalized_phase,
         normalized_insufficient=normalized_insufficient,
     )
     lines = [
+        f"{normalized_ticker} {company_name}",
         _build_conclusion_line(
             icon="📘",
             priority=priority,
             recommended_action=recommended_action,
             reason=reason,
         ),
-        f"　{metric_label}状況",
-        f"　{company_name} ({normalized_ticker})",
     ]
-    if normalized_phase:
-        lines.append(f"　シグナル種別: {normalized_phase}")
-    lines.extend(
-        [
-            "",
-            f"　{metric_label}: {_fmt(metric_value)}",
-            f"　中央値(1W/3M/1Y): {_fmt(median_1w)} / {_fmt(median_3m)} / {_fmt(median_1y)}",
-            f"　差分(現在-中央値): {difference_line}",
-            f"　乖離率: {divergence_line}",
-            f"　🎯 判定レベル: {level_label}",
-            f"　割安通知: {discount_label}",
-        ]
+    lines.append(
+        f"　{_build_status_narrative(level_label=level_label, discount_label=discount_label, normalized_phase=normalized_phase, earnings_days=earnings_days)}"
     )
-    earnings_days_line = _build_earnings_days_line(earnings_days)
-    if earnings_days_line:
-        lines.append(earnings_days_line)
+    lines.append(
+        f"　詳細: {_build_compact_metric_detail(metric_label=metric_label, metric_value=metric_value, divergence_line=divergence_line)}"
+    )
     body = "\n".join(lines)
     return NotificationMessage(
         ticker=normalized_ticker,
@@ -462,7 +446,7 @@ def _build_conclusion_line(
     recommended_action: str,
     reason: str,
 ) -> str:
-    return f"{icon} 優先度:{priority} / 推奨アクション:{recommended_action} / 根拠数値:{reason}"
+    return f"{icon} 優先度:{priority} / 推奨:{recommended_action} / 判断:{reason}"
 
 
 def _signal_conclusion(*, state: SignalState, signal_phase: str) -> tuple[str, str]:
@@ -475,10 +459,8 @@ def _signal_conclusion(*, state: SignalState, signal_phase: str) -> tuple[str, s
 
 def _status_conclusion(
     *,
-    metric_label: str,
-    metric_value: float | None,
-    divergence_line: str,
     level_key: str,
+    level_label: str,
     normalized_phase: str | None,
     normalized_insufficient: list[str],
 ) -> tuple[str, str, str]:
@@ -486,13 +468,13 @@ def _status_conclusion(
         return (
             "中",
             "データ確認",
-            f"{metric_label}={_fmt(metric_value)} / 乖離率({divergence_line}) / 中央値不足({'/'.join(normalized_insufficient)})",
+            f"判定=中央値不足({'/'.join(normalized_insufficient)})",
         )
     if normalized_phase == "解除":
-        return ("中", "通常監視へ移行", f"{metric_label}={_fmt(metric_value)} / 乖離率({divergence_line})")
+        return ("中", "通常監視へ移行", "判定=解除")
     if level_key == "NONE":
-        return ("低", "様子見", f"{metric_label}={_fmt(metric_value)} / 乖離率({divergence_line})")
-    return ("中", "監視継続", f"{metric_label}={_fmt(metric_value)} / 乖離率({divergence_line})")
+        return ("低", "様子見", "判定=下回りなし")
+    return ("中", "監視継続", f"判定={level_label}")
 
 
 def _normalize_signal_phase(signal_phase: str) -> str:
@@ -530,6 +512,87 @@ def _build_earnings_days_line(earnings_days: int | None) -> str | None:
     if earnings_days <= 0:
         return "　📅 決算まで: 当日"
     return f"　📅 決算まで: {earnings_days}日"
+
+
+def _build_metric_summary_line(
+    *,
+    metric_label: str,
+    metric_value: float | None,
+    earnings_days: int | None,
+) -> str:
+    parts = [f"　{metric_label}: {_fmt(metric_value)}"]
+    if earnings_days is not None:
+        if earnings_days <= 0:
+            parts.append("決算まで: 当日")
+        else:
+            parts.append(f"決算まで: {earnings_days}日")
+    return " / ".join(parts)
+
+
+def _build_signal_narrative(
+    *,
+    combo_label: str,
+    streak_days: int,
+    earnings_days: int | None,
+) -> str:
+    windows = "・".join(combo_label.split())
+    parts = [f"{windows}の中央値を下回り", f"{streak_days}日連続"]
+    earnings_text = _earnings_short_text(earnings_days)
+    if earnings_text:
+        parts.append(earnings_text)
+    return "。".join(parts) + "。"
+
+
+def _build_status_narrative(
+    *,
+    level_label: str,
+    discount_label: str,
+    normalized_phase: str | None,
+    earnings_days: int | None,
+) -> str:
+    if "中央値不足" in level_label:
+        status = "中央値不足のため判定保留"
+    elif normalized_phase == "解除":
+        status = "割安シグナルは解消"
+    elif discount_label == "なし" and level_label == "下回りなし":
+        status = "割安シグナルなし"
+    else:
+        status = f"{level_label}で継続監視"
+
+    parts = [status]
+    earnings_text = _earnings_short_text(earnings_days)
+    if earnings_text:
+        parts.append(earnings_text)
+    return "。".join(parts) + "。"
+
+
+def _build_compact_metric_detail(
+    *,
+    metric_label: str,
+    metric_value: float | None,
+    divergence_line: str,
+) -> str:
+    detail_parts = [f"{metric_label} {_fmt(metric_value)}"]
+    for window in ("3M", "1Y", "1W"):
+        rate = _extract_divergence_rate(divergence_line, window)
+        if rate != "N/A":
+            detail_parts.append(f"{window}比 {rate}")
+    return " / ".join(detail_parts)
+
+
+def _extract_divergence_rate(divergence_line: str, window: str) -> str:
+    matched = re.search(rf"{re.escape(window)}\s+([^\s/]+)", divergence_line)
+    if not matched:
+        return "N/A"
+    return matched.group(1)
+
+
+def _earnings_short_text(earnings_days: int | None) -> str:
+    if earnings_days is None:
+        return ""
+    if earnings_days <= 0:
+        return "決算は当日"
+    return f"決算まで{earnings_days}日"
 
 
 def _normalize_insufficient_windows(windows: list[str] | None) -> list[str]:
