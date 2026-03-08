@@ -12,7 +12,7 @@ from kabu_per_bot.storage.firestore_schema import normalize_ticker, normalize_tr
 
 _CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 _RUNNING_STATUSES = {"PENDING", "RUNNING"}
-_DAILY_JOB_KEYS = {"daily", "daily_at21", "immediate_open", "immediate_close"}
+_DAILY_JOB_KEYS = {"daily", "daily_at21", "immediate_open", "immediate_close", "technical_daily"}
 _RUN_LOOKUP_TIMEOUT_SECONDS = 12
 _RUN_LOOKUP_INTERVAL_SECONDS = 0.5
 
@@ -430,6 +430,16 @@ def _load_default_jobs() -> tuple[AdminOpsJob, ...]:
             key="backfill",
             label="バックフィルジョブ",
             job_name=_env_or_default("OPS_BACKFILL_JOB_NAME", ""),
+        ),
+        AdminOpsJob(
+            key="technical_daily",
+            label="技術日次ジョブ",
+            job_name=_env_or_default("OPS_TECHNICAL_DAILY_JOB_NAME", "kabu-technical-daily"),
+        ),
+        AdminOpsJob(
+            key="technical_full_refresh",
+            label="技術全件再同期ジョブ",
+            job_name=_env_or_default("OPS_TECHNICAL_FULL_REFRESH_JOB_NAME", "kabu-technical-full-refresh"),
         ),
     )
 

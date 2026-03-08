@@ -31,10 +31,12 @@ def _execution(*, name: str, status: str, created_at: str) -> JobExecution:
 
 
 class AdminOpsServiceTest(unittest.TestCase):
-    def test_load_default_jobs_includes_baseline_refresh(self) -> None:
+    def test_load_default_jobs_includes_baseline_refresh_and_technical_jobs(self) -> None:
         jobs = _load_default_jobs()
         keys = {job.key for job in jobs}
         self.assertIn("committee_baseline_refresh", keys)
+        self.assertIn("technical_daily", keys)
+        self.assertIn("technical_full_refresh", keys)
 
     def test_run_job_waits_for_new_execution(self) -> None:
         service = object.__new__(CloudRunAdminOpsService)
