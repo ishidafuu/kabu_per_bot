@@ -17,6 +17,7 @@ from kabu_per_bot.storage.firestore_schema import (
     COLLECTION_TECHNICAL_ALERT_RULES,
     COLLECTION_TECHNICAL_ALERT_STATE,
     COLLECTION_TECHNICAL_INDICATORS_DAILY,
+    COLLECTION_TECHNICAL_PROFILES,
     COLLECTION_TECHNICAL_SYNC_STATE,
     COLLECTION_WATCHLIST,
     COLLECTION_WATCHLIST_HISTORY,
@@ -30,6 +31,7 @@ from kabu_per_bot.storage.firestore_schema import (
     technical_alert_rule_doc_id,
     technical_alert_state_doc_id,
     technical_indicators_daily_doc_id,
+    technical_profile_doc_id,
     technical_sync_state_doc_id,
     watchlist_doc_id,
 )
@@ -74,6 +76,7 @@ class FirestoreSchemaTest(unittest.TestCase):
                 COLLECTION_TECHNICAL_SYNC_STATE,
                 COLLECTION_TECHNICAL_ALERT_RULES,
                 COLLECTION_TECHNICAL_ALERT_STATE,
+                COLLECTION_TECHNICAL_PROFILES,
             },
         )
 
@@ -111,6 +114,7 @@ class FirestoreSchemaTest(unittest.TestCase):
             technical_alert_state_doc_id("3901:tse", "rule-1"),
             "3901:TSE|rule-1",
         )
+        self.assertEqual(technical_profile_doc_id("system_small_growth"), "system_small_growth")
         self.assertEqual(
             earnings_calendar_doc_id("3901:tse", "2026-05-10", "1Q"),
             "3901:TSE|2026-05-10|1Q",

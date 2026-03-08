@@ -24,6 +24,7 @@ COLLECTION_TECHNICAL_INDICATORS_DAILY = "technical_indicators_daily"
 COLLECTION_TECHNICAL_SYNC_STATE = "technical_sync_state"
 COLLECTION_TECHNICAL_ALERT_RULES = "technical_alert_rules"
 COLLECTION_TECHNICAL_ALERT_STATE = "technical_alert_state"
+COLLECTION_TECHNICAL_PROFILES = "technical_profiles"
 
 INITIAL_COLLECTIONS = (
     COLLECTION_WATCHLIST,
@@ -45,6 +46,7 @@ TECHNICAL_COLLECTIONS = (
     COLLECTION_TECHNICAL_SYNC_STATE,
     COLLECTION_TECHNICAL_ALERT_RULES,
     COLLECTION_TECHNICAL_ALERT_STATE,
+    COLLECTION_TECHNICAL_PROFILES,
 )
 
 ALL_COLLECTIONS = INITIAL_COLLECTIONS + TECHNICAL_COLLECTIONS
@@ -102,6 +104,10 @@ def technical_alert_rule_doc_id(ticker: str, rule_id: str) -> str:
 
 def technical_alert_state_doc_id(ticker: str, rule_id: str) -> str:
     return f"{normalize_ticker(ticker)}|{normalize_document_suffix(rule_id, field_name='rule_id')}"
+
+
+def technical_profile_doc_id(profile_id: str) -> str:
+    return normalize_document_suffix(profile_id, field_name="profile_id")
 
 
 def earnings_calendar_doc_id(
