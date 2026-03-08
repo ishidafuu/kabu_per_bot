@@ -12,6 +12,7 @@ from kabu_per_bot.technical import (
     TechnicalIndicatorsDaily,
     is_valid_technical_indicator_field_key,
 )
+from kabu_per_bot.technical_profiles import TechnicalProfile, TechnicalProfileType
 from kabu_per_bot.watchlist import (
     EvaluationNotifyMode,
     MetricType,
@@ -230,6 +231,89 @@ class IrUrlCandidateListResponse(BaseModel):
     items: list[IrUrlCandidateResponse]
     total: int = Field(ge=0)
     source: str = "VERTEX_AI"
+
+
+class TechnicalProfileResponse(BaseModel):
+    profile_id: str
+    profile_type: TechnicalProfileType
+    profile_key: str
+    name: str
+    description: str
+    base_profile_key: str | None = None
+    priority_order: int | None = None
+    manual_assign_recommended: bool = False
+    auto_assign: dict[str, object] = Field(default_factory=dict)
+    thresholds: dict[str, float] = Field(default_factory=dict)
+    weights: dict[str, int] = Field(default_factory=dict)
+    flags: dict[str, bool] = Field(default_factory=dict)
+    strong_alerts: list[str] = Field(default_factory=list)
+    weak_alerts: list[str] = Field(default_factory=list)
+    is_active: bool = True
+    created_at: str | None = None
+    updated_at: str | None = None
+
+    @classmethod
+    def from_domain(cls, value: TechnicalProfile) -> "TechnicalProfileResponse":
+        return cls(
+            profile_id=value.profile_id,
+            profile_type=value.profile_type,
+            profile_key=value.profile_key,
+            name=value.name,
+            description=value.description,
+            base_profile_key=value.base_profile_key,
+            priority_order=value.priority_order,
+            manual_assign_recommended=value.manual_assign_recommended,
+            auto_assign=value.auto_assign,
+            thresholds=value.thresholds,
+            weights=value.weights,
+            flags=value.flags,
+            strong_alerts=list(value.strong_alerts),
+            weak_alerts=list(value.weak_alerts),
+            is_active=value.is_active,
+            created_at=value.created_at,
+            updated_at=value.updated_at,
+        )
+
+
+class TechnicalProfileListResponse(BaseModel):
+    items: list[TechnicalProfileResponse]
+    total: int = Field(ge=0)
+
+
+class TechnicalProfileCreateRequest(BaseModel):
+    profile_key: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1, max_length=500)
+    base_profile_key: str | None = Field(default=None, max_length=80)
+    priority_order: int | None = Field(default=None, ge=1, le=9999)
+    manual_assign_recommended: bool = False
+    auto_assign: dict[str, object] = Field(default_factory=dict)
+    thresholds: dict[str, float] = Field(default_factory=dict)
+    weights: dict[str, int] = Field(default_factory=dict)
+    flags: dict[str, bool] = Field(default_factory=dict)
+    strong_alerts: list[str] = Field(default_factory=list, max_length=100)
+    weak_alerts: list[str] = Field(default_factory=list, max_length=100)
+    is_active: bool = True
+
+
+class TechnicalProfileUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, min_length=1, max_length=500)
+    priority_order: int | None = Field(default=None, ge=1, le=9999)
+    manual_assign_recommended: bool | None = None
+    auto_assign: dict[str, object] | None = None
+    thresholds: dict[str, float] | None = None
+    weights: dict[str, int] | None = None
+    flags: dict[str, bool] | None = None
+    strong_alerts: list[str] | None = Field(default=None, max_length=100)
+    weak_alerts: list[str] | None = Field(default=None, max_length=100)
+    is_active: bool | None = None
+
+
+class TechnicalProfileCloneRequest(BaseModel):
+    profile_key: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
 
 
 class DashboardSummaryResponse(BaseModel):

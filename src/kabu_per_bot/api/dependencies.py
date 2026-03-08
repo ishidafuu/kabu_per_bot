@@ -21,6 +21,7 @@ from kabu_per_bot.metrics import DailyMetric, MetricMedians
 from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
 from kabu_per_bot.signal import NotificationLogEntry
 from kabu_per_bot.technical import TechnicalAlertRule, TechnicalIndicatorsDaily
+from kabu_per_bot.technical_profiles import TechnicalProfile
 from kabu_per_bot.settings import load_settings
 from kabu_per_bot.storage.firestore_daily_metrics_repository import FirestoreDailyMetricsRepository
 from kabu_per_bot.storage.firestore_earnings_calendar_repository import FirestoreEarningsCalendarRepository
@@ -33,6 +34,7 @@ from kabu_per_bot.storage.firestore_technical_alert_rules_repository import Fire
 from kabu_per_bot.storage.firestore_technical_indicators_daily_repository import (
     FirestoreTechnicalIndicatorsDailyRepository,
 )
+from kabu_per_bot.storage.firestore_technical_profiles_repository import FirestoreTechnicalProfilesRepository
 from kabu_per_bot.storage.firestore_watchlist_history_repository import FirestoreWatchlistHistoryRepository
 from kabu_per_bot.storage.firestore_watchlist_repository import FirestoreWatchlistRepository
 from kabu_per_bot.watchlist import WatchlistHistoryRecord, WatchlistService
@@ -152,6 +154,20 @@ class TechnicalIndicatorsReader(Protocol):
         """List recent technical indicators."""
 
 
+class TechnicalProfilesReader(Protocol):
+    def get(self, profile_id: str) -> TechnicalProfile | None:
+        """Get profile by id."""
+
+    def list_all(self, *, include_inactive: bool = True) -> list[TechnicalProfile]:
+        """List profiles."""
+
+    def upsert(self, profile: TechnicalProfile) -> None:
+        """Persist profile."""
+
+    def delete(self, profile_id: str) -> bool:
+        """Delete profile."""
+
+
 class AdminOpsReader(Protocol):
     def list_jobs(self) -> tuple[AdminOpsJob, ...]:
         """List available admin jobs."""
@@ -266,6 +282,11 @@ def create_technical_alert_rules_repository() -> TechnicalAlertRulesReader:
 def create_technical_indicators_repository() -> TechnicalIndicatorsReader:
     client = create_firestore_client()
     return FirestoreTechnicalIndicatorsDailyRepository(client)
+
+
+def create_technical_profiles_repository() -> TechnicalProfilesReader:
+    client = create_firestore_client()
+    return FirestoreTechnicalProfilesRepository(client)
 
 
 def create_admin_ops_service() -> AdminOpsReader:
@@ -393,6 +414,15 @@ def get_technical_indicators_repository(request: Request) -> TechnicalIndicators
         value_key="technical_indicators_repository",
         factory_key="technical_indicators_repository_factory",
         missing_message="technical_indicators_repository が初期化されていません。",
+    )
+
+
+def get_technical_profiles_repository(request: Request) -> TechnicalProfilesReader:
+    return _resolve_dependency(
+        request,
+        value_key="technical_profiles_repository",
+        factory_key="technical_profiles_repository_factory",
+        missing_message="technical_profiles_repository が初期化されていません。",
     )
 
 
