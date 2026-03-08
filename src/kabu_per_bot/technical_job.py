@@ -130,6 +130,10 @@ def run_technical_job(
                 indicators_repo=indicators_repo,
                 sync_state_repo=sync_state_repo,
                 profile=profile,
+                threshold_overrides=item.technical_profile_override_thresholds,
+                flag_overrides=item.technical_profile_override_flags,
+                strong_alerts_override=item.technical_profile_override_strong_alerts,
+                weak_alerts_override=item.technical_profile_override_weak_alerts,
                 calculated_at=now_iso,
             )
             total_fetched += sync_result.fetched_rows

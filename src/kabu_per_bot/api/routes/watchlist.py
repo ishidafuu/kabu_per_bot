@@ -527,6 +527,10 @@ def create_watchlist_item(
             x_executive_accounts=[row.model_dump() for row in payload.x_executive_accounts],
             technical_profile_id=payload.technical_profile_id,
             technical_profile_manual_override=payload.technical_profile_manual_override,
+            technical_profile_override_thresholds=payload.technical_profile_override_thresholds,
+            technical_profile_override_flags=payload.technical_profile_override_flags,
+            technical_profile_override_strong_alerts=payload.technical_profile_override_strong_alerts,
+            technical_profile_override_weak_alerts=payload.technical_profile_override_weak_alerts,
             reason=payload.reason,
         )
     _run_watchlist_registration_warmup(request=request, item=created)
@@ -572,6 +576,10 @@ def update_watchlist_item(
             ),
             technical_profile_id=payload.technical_profile_id,
             technical_profile_manual_override=payload.technical_profile_manual_override,
+            technical_profile_override_thresholds=payload.technical_profile_override_thresholds,
+            technical_profile_override_flags=payload.technical_profile_override_flags,
+            technical_profile_override_strong_alerts=payload.technical_profile_override_strong_alerts,
+            technical_profile_override_weak_alerts=payload.technical_profile_override_weak_alerts,
         )
     return WatchlistItemResponse.from_domain(updated)
 

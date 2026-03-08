@@ -140,12 +140,19 @@ PYTHONPATH=src python scripts/run_technical_profile_auto_assign_job.py --allow-m
 - 判定には最新 `technical_indicators_daily` と `market_cap` を使用する。
 - `value_dividend` は既定では `manual_only` とし、`--allow-manual-fallback` を指定した場合のみ `fallback_rule` を評価する。
 - 標準出力JSONは `processed_tickers` / `updated_tickers` / `skipped_manual_override` / `matched_tickers` / `assignments` を返す。
+- 銘柄単位 override が設定されている場合でも保持され、自動割当では `technical_profile_id` のみを更新する。
 
 ### 4.2 設定の優先順位（実装準拠）
 
 1. `global_settings/runtime`（管理画面 `/ops` から更新）
 2. `.env` / 環境変数
 3. コード既定値
+
+技術プロファイル適用時の優先順位:
+
+1. `watchlist.technical_profile_override_*`
+2. `watchlist.technical_profile_id` で参照する profile
+3. `technical_profile_runtime` の既定値
 
 主な反映先:
 

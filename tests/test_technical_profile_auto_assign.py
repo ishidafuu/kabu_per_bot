@@ -62,6 +62,7 @@ def _item(ticker: str, *, manual_override: bool = False) -> WatchlistItem:
         notify_channel=NotifyChannel.DISCORD,
         notify_timing=NotifyTiming.IMMEDIATE,
         technical_profile_manual_override=manual_override,
+        technical_profile_override_thresholds={"volume_spike": 2.5},
     )
 
 
@@ -123,6 +124,7 @@ class TechnicalProfileAutoAssignTest(unittest.TestCase):
         self.assertEqual(result.updated_tickers, 1)
         self.assertEqual(result.skipped_manual_override, 1)
         self.assertEqual(watchlist_repo.rows["3901:TSE"].technical_profile_id, "system_low_liquidity")
+        self.assertEqual(watchlist_repo.rows["3901:TSE"].technical_profile_override_thresholds["volume_spike"], 2.5)
         self.assertIsNone(watchlist_repo.rows["3902:TSE"].technical_profile_id)
 
     def test_manual_only_profile_uses_fallback_when_enabled(self) -> None:

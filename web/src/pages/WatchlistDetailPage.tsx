@@ -7,6 +7,7 @@ import { toUserMessage } from '../lib/api/errors';
 import { appConfig } from '../lib/config';
 import {
   getTechnicalFieldOption,
+  getRecommendedTechnicalRuleTemplates,
   isBooleanTechnicalField,
   TECHNICAL_FIELD_OPTIONS,
   TECHNICAL_HIGHLIGHT_KEYS,
@@ -119,6 +120,70 @@ const needsUpperThreshold = (operator: TechnicalAlertOperator): boolean => {
   return operator === 'BETWEEN' || operator === 'OUTSIDE';
 };
 
+const toKeyValueLines = (value?: Record<string, number | boolean>): string => {
+  if (!value) {
+    return '';
+  }
+  return Object.entries(value)
+    .map(([key, current]) => `${key}=${String(current)}`)
+    .join('\n');
+};
+
+const toStringLines = (value?: string[] | null): string => {
+  return value?.join('\n') ?? '';
+};
+
+const parseNumberMapLines = (value: string): Record<string, number> => {
+  const result: Record<string, number> = {};
+  for (const rawLine of value.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) {
+      continue;
+    }
+    const separatorIndex = line.indexOf('=');
+    if (separatorIndex <= 0) {
+      throw new Error(`override は key=value 形式で入力してください: ${line}`);
+    }
+    const key = line.slice(0, separatorIndex).trim();
+    const rawNumber = line.slice(separatorIndex + 1).trim();
+    const parsed = Number(rawNumber);
+    if (!key || Number.isNaN(parsed)) {
+      throw new Error(`数値 override が不正です: ${line}`);
+    }
+    result[key] = parsed;
+  }
+  return result;
+};
+
+const parseBooleanMapLines = (value: string): Record<string, boolean> => {
+  const result: Record<string, boolean> = {};
+  for (const rawLine of value.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) {
+      continue;
+    }
+    const separatorIndex = line.indexOf('=');
+    if (separatorIndex <= 0) {
+      throw new Error(`override は key=true|false 形式で入力してください: ${line}`);
+    }
+    const key = line.slice(0, separatorIndex).trim();
+    const rawBoolean = line.slice(separatorIndex + 1).trim().toLowerCase();
+    if (!key || (rawBoolean !== 'true' && rawBoolean !== 'false')) {
+      throw new Error(`bool override が不正です: ${line}`);
+    }
+    result[key] = rawBoolean === 'true';
+  }
+  return result;
+};
+
+const parseStringLines = (value: string): string[] | null => {
+  const rows = value
+    .split('\n')
+    .map((row) => row.trim())
+    .filter((row) => row.length > 0);
+  return rows.length > 0 ? rows : [];
+};
+
 const getOperatorOptions = (fieldKey: string): Array<{ value: TechnicalAlertOperator; label: string }> => {
   return isBooleanTechnicalField(fieldKey) ? BOOLEAN_OPERATOR_OPTIONS : NUMERIC_OPERATOR_OPTIONS;
 };
@@ -204,6 +269,11 @@ export const WatchlistDetailPage = () => {
   const [technicalProfiles, setTechnicalProfiles] = useState<TechnicalProfile[]>([]);
   const [profileIdInput, setProfileIdInput] = useState('');
   const [profileManualOverride, setProfileManualOverride] = useState(false);
+  const [profileOverrideThresholdsInput, setProfileOverrideThresholdsInput] = useState('');
+  const [profileOverrideFlagsInput, setProfileOverrideFlagsInput] = useState('');
+  const [profileOverrideStrongAlertsInput, setProfileOverrideStrongAlertsInput] = useState('');
+  const [profileOverrideWeakAlertsInput, setProfileOverrideWeakAlertsInput] = useState('');
+  const [isProfileFormDirty, setIsProfileFormDirty] = useState(false);
   const [profileMessage, setProfileMessage] = useState('');
   const [profileError, setProfileError] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -278,9 +348,24 @@ export const WatchlistDetailPage = () => {
   }, [technicalProfilesClient]);
 
   useEffect(() => {
+    if (isProfileFormDirty) {
+      return;
+    }
     setProfileIdInput(detail?.item.technical_profile_id ?? '');
     setProfileManualOverride(detail?.item.technical_profile_manual_override ?? false);
-  }, [detail?.item.technical_profile_id, detail?.item.technical_profile_manual_override]);
+    setProfileOverrideThresholdsInput(toKeyValueLines(detail?.item.technical_profile_override_thresholds));
+    setProfileOverrideFlagsInput(toKeyValueLines(detail?.item.technical_profile_override_flags));
+    setProfileOverrideStrongAlertsInput(toStringLines(detail?.item.technical_profile_override_strong_alerts));
+    setProfileOverrideWeakAlertsInput(toStringLines(detail?.item.technical_profile_override_weak_alerts));
+  }, [
+    detail?.item.technical_profile_id,
+    detail?.item.technical_profile_manual_override,
+    detail?.item.technical_profile_override_flags,
+    detail?.item.technical_profile_override_strong_alerts,
+    detail?.item.technical_profile_override_thresholds,
+    detail?.item.technical_profile_override_weak_alerts,
+    isProfileFormDirty,
+  ]);
 
   const handleSearch = (): void => {
     setOffset(0);
@@ -386,6 +471,9 @@ export const WatchlistDetailPage = () => {
   const item = detail?.item;
   const summary = detail?.summary;
   const currentTechnicalProfile = technicalProfiles.find((profile) => profile.profile_id === item?.technical_profile_id) ?? null;
+  const recommendedTemplates = getRecommendedTechnicalRuleTemplates(currentTechnicalProfile?.profile_key);
+  const recommendedTemplateIds = new Set(recommendedTemplates.map((row) => row.id));
+  const otherTemplates = TECHNICAL_RULE_TEMPLATES.filter((row) => !recommendedTemplateIds.has(row.id));
   const technicalRules = detail?.technical_rules.items ?? [];
   const latestTechnical = detail?.latest_technical;
   const latestTechnicalRows = TECHNICAL_HIGHLIGHT_KEYS
@@ -424,11 +512,20 @@ export const WatchlistDetailPage = () => {
     setProfileMessage('');
     setProfileError('');
     try {
+      const technicalProfileOverrideThresholds = parseNumberMapLines(profileOverrideThresholdsInput);
+      const technicalProfileOverrideFlags = parseBooleanMapLines(profileOverrideFlagsInput);
+      const technicalProfileOverrideStrongAlerts = parseStringLines(profileOverrideStrongAlertsInput);
+      const technicalProfileOverrideWeakAlerts = parseStringLines(profileOverrideWeakAlertsInput);
       await client.update(ticker, {
         technical_profile_id: profileIdInput || null,
         technical_profile_manual_override: profileManualOverride,
+        technical_profile_override_thresholds: technicalProfileOverrideThresholds,
+        technical_profile_override_flags: technicalProfileOverrideFlags,
+        technical_profile_override_strong_alerts: technicalProfileOverrideStrongAlerts,
+        technical_profile_override_weak_alerts: technicalProfileOverrideWeakAlerts,
       });
       setProfileMessage('技術プロファイル設定を更新しました。');
+      setIsProfileFormDirty(false);
       await fetchDetail();
     } catch (error) {
       setProfileError(toUserMessage(error));
@@ -564,9 +661,26 @@ export const WatchlistDetailPage = () => {
               <strong>{currentTechnicalProfile?.name ?? '未設定'}</strong>
               <small>{item?.technical_profile_id ?? '-'}</small>
             </div>
+            <div className="watchlist-meta-item">
+              <span className="muted">銘柄単位 override</span>
+              <strong>
+                閾値 {Object.keys(item?.technical_profile_override_thresholds ?? {}).length} /
+                フラグ {Object.keys(item?.technical_profile_override_flags ?? {}).length}
+              </strong>
+              <small>
+                強通知 {item?.technical_profile_override_strong_alerts?.length ?? 0} / 弱通知{' '}
+                {item?.technical_profile_override_weak_alerts?.length ?? 0}
+              </small>
+            </div>
             <label>
               技術プロファイル
-              <select value={profileIdInput} onChange={(event) => setProfileIdInput(event.target.value)}>
+              <select
+                value={profileIdInput}
+                onChange={(event) => {
+                  setProfileIdInput(event.target.value);
+                  setIsProfileFormDirty(true);
+                }}
+              >
                 <option value="">未設定</option>
                 {technicalProfiles.map((profile) => (
                   <option key={profile.profile_id} value={profile.profile_id}>
@@ -579,9 +693,60 @@ export const WatchlistDetailPage = () => {
               <input
                 type="checkbox"
                 checked={profileManualOverride}
-                onChange={(event) => setProfileManualOverride(event.target.checked)}
+                onChange={(event) => {
+                  setProfileManualOverride(event.target.checked);
+                  setIsProfileFormDirty(true);
+                }}
               />
               manual override を有効にする
+            </label>
+            <label>
+              閾値 override
+              <textarea
+                value={profileOverrideThresholdsInput}
+                onChange={(event) => {
+                  setProfileOverrideThresholdsInput(event.target.value);
+                  setIsProfileFormDirty(true);
+                }}
+                rows={5}
+                placeholder={'volume_spike=2.8\nrebound_touch_band_pct=1.5'}
+              />
+            </label>
+            <label>
+              フラグ override
+              <textarea
+                value={profileOverrideFlagsInput}
+                onChange={(event) => {
+                  setProfileOverrideFlagsInput(event.target.value);
+                  setIsProfileFormDirty(true);
+                }}
+                rows={3}
+                placeholder={'suppress_minor_alerts=true'}
+              />
+            </label>
+            <label>
+              strong_alerts override
+              <textarea
+                value={profileOverrideStrongAlertsInput}
+                onChange={(event) => {
+                  setProfileOverrideStrongAlertsInput(event.target.value);
+                  setIsProfileFormDirty(true);
+                }}
+                rows={4}
+                placeholder={'cross_down_ma200\nsharp_drop_high_volume'}
+              />
+            </label>
+            <label>
+              weak_alerts override
+              <textarea
+                value={profileOverrideWeakAlertsInput}
+                onChange={(event) => {
+                  setProfileOverrideWeakAlertsInput(event.target.value);
+                  setIsProfileFormDirty(true);
+                }}
+                rows={4}
+                placeholder={'near_ytd_high_breakout\nturnover_spike'}
+              />
             </label>
             <div className="inline-actions">
               <button type="button" onClick={() => void saveTechnicalProfileAssignment()} disabled={isSavingProfile}>
@@ -726,10 +891,31 @@ export const WatchlistDetailPage = () => {
           <div className="technical-template-section">
             <div className="panel-header technical-template-head">
               <h4>テンプレートから作成</h4>
-              <span className="muted">よく使う条件を下書きとして適用します。</span>
+              <span className="muted">
+                {currentTechnicalProfile
+                  ? `${currentTechnicalProfile.name} 向けおすすめを先頭に表示しています。`
+                  : 'よく使う条件を下書きとして適用します。'}
+              </span>
             </div>
+            {recommendedTemplates.length > 0 && (
+              <div className="technical-template-grid">
+                {recommendedTemplates.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    className="secondary technical-template-card"
+                    onClick={() => {
+                      applyRuleTemplate(template.id);
+                    }}
+                  >
+                    <strong>{template.label}</strong>
+                    <span>{template.description}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="technical-template-grid">
-              {TECHNICAL_RULE_TEMPLATES.map((template) => (
+              {otherTemplates.map((template) => (
                 <button
                   key={template.id}
                   type="button"

@@ -16,6 +16,7 @@ from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
 from kabu_per_bot.signal import NotificationLogEntry
 from kabu_per_bot.storage.firestore_schema import normalize_ticker
 from kabu_per_bot.technical import TechnicalAlertOperator, TechnicalAlertRule, TechnicalIndicatorsDaily
+from kabu_per_bot.technical_profiles import TechnicalProfile, TechnicalProfileType
 from kabu_per_bot.watchlist import (
     CreateResult,
     MetricType,
@@ -282,6 +283,33 @@ class InMemoryAdminOpsService:
             recent_executions=tuple(self.executions[:20]) if include_recent_executions else tuple(),
             latest_skip_reasons=tuple(self.executions[:5]) if include_skip_reasons else tuple(),
         )
+
+
+@dataclass
+class InMemoryTechnicalProfilesRepository:
+    docs: dict[str, TechnicalProfile] = field(default_factory=dict)
+
+    def get(self, profile_id: str) -> TechnicalProfile | None:
+        return self.docs.get(profile_id)
+
+    def list_all(self, *, include_inactive: bool = True) -> list[TechnicalProfile]:
+        values = list(self.docs.values())
+        if not include_inactive:
+            values = [row for row in values if row.is_active]
+        values.sort(
+            key=lambda row: (
+                0 if row.profile_type == TechnicalProfileType.SYSTEM else 1,
+                row.priority_order if row.priority_order is not None else 9999,
+                row.name,
+            )
+        )
+        return values
+
+    def upsert(self, profile: TechnicalProfile) -> None:
+        self.docs[profile.profile_id] = profile
+
+    def delete(self, profile_id: str) -> bool:
+        return self.docs.pop(profile_id, None) is not None
 
     def send_discord_test(self, *, requested_uid: str) -> str:
         _ = requested_uid
@@ -614,6 +642,60 @@ def _seed_technical_indicators() -> list[TechnicalIndicatorsDaily]:
     ]
 
 
+def _seed_technical_profiles() -> dict[str, TechnicalProfile]:
+    rows = [
+        TechnicalProfile(
+            profile_id="system_low_liquidity",
+            profile_type=TechnicalProfileType.SYSTEM,
+            profile_key="low_liquidity",
+            name="低流動性",
+            description="低流動性。単日スパイクのノイズを抑制",
+            priority_order=1,
+            thresholds={"volume_spike": 3.0, "turnover_spike": 3.0},
+            flags={"suppress_minor_alerts": True},
+            strong_alerts=("breakdown_ma75", "sharp_drop_high_volume", "trend_change_to_down"),
+            weak_alerts=("cross_up_ma25", "cross_up_ma75"),
+        ),
+        TechnicalProfile(
+            profile_id="system_large_core",
+            profile_type=TechnicalProfileType.SYSTEM,
+            profile_key="large_core",
+            name="大型・主力",
+            description="大型・主力。200日線と52週高値からの距離を重視",
+            priority_order=2,
+            thresholds={"volume_spike": 1.6, "turnover_spike": 1.6},
+            flags={"use_ma200_weight": True},
+            strong_alerts=("cross_down_ma200", "trend_change_to_down", "sharp_drop_high_volume"),
+            weak_alerts=("cross_up_ma200", "near_ytd_high_breakout", "turnover_spike"),
+        ),
+        TechnicalProfile(
+            profile_id="system_value_dividend",
+            profile_type=TechnicalProfileType.SYSTEM,
+            profile_key="value_dividend",
+            name="高配当・バリュー",
+            description="高配当・バリュー。当面は手動割当推奨",
+            priority_order=3,
+            manual_assign_recommended=True,
+            thresholds={"volume_spike": 1.5, "turnover_spike": 1.5},
+            flags={"use_ma200_weight": True, "use_dividend_event": True},
+            strong_alerts=("cross_down_ma200", "trend_change_to_down", "sharp_drop_high_volume"),
+            weak_alerts=("cross_up_ma200", "near_ytd_high_breakout"),
+        ),
+        TechnicalProfile(
+            profile_id="system_small_growth",
+            profile_type=TechnicalProfileType.SYSTEM,
+            profile_key="small_growth",
+            name="小型成長",
+            description="小型成長。需給・25日線/75日線・高値接近を重視",
+            priority_order=4,
+            thresholds={"volume_spike": 2.0, "turnover_spike": 2.0},
+            strong_alerts=("cross_down_ma75", "trend_change_to_down", "sharp_drop_high_volume"),
+            weak_alerts=("near_ytd_high_breakout", "rebound_from_ma25", "rebound_after_pullback", "turnover_spike"),
+        ),
+    ]
+    return {row.profile_id: row for row in rows}
+
+
 def create_web_e2e_app() -> Any:
     watchlist_repo = InMemoryWatchlistRepository()
     for item in _seed_watchlist_items():
@@ -625,6 +707,7 @@ def create_web_e2e_app() -> Any:
     global_settings_repo = InMemoryGlobalSettingsRepository()
     technical_rules_repo = InMemoryTechnicalAlertRulesRepository(_seed_technical_alert_rules())
     technical_indicators_repo = InMemoryTechnicalIndicatorsRepository(_seed_technical_indicators())
+    technical_profiles_repo = InMemoryTechnicalProfilesRepository(_seed_technical_profiles())
     watchlist_service = WatchlistService(
         watchlist_repo,
         max_items=100,
@@ -638,6 +721,7 @@ def create_web_e2e_app() -> Any:
         global_settings_repository=global_settings_repo,
         technical_alert_rules_repository=technical_rules_repo,
         technical_indicators_repository=technical_indicators_repo,
+        technical_profiles_repository=technical_profiles_repo,
         token_verifier=WebE2ETokenVerifier(),
     )
 

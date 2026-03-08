@@ -136,7 +136,13 @@ def _process_ticker(
         if technical_profiles_repo is not None and item.technical_profile_id is not None
         else None
     )
-    runtime = resolve_technical_profile_runtime_settings(profile)
+    runtime = resolve_technical_profile_runtime_settings(
+        profile,
+        threshold_overrides=item.technical_profile_override_thresholds,
+        flag_overrides=item.technical_profile_override_flags,
+        strong_alerts_override=item.technical_profile_override_strong_alerts,
+        weak_alerts_override=item.technical_profile_override_weak_alerts,
+    )
     rules = technical_alert_rules_repo.list_recent(item.ticker, limit=100)
     for rule in rules:
         if not rule.is_active:

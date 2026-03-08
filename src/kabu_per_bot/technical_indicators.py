@@ -51,6 +51,10 @@ def calculate_technical_indicators_for_bars(
     ticker: str,
     bars: list[PriceBarDaily],
     profile: TechnicalProfile | None = None,
+    threshold_overrides: dict[str, float] | None = None,
+    flag_overrides: dict[str, bool] | None = None,
+    strong_alerts_override: tuple[str, ...] | None = None,
+    weak_alerts_override: tuple[str, ...] | None = None,
     schema_version: int = TECHNICAL_INDICATOR_SCHEMA_VERSION,
     calculated_at: str | None = None,
 ) -> list[TechnicalIndicatorsDaily]:
@@ -60,7 +64,13 @@ def calculate_technical_indicators_for_bars(
     normalized_ticker = normalize_ticker(ticker)
     sorted_bars = sorted(bars, key=lambda row: row.trade_date)
     resolved_calculated_at = calculated_at or datetime.now(timezone.utc).isoformat()
-    runtime = resolve_technical_profile_runtime_settings(profile)
+    runtime = resolve_technical_profile_runtime_settings(
+        profile,
+        threshold_overrides=threshold_overrides,
+        flag_overrides=flag_overrides,
+        strong_alerts_override=strong_alerts_override,
+        weak_alerts_override=weak_alerts_override,
+    )
 
     ma5_values: list[float | None] = []
     ma25_values: list[float | None] = []
@@ -405,6 +415,10 @@ def recalculate_recent_technical_indicators(
     indicators_repo: TechnicalIndicatorsDailyWriter,
     sync_state_repo: TechnicalSyncStateReaderWriter,
     profile: TechnicalProfile | None = None,
+    threshold_overrides: dict[str, float] | None = None,
+    flag_overrides: dict[str, bool] | None = None,
+    strong_alerts_override: tuple[str, ...] | None = None,
+    weak_alerts_override: tuple[str, ...] | None = None,
     read_limit: int = TECHNICAL_READ_WINDOW_DAYS,
     write_limit: int = TECHNICAL_REWRITE_WINDOW_DAYS,
     calculated_at: str | None = None,
@@ -430,6 +444,10 @@ def recalculate_recent_technical_indicators(
         ticker=ticker,
         bars=bars,
         profile=profile,
+        threshold_overrides=threshold_overrides,
+        flag_overrides=flag_overrides,
+        strong_alerts_override=strong_alerts_override,
+        weak_alerts_override=weak_alerts_override,
         schema_version=TECHNICAL_INDICATOR_SCHEMA_VERSION,
         calculated_at=resolved_calculated_at,
     )

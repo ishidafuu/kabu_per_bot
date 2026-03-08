@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from kabu_per_bot.technical_profiles import TechnicalProfile
 
 
+DEFAULT_STRONG_ALERTS: tuple[str, ...] = ()
+DEFAULT_WEAK_ALERTS: tuple[str, ...] = ()
+
+
 @dataclass(frozen=True)
 class TechnicalProfileRuntimeSettings:
     overheated_short: float = 15.0
@@ -23,15 +27,38 @@ class TechnicalProfileRuntimeSettings:
     rebound_touch_band_pct: float = 2.0
     rebound_close_position_min: float = 0.6
     suppress_minor_alerts: bool = False
-    strong_alerts: tuple[str, ...] = ()
-    weak_alerts: tuple[str, ...] = ()
+    strong_alerts: tuple[str, ...] = DEFAULT_STRONG_ALERTS
+    weak_alerts: tuple[str, ...] = DEFAULT_WEAK_ALERTS
 
 
-def resolve_technical_profile_runtime_settings(profile: TechnicalProfile | None) -> TechnicalProfileRuntimeSettings:
+def resolve_technical_profile_runtime_settings(
+    profile: TechnicalProfile | None,
+    *,
+    threshold_overrides: dict[str, float] | None = None,
+    flag_overrides: dict[str, bool] | None = None,
+    strong_alerts_override: tuple[str, ...] | None = None,
+    weak_alerts_override: tuple[str, ...] | None = None,
+) -> TechnicalProfileRuntimeSettings:
     if profile is None:
-        return TechnicalProfileRuntimeSettings()
-    thresholds = profile.thresholds
-    flags = profile.flags
+        thresholds: dict[str, float] = {}
+        flags: dict[str, bool] = {}
+        strong_alerts = DEFAULT_STRONG_ALERTS
+        weak_alerts = DEFAULT_WEAK_ALERTS
+    else:
+        thresholds = dict(profile.thresholds)
+        flags = dict(profile.flags)
+        strong_alerts = tuple(profile.strong_alerts)
+        weak_alerts = tuple(profile.weak_alerts)
+
+    if threshold_overrides:
+        thresholds.update(threshold_overrides)
+    if flag_overrides:
+        flags.update(flag_overrides)
+    if strong_alerts_override is not None:
+        strong_alerts = tuple(strong_alerts_override)
+    if weak_alerts_override is not None:
+        weak_alerts = tuple(weak_alerts_override)
+
     return TechnicalProfileRuntimeSettings(
         overheated_short=float(thresholds.get("overheated_short", 15.0)),
         overheated_mid=float(thresholds.get("overheated_mid", 25.0)),
@@ -51,6 +78,6 @@ def resolve_technical_profile_runtime_settings(profile: TechnicalProfile | None)
         rebound_touch_band_pct=float(thresholds.get("rebound_touch_band_pct", 2.0)),
         rebound_close_position_min=float(thresholds.get("rebound_close_position_min", 0.6)),
         suppress_minor_alerts=bool(flags.get("suppress_minor_alerts", False)),
-        strong_alerts=tuple(profile.strong_alerts),
-        weak_alerts=tuple(profile.weak_alerts),
+        strong_alerts=strong_alerts,
+        weak_alerts=weak_alerts,
     )

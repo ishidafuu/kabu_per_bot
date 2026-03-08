@@ -30,6 +30,10 @@ export interface WatchlistItem {
   x_executive_accounts: XAccountLink[];
   technical_profile_id?: string | null;
   technical_profile_manual_override?: boolean;
+  technical_profile_override_thresholds?: Record<string, number>;
+  technical_profile_override_flags?: Record<string, boolean>;
+  technical_profile_override_strong_alerts?: string[] | null;
+  technical_profile_override_weak_alerts?: string[] | null;
   current_metric_value?: number | null;
   median_1w?: number | null;
   median_3m?: number | null;
@@ -67,6 +71,10 @@ export interface WatchlistCreateInput {
   x_executive_accounts?: XAccountLink[];
   technical_profile_id?: string | null;
   technical_profile_manual_override?: boolean;
+  technical_profile_override_thresholds?: Record<string, number>;
+  technical_profile_override_flags?: Record<string, boolean>;
+  technical_profile_override_strong_alerts?: string[] | null;
+  technical_profile_override_weak_alerts?: string[] | null;
   is_active?: boolean;
   ai_enabled?: boolean;
 }
@@ -87,6 +95,10 @@ export interface WatchlistUpdateInput {
   x_executive_accounts?: XAccountLink[];
   technical_profile_id?: string | null;
   technical_profile_manual_override?: boolean;
+  technical_profile_override_thresholds?: Record<string, number>;
+  technical_profile_override_flags?: Record<string, boolean>;
+  technical_profile_override_strong_alerts?: string[] | null;
+  technical_profile_override_weak_alerts?: string[] | null;
   is_active?: boolean;
   ai_enabled?: boolean;
 }

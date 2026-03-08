@@ -113,6 +113,10 @@ const seedWatchlist: WatchlistItem[] = [
     ai_enabled: true,
     technical_profile_id: 'system_large_core',
     technical_profile_manual_override: false,
+    technical_profile_override_thresholds: { volume_spike: 1.8 },
+    technical_profile_override_flags: {},
+    technical_profile_override_strong_alerts: null,
+    technical_profile_override_weak_alerts: ['near_ytd_high_breakout', 'turnover_spike'],
     next_earnings_date: '2026-03-02',
     next_earnings_time: '15:00',
     next_earnings_days: 7,
@@ -131,6 +135,10 @@ const seedWatchlist: WatchlistItem[] = [
     ai_enabled: false,
     technical_profile_id: 'system_small_growth',
     technical_profile_manual_override: false,
+    technical_profile_override_thresholds: {},
+    technical_profile_override_flags: {},
+    technical_profile_override_strong_alerts: null,
+    technical_profile_override_weak_alerts: null,
   },
   {
     ticker: '7203:TSE',
@@ -191,6 +199,10 @@ const seedWatchlist: WatchlistItem[] = [
     ai_enabled: false,
     technical_profile_id: 'system_value_dividend',
     technical_profile_manual_override: true,
+    technical_profile_override_thresholds: {},
+    technical_profile_override_flags: { suppress_minor_alerts: true },
+    technical_profile_override_strong_alerts: ['cross_down_ma200'],
+    technical_profile_override_weak_alerts: [],
   },
 ];
 
@@ -594,6 +606,10 @@ export class MockWatchlistClient implements WatchlistClient {
       x_executive_accounts: normalizedInput.x_executive_accounts ?? [],
       technical_profile_id: normalizedInput.technical_profile_id ?? null,
       technical_profile_manual_override: normalizedInput.technical_profile_manual_override ?? false,
+      technical_profile_override_thresholds: normalizedInput.technical_profile_override_thresholds ?? {},
+      technical_profile_override_flags: normalizedInput.technical_profile_override_flags ?? {},
+      technical_profile_override_strong_alerts: normalizedInput.technical_profile_override_strong_alerts ?? null,
+      technical_profile_override_weak_alerts: normalizedInput.technical_profile_override_weak_alerts ?? null,
       is_active: normalizedInput.is_active ?? true,
       ai_enabled: true,
     };
@@ -632,6 +648,22 @@ export class MockWatchlistClient implements WatchlistClient {
         input.technical_profile_manual_override !== undefined
           ? input.technical_profile_manual_override
           : current.technical_profile_manual_override ?? false,
+      technical_profile_override_thresholds:
+        input.technical_profile_override_thresholds !== undefined
+          ? input.technical_profile_override_thresholds
+          : current.technical_profile_override_thresholds ?? {},
+      technical_profile_override_flags:
+        input.technical_profile_override_flags !== undefined
+          ? input.technical_profile_override_flags
+          : current.technical_profile_override_flags ?? {},
+      technical_profile_override_strong_alerts:
+        input.technical_profile_override_strong_alerts !== undefined
+          ? input.technical_profile_override_strong_alerts
+          : current.technical_profile_override_strong_alerts ?? null,
+      technical_profile_override_weak_alerts:
+        input.technical_profile_override_weak_alerts !== undefined
+          ? input.technical_profile_override_weak_alerts
+          : current.technical_profile_override_weak_alerts ?? null,
     };
 
     mockStore = [

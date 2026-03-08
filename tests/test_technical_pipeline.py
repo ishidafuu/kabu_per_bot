@@ -329,6 +329,67 @@ class TechnicalPipelineTest(unittest.TestCase):
         self.assertTrue(log_repo.rows[0].is_strong)
         self.assertEqual(log_repo.rows[0].condition_key, "TECH:rule-strong")
 
+    def test_pipeline_uses_stock_level_alert_overrides(self) -> None:
+        indicators_repo = InMemoryTechnicalIndicatorsRepo(
+            rows=[
+                _indicator("2026-03-08", turnover_spike=True),
+                _indicator("2026-03-07", turnover_spike=False),
+            ]
+        )
+        rules_repo = InMemoryTechnicalAlertRulesRepo(
+            rows=[
+                TechnicalAlertRule.create(
+                    ticker="3901:TSE",
+                    rule_name="売買代金スパイク",
+                    field_key="turnover_spike",
+                    operator=TechnicalAlertOperator.IS_TRUE,
+                    rule_id="rule-weak",
+                )
+            ]
+        )
+        state_repo = InMemoryTechnicalAlertStateRepo()
+        log_repo = InMemoryNotificationLogRepo()
+        sender = SpySender()
+        profiles_repo = InMemoryTechnicalProfilesRepo(
+            rows={
+                "custom_profile": TechnicalProfile(
+                    profile_id="custom_profile",
+                    profile_type=TechnicalProfileType.CUSTOM,
+                    profile_key="custom_profile",
+                    name="カスタム",
+                    description="テスト",
+                    weak_alerts=("turnover_spike",),
+                )
+            }
+        )
+
+        item = _watch_item("3901:TSE")
+        item = WatchlistItem(
+            **{
+                **item.__dict__,
+                "technical_profile_override_strong_alerts": ("turnover_spike",),
+                "technical_profile_override_weak_alerts": (),
+            }
+        )
+
+        result = run_technical_alert_pipeline(
+            watchlist_items=[item],
+            technical_indicators_repo=indicators_repo,
+            technical_alert_rules_repo=rules_repo,
+            technical_alert_state_repo=state_repo,
+            notification_log_repo=log_repo,
+            technical_profiles_repo=profiles_repo,
+            sender=sender,
+            config=TechnicalAlertPipelineConfig(
+                trade_date="2026-03-08",
+                cooldown_hours=2,
+                now_iso="2026-03-08T06:30:00+00:00",
+            ),
+        )
+
+        self.assertEqual(result.sent_notifications, 1)
+        self.assertTrue(log_repo.rows[0].is_strong)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -146,9 +146,17 @@ class WatchlistServiceTest(unittest.TestCase):
             "3901:TSE",
             technical_profile_id="system_large_core",
             technical_profile_manual_override=False,
+            technical_profile_override_thresholds={"volume_spike": 2.5},
+            technical_profile_override_flags={"suppress_minor_alerts": True},
+            technical_profile_override_strong_alerts=["cross_down_ma200"],
+            technical_profile_override_weak_alerts=["turnover_spike"],
         )
         self.assertEqual(updated.technical_profile_id, "system_large_core")
         self.assertFalse(updated.technical_profile_manual_override)
+        self.assertEqual(updated.technical_profile_override_thresholds["volume_spike"], 2.5)
+        self.assertTrue(updated.technical_profile_override_flags["suppress_minor_alerts"])
+        self.assertEqual(updated.technical_profile_override_strong_alerts, ("cross_down_ma200",))
+        self.assertEqual(updated.technical_profile_override_weak_alerts, ("turnover_spike",))
 
     def test_evaluation_settings_defaults_and_update(self) -> None:
         repo = InMemoryWatchlistRepository()
@@ -237,12 +245,20 @@ class WatchlistServiceTest(unittest.TestCase):
                 "ai_enabled": "false",
                 "is_active": "1",
                 "technical_profile_manual_override": "1",
+                "technical_profile_override_thresholds": {"volume_spike": "2.5"},
+                "technical_profile_override_flags": {"suppress_minor_alerts": "true"},
+                "technical_profile_override_strong_alerts": ["cross_down_ma200"],
+                "technical_profile_override_weak_alerts": [],
             }
         )
         self.assertTrue(item.always_notify_enabled)
         self.assertTrue(item.ai_enabled)
         self.assertTrue(item.is_active)
         self.assertTrue(item.technical_profile_manual_override)
+        self.assertEqual(item.technical_profile_override_thresholds["volume_spike"], 2.5)
+        self.assertTrue(item.technical_profile_override_flags["suppress_minor_alerts"])
+        self.assertEqual(item.technical_profile_override_strong_alerts, ("cross_down_ma200",))
+        self.assertEqual(item.technical_profile_override_weak_alerts, ())
 
     def test_from_document_legacy_notify_channel_maps_to_discord(self) -> None:
         for legacy_value in ("LINE", "line", "BOTH", "both"):

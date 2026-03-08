@@ -56,6 +56,10 @@ class WatchlistItemResponse(BaseModel):
     x_executive_accounts: list[XAccountLinkResponse]
     technical_profile_id: str | None = None
     technical_profile_manual_override: bool = False
+    technical_profile_override_thresholds: dict[str, float] = Field(default_factory=dict)
+    technical_profile_override_flags: dict[str, bool] = Field(default_factory=dict)
+    technical_profile_override_strong_alerts: list[str] | None = None
+    technical_profile_override_weak_alerts: list[str] | None = None
     current_metric_value: float | None = None
     median_1w: float | None = None
     median_3m: float | None = None
@@ -108,6 +112,18 @@ class WatchlistItemResponse(BaseModel):
             x_executive_accounts=[WatchlistItemResponse.XAccountLinkResponse.from_domain(row) for row in item.x_executive_accounts],
             technical_profile_id=item.technical_profile_id,
             technical_profile_manual_override=item.technical_profile_manual_override,
+            technical_profile_override_thresholds=dict(item.technical_profile_override_thresholds or {}),
+            technical_profile_override_flags=dict(item.technical_profile_override_flags or {}),
+            technical_profile_override_strong_alerts=(
+                list(item.technical_profile_override_strong_alerts)
+                if item.technical_profile_override_strong_alerts is not None
+                else None
+            ),
+            technical_profile_override_weak_alerts=(
+                list(item.technical_profile_override_weak_alerts)
+                if item.technical_profile_override_weak_alerts is not None
+                else None
+            ),
             current_metric_value=current_metric_value,
             median_1w=median_1w,
             median_3m=median_3m,
@@ -154,6 +170,10 @@ class WatchlistCreateRequest(BaseModel):
     x_executive_accounts: list[XAccountLinkRequest] = Field(default_factory=list, max_length=10)
     technical_profile_id: str | None = Field(default=None, max_length=120)
     technical_profile_manual_override: bool = False
+    technical_profile_override_thresholds: dict[str, float] = Field(default_factory=dict)
+    technical_profile_override_flags: dict[str, bool] = Field(default_factory=dict)
+    technical_profile_override_strong_alerts: list[str] | None = None
+    technical_profile_override_weak_alerts: list[str] | None = None
 
     @field_validator("notify_channel")
     @classmethod
@@ -185,6 +205,10 @@ class WatchlistUpdateRequest(BaseModel):
     x_executive_accounts: list[XAccountLinkRequest] | None = Field(default=None, max_length=10)
     technical_profile_id: str | None = Field(default=None, max_length=120)
     technical_profile_manual_override: bool | None = None
+    technical_profile_override_thresholds: dict[str, float] | None = None
+    technical_profile_override_flags: dict[str, bool] | None = None
+    technical_profile_override_strong_alerts: list[str] | None = None
+    technical_profile_override_weak_alerts: list[str] | None = None
 
     @field_validator("notify_channel")
     @classmethod
@@ -216,6 +240,10 @@ class WatchlistUpdateRequest(BaseModel):
                 self.x_executive_accounts is not None,
                 self.technical_profile_id is not None,
                 self.technical_profile_manual_override is not None,
+                self.technical_profile_override_thresholds is not None,
+                self.technical_profile_override_flags is not None,
+                self.technical_profile_override_strong_alerts is not None,
+                self.technical_profile_override_weak_alerts is not None,
             )
         )
 

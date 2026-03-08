@@ -22,6 +22,13 @@ export interface TechnicalRuleTemplate {
   note: string;
 }
 
+const PROFILE_TEMPLATE_IDS = {
+  low_liquidity: ['sharp-drop-high-volume', 'cross-up-ma75', 'turnover-spike'],
+  large_core: ['cross-up-ma200', 'near-ytd-high-breakout', 'turnover-spike'],
+  value_dividend: ['cross-up-ma200', 'near-ytd-high-breakout'],
+  small_growth: ['rebound-ma25', 'near-ytd-high-breakout', 'turnover-spike'],
+} as const;
+
 const CATEGORY_LABELS = {
   price: '価格系',
   trend: 'トレンド系',
@@ -182,6 +189,15 @@ export const TECHNICAL_RULE_TEMPLATES: readonly TechnicalRuleTemplate[] = [
     note: '中期トレンド転換の初動監視向け',
   },
   {
+    id: 'cross-up-ma200',
+    label: '200日線上抜け',
+    description: '長期線を下から上に抜けた日を通知します。',
+    ruleName: '200日線上抜け',
+    fieldKey: 'cross_up_ma200',
+    operator: 'IS_TRUE',
+    note: '大型株や高配当株の長期トレンド転換監視向け',
+  },
+  {
     id: 'new-high-20d',
     label: '20日高値更新',
     description: '短期ブレイクアウトを検知します。',
@@ -255,7 +271,29 @@ export const TECHNICAL_RULE_TEMPLATES: readonly TechnicalRuleTemplate[] = [
     operator: 'IS_TRUE',
     note: '需給悪化の警戒シグナル',
   },
+  {
+    id: 'near-ytd-high-breakout',
+    label: '年初来高値接近ブレイク',
+    description: '高値接近と売買代金増加を伴うブレイク前後を拾います。',
+    ruleName: '年初来高値接近ブレイク',
+    fieldKey: 'near_ytd_high_breakout',
+    operator: 'IS_TRUE',
+    note: '高値圏での出来高伴う上放れ監視向け',
+  },
 ] as const;
+
+export const getRecommendedTechnicalRuleTemplates = (profileKey?: string | null): TechnicalRuleTemplate[] => {
+  if (!profileKey) {
+    return [];
+  }
+  const ids = PROFILE_TEMPLATE_IDS[profileKey as keyof typeof PROFILE_TEMPLATE_IDS];
+  if (!ids) {
+    return [];
+  }
+  return ids
+    .map((id) => TECHNICAL_RULE_TEMPLATES.find((row) => row.id === id))
+    .filter((row): row is TechnicalRuleTemplate => row != null);
+};
 
 export const TECHNICAL_HIGHLIGHT_KEYS = [
   'close_vs_ma25',

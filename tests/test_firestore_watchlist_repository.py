@@ -85,6 +85,10 @@ class FirestoreWatchlistRepositoryTest(unittest.TestCase):
             notify_timing=NotifyTiming.IMMEDIATE,
             technical_profile_id="system_large_core",
             technical_profile_manual_override=True,
+            technical_profile_override_thresholds={"volume_spike": 2.5},
+            technical_profile_override_flags={"suppress_minor_alerts": True},
+            technical_profile_override_strong_alerts=("cross_down_ma200",),
+            technical_profile_override_weak_alerts=("turnover_spike",),
             created_at="2026-02-12T00:00:00+00:00",
             updated_at="2026-02-12T00:00:00+00:00",
         )
@@ -101,6 +105,10 @@ class FirestoreWatchlistRepositoryTest(unittest.TestCase):
             notify_timing=NotifyTiming.AT_21,
             technical_profile_id="system_large_core",
             technical_profile_manual_override=True,
+            technical_profile_override_thresholds={"volume_spike": 3.0},
+            technical_profile_override_flags={"suppress_minor_alerts": False},
+            technical_profile_override_strong_alerts=(),
+            technical_profile_override_weak_alerts=("turnover_spike",),
             created_at=item.created_at,
             updated_at="2026-02-13T00:00:00+00:00",
         )
@@ -111,6 +119,7 @@ class FirestoreWatchlistRepositoryTest(unittest.TestCase):
         self.assertEqual(fetched.metric_type, MetricType.PSR)
         self.assertEqual(fetched.notify_channel, NotifyChannel.OFF)
         self.assertTrue(fetched.technical_profile_manual_override)
+        self.assertEqual(fetched.technical_profile_override_thresholds["volume_spike"], 3.0)
 
         self.assertTrue(repo.delete("3901:TSE"))
         self.assertFalse(repo.delete("3901:TSE"))

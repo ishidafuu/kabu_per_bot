@@ -440,6 +440,10 @@ class WatchlistApiTest(unittest.TestCase):
                 "always_notify_enabled": True,
                 "technical_profile_id": "system_large_core",
                 "technical_profile_manual_override": True,
+                "technical_profile_override_thresholds": {"volume_spike": 2.5},
+                "technical_profile_override_flags": {"suppress_minor_alerts": True},
+                "technical_profile_override_strong_alerts": ["cross_down_ma200"],
+                "technical_profile_override_weak_alerts": ["turnover_spike"],
             },
         )
         self.assertEqual(create_1.status_code, 201)
@@ -452,6 +456,8 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(create_1.json()["evaluation_min_strength"], 4)
         self.assertEqual(create_1.json()["technical_profile_id"], "system_large_core")
         self.assertTrue(create_1.json()["technical_profile_manual_override"])
+        self.assertEqual(create_1.json()["technical_profile_override_thresholds"]["volume_spike"], 2.5)
+        self.assertTrue(create_1.json()["technical_profile_override_flags"]["suppress_minor_alerts"])
 
         create_2 = client.post(
             "/api/v1/watchlist",
@@ -494,6 +500,10 @@ class WatchlistApiTest(unittest.TestCase):
                 "evaluation_min_strength": 5,
                 "technical_profile_id": "custom_swing_plus",
                 "technical_profile_manual_override": False,
+                "technical_profile_override_thresholds": {"turnover_spike": 1.8},
+                "technical_profile_override_flags": {"suppress_minor_alerts": False},
+                "technical_profile_override_strong_alerts": ["sharp_drop_high_volume"],
+                "technical_profile_override_weak_alerts": [],
             },
         )
         self.assertEqual(update.status_code, 200)
@@ -507,6 +517,9 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(update.json()["evaluation_min_strength"], 5)
         self.assertEqual(update.json()["technical_profile_id"], "custom_swing_plus")
         self.assertFalse(update.json()["technical_profile_manual_override"])
+        self.assertEqual(update.json()["technical_profile_override_thresholds"]["turnover_spike"], 1.8)
+        self.assertEqual(update.json()["technical_profile_override_strong_alerts"], ["sharp_drop_high_volume"])
+        self.assertEqual(update.json()["technical_profile_override_weak_alerts"], [])
 
         delete = client.delete("/api/v1/watchlist/3901:TSE", headers=_auth_header())
         self.assertEqual(delete.status_code, 204)

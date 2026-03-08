@@ -248,6 +248,41 @@ class TechnicalIndicatorsTest(unittest.TestCase):
         self.assertFalse(latest.get_value("turnover_spike"))
         self.assertTrue(latest.get_value("liquidity_ok"))
 
+    def test_stock_level_overrides_take_priority_over_profile_thresholds(self) -> None:
+        bars = []
+        start_day = date(2025, 1, 1)
+        for index in range(1, 261):
+            close_price = float(100 + index)
+            bars.append(
+                _bar(
+                    trade_date=(start_day + timedelta(days=index - 1)).isoformat(),
+                    open_price=close_price - 1,
+                    high_price=close_price + 2,
+                    low_price=close_price - 2,
+                    close_price=close_price,
+                    volume=300_000 + index,
+                    turnover_value=150_000_000 + index * 100_000,
+                )
+            )
+        profile = TechnicalProfile(
+            profile_id="custom_large_core_soft",
+            profile_type=TechnicalProfileType.CUSTOM,
+            profile_key="large_core_soft",
+            name="大型緩和",
+            description="テスト用",
+            thresholds={"volume_spike": 10.0},
+        )
+
+        rows = calculate_technical_indicators_for_bars(
+            ticker="3901:TSE",
+            bars=bars,
+            profile=profile,
+            threshold_overrides={"volume_spike": 1.0},
+            calculated_at="2026-03-08T00:00:00+00:00",
+        )
+
+        self.assertTrue(rows[-1].get_value("volume_spike"))
+
 
 if __name__ == "__main__":
     unittest.main()

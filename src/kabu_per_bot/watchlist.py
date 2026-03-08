@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 import logging
@@ -110,6 +110,10 @@ class WatchlistItem:
     x_executive_accounts: tuple[XAccountLink, ...] = ()
     technical_profile_id: str | None = None
     technical_profile_manual_override: bool = False
+    technical_profile_override_thresholds: dict[str, float] = field(default_factory=dict)
+    technical_profile_override_flags: dict[str, bool] = field(default_factory=dict)
+    technical_profile_override_strong_alerts: tuple[str, ...] | None = None
+    technical_profile_override_weak_alerts: tuple[str, ...] | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -163,6 +167,22 @@ class WatchlistItem:
                 field_name="technical_profile_manual_override",
                 default=False,
             ),
+            technical_profile_override_thresholds=_parse_float_map(
+                data.get("technical_profile_override_thresholds"),
+                field_name="technical_profile_override_thresholds",
+            ),
+            technical_profile_override_flags=_parse_bool_map(
+                data.get("technical_profile_override_flags"),
+                field_name="technical_profile_override_flags",
+            ),
+            technical_profile_override_strong_alerts=_parse_optional_string_tuple(
+                data.get("technical_profile_override_strong_alerts"),
+                field_name="technical_profile_override_strong_alerts",
+            ),
+            technical_profile_override_weak_alerts=_parse_optional_string_tuple(
+                data.get("technical_profile_override_weak_alerts"),
+                field_name="technical_profile_override_weak_alerts",
+            ),
             created_at=(str(data["created_at"]) if data.get("created_at") else None),
             updated_at=(str(data["updated_at"]) if data.get("updated_at") else None),
         )
@@ -187,6 +207,18 @@ class WatchlistItem:
             "x_executive_accounts": [entry.to_document() for entry in self.x_executive_accounts],
             "technical_profile_id": self.technical_profile_id,
             "technical_profile_manual_override": self.technical_profile_manual_override,
+            "technical_profile_override_thresholds": dict(self.technical_profile_override_thresholds or {}),
+            "technical_profile_override_flags": dict(self.technical_profile_override_flags or {}),
+            "technical_profile_override_strong_alerts": (
+                list(self.technical_profile_override_strong_alerts)
+                if self.technical_profile_override_strong_alerts is not None
+                else None
+            ),
+            "technical_profile_override_weak_alerts": (
+                list(self.technical_profile_override_weak_alerts)
+                if self.technical_profile_override_weak_alerts is not None
+                else None
+            ),
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -339,6 +371,10 @@ class WatchlistService:
         x_executive_accounts: list[XAccountLink | dict[str, Any]] | tuple[XAccountLink | dict[str, Any], ...] | None = None,
         technical_profile_id: str | None = None,
         technical_profile_manual_override: bool = False,
+        technical_profile_override_thresholds: dict[str, float] | None = None,
+        technical_profile_override_flags: dict[str, bool] | None = None,
+        technical_profile_override_strong_alerts: list[str] | tuple[str, ...] | None = None,
+        technical_profile_override_weak_alerts: list[str] | tuple[str, ...] | None = None,
         now_iso: str | None = None,
         reason: str | None = None,
     ) -> WatchlistItem:
@@ -376,6 +412,20 @@ class WatchlistService:
             x_executive_accounts=_normalize_x_executive_accounts(x_executive_accounts),
             technical_profile_id=_normalize_technical_profile_id(technical_profile_id),
             technical_profile_manual_override=bool(technical_profile_manual_override),
+            technical_profile_override_thresholds=_normalize_float_map(
+                technical_profile_override_thresholds,
+                field_name="technical_profile_override_thresholds",
+            ),
+            technical_profile_override_flags=_normalize_bool_map_input(
+                technical_profile_override_flags,
+                field_name="technical_profile_override_flags",
+            ),
+            technical_profile_override_strong_alerts=_normalize_optional_string_tuple(
+                technical_profile_override_strong_alerts
+            ),
+            technical_profile_override_weak_alerts=_normalize_optional_string_tuple(
+                technical_profile_override_weak_alerts
+            ),
             created_at=current_time,
             updated_at=current_time,
         )
@@ -439,6 +489,10 @@ class WatchlistService:
         x_executive_accounts: list[XAccountLink | dict[str, Any]] | tuple[XAccountLink | dict[str, Any], ...] | None = None,
         technical_profile_id: str | None = None,
         technical_profile_manual_override: bool | None = None,
+        technical_profile_override_thresholds: dict[str, float] | None = None,
+        technical_profile_override_flags: dict[str, bool] | None = None,
+        technical_profile_override_strong_alerts: list[str] | tuple[str, ...] | None = None,
+        technical_profile_override_weak_alerts: list[str] | tuple[str, ...] | None = None,
         now_iso: str | None = None,
     ) -> WatchlistItem:
         normalized_ticker = normalize_ticker(ticker)
@@ -520,6 +574,32 @@ class WatchlistService:
                 existing.technical_profile_manual_override
                 if technical_profile_manual_override is None
                 else bool(technical_profile_manual_override)
+            ),
+            technical_profile_override_thresholds=(
+                existing.technical_profile_override_thresholds
+                if technical_profile_override_thresholds is None
+                else _normalize_float_map(
+                    technical_profile_override_thresholds,
+                    field_name="technical_profile_override_thresholds",
+                )
+            ),
+            technical_profile_override_flags=(
+                existing.technical_profile_override_flags
+                if technical_profile_override_flags is None
+                else _normalize_bool_map_input(
+                    technical_profile_override_flags,
+                    field_name="technical_profile_override_flags",
+                )
+            ),
+            technical_profile_override_strong_alerts=(
+                existing.technical_profile_override_strong_alerts
+                if technical_profile_override_strong_alerts is None
+                else _normalize_optional_string_tuple(technical_profile_override_strong_alerts)
+            ),
+            technical_profile_override_weak_alerts=(
+                existing.technical_profile_override_weak_alerts
+                if technical_profile_override_weak_alerts is None
+                else _normalize_optional_string_tuple(technical_profile_override_weak_alerts)
             ),
             created_at=existing.created_at,
             updated_at=now_iso or self._now_iso(),
@@ -718,3 +798,56 @@ def _normalize_technical_profile_id(value: Any) -> str | None:
     if not normalized:
         return None
     return technical_profile_doc_id(normalized)
+
+
+def _parse_float_map(value: Any, *, field_name: str) -> dict[str, float]:
+    return _normalize_float_map(value, field_name=field_name)
+
+
+def _normalize_float_map(value: Any, *, field_name: str) -> dict[str, float]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise WatchlistError(f"{field_name} must be object.")
+    normalized: dict[str, float] = {}
+    for key, raw in value.items():
+        key_text = str(key).strip()
+        if not key_text:
+            continue
+        try:
+            normalized[key_text] = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise WatchlistError(f"{field_name}.{key_text} must be number.") from exc
+    return normalized
+
+
+def _parse_bool_map(value: Any, *, field_name: str) -> dict[str, bool]:
+    return _normalize_bool_map_input(value, field_name=field_name)
+
+
+def _normalize_bool_map_input(value: Any, *, field_name: str) -> dict[str, bool]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise WatchlistError(f"{field_name} must be object.")
+    normalized: dict[str, bool] = {}
+    for key, raw in value.items():
+        key_text = str(key).strip()
+        if not key_text:
+            continue
+        normalized[key_text] = _coerce_bool(raw, field_name=f"{field_name}.{key_text}", default=False)
+    return normalized
+
+
+def _parse_optional_string_tuple(value: Any, *, field_name: str) -> tuple[str, ...] | None:
+    if value is None:
+        return None
+    if not isinstance(value, (list, tuple)):
+        raise WatchlistError(f"{field_name} must be list.")
+    return _normalize_optional_string_tuple(value)
+
+
+def _normalize_optional_string_tuple(value: list[str] | tuple[str, ...] | None) -> tuple[str, ...] | None:
+    if value is None:
+        return None
+    return tuple(str(item).strip() for item in value if str(item).strip())

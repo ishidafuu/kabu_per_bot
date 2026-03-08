@@ -98,6 +98,10 @@ def auto_assign_technical_profiles(
                 x_executive_accounts=item.x_executive_accounts,
                 technical_profile_id=matched_profile.profile_id,
                 technical_profile_manual_override=False,
+                technical_profile_override_thresholds=item.technical_profile_override_thresholds,
+                technical_profile_override_flags=item.technical_profile_override_flags,
+                technical_profile_override_strong_alerts=item.technical_profile_override_strong_alerts,
+                technical_profile_override_weak_alerts=item.technical_profile_override_weak_alerts,
                 created_at=item.created_at,
                 updated_at=resolved_now_iso,
             )
