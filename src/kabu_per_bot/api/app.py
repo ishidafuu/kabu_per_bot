@@ -14,6 +14,7 @@ from kabu_per_bot.api.dependencies import (
     MetricMediansReader,
     NotificationLogReader,
     SignalStateReader,
+    TechnicalAlertRulesReader,
     WatchlistHistoryReader,
     create_daily_metrics_repository,
     create_earnings_calendar_repository,
@@ -24,6 +25,7 @@ from kabu_per_bot.api.dependencies import (
     create_notification_log_repository,
     create_global_settings_repository,
     create_signal_state_repository,
+    create_technical_alert_rules_repository,
     create_watchlist_history_repository,
     create_watchlist_service,
 )
@@ -43,6 +45,7 @@ def create_app(
     metric_medians_repository: MetricMediansReader | None = None,
     signal_state_repository: SignalStateReader | None = None,
     earnings_calendar_repository: EarningsCalendarReader | None = None,
+    technical_alert_rules_repository: TechnicalAlertRulesReader | None = None,
     admin_ops_service: AdminOpsReader | None = None,
     global_settings_repository: GlobalSettingsRepository | None = None,
     ir_url_candidate_service: IrUrlCandidateReader | None = None,
@@ -90,6 +93,9 @@ def create_app(
 
     app.state.earnings_calendar_repository = earnings_calendar_repository
     app.state.earnings_calendar_repository_factory = create_earnings_calendar_repository
+
+    app.state.technical_alert_rules_repository = technical_alert_rules_repository
+    app.state.technical_alert_rules_repository_factory = create_technical_alert_rules_repository
 
     app.state.admin_ops_service = admin_ops_service
     app.state.admin_ops_service_factory = create_admin_ops_service

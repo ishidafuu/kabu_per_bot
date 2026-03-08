@@ -14,9 +14,11 @@ from fastapi import APIRouter, Depends, Query, Request, Response, status
 from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.api.dependencies import (
     NotificationLogReader,
+    TechnicalAlertRulesReader,
     WatchlistHistoryReader,
     create_firestore_client,
     get_notification_log_repository,
+    get_technical_alert_rules_repository,
     get_ir_url_candidate_service,
     get_watchlist_history_repository,
     get_watchlist_service,
@@ -46,6 +48,10 @@ from kabu_per_bot.api.schemas import (
     IrUrlCandidateSuggestRequest,
     NotificationLogItemResponse,
     NotificationLogListResponse,
+    TechnicalAlertRuleCreateRequest,
+    TechnicalAlertRuleListResponse,
+    TechnicalAlertRuleResponse,
+    TechnicalAlertRuleUpdateRequest,
     WatchlistCreateRequest,
     WatchlistDetailResponse,
     WatchlistDetailSummaryResponse,
@@ -63,6 +69,7 @@ from kabu_per_bot.signal import NotificationLogEntry, SignalState, evaluate_cool
 from kabu_per_bot.storage.firestore_daily_metrics_repository import FirestoreDailyMetricsRepository
 from kabu_per_bot.storage.firestore_metric_medians_repository import FirestoreMetricMediansRepository
 from kabu_per_bot.storage.firestore_signal_state_repository import FirestoreSignalStateRepository
+from kabu_per_bot.technical import TechnicalAlertRule
 from kabu_per_bot.watchlist import (
     MetricType,
     NotifyChannel,
@@ -299,6 +306,7 @@ def get_watchlist_item_detail(
         offset=history_offset,
     )
     history_total = _call_repository(watchlist_history_repo.count_timeline, ticker=item.ticker)
+    technical_rules = _load_technical_alert_rules_optional(request=request, ticker=item.ticker)
 
     return WatchlistDetailResponse(
         item=item_response,
@@ -311,7 +319,101 @@ def get_watchlist_item_detail(
             items=[WatchlistHistoryItemResponse.from_domain(row) for row in history_rows],
             total=history_total,
         ),
+        technical_rules=TechnicalAlertRuleListResponse(
+            items=[TechnicalAlertRuleResponse.from_domain(row) for row in technical_rules],
+            total=len(technical_rules),
+        ),
     )
+
+
+@router.get(
+    "/{ticker}/technical-alert-rules",
+    response_model=TechnicalAlertRuleListResponse,
+    responses=error_responses(401, 403, 404, 422, 500),
+)
+def list_technical_alert_rules(
+    ticker: str,
+    service: WatchlistService = Depends(get_watchlist_service),
+    technical_alert_rules_repo: TechnicalAlertRulesReader = Depends(get_technical_alert_rules_repository),
+) -> TechnicalAlertRuleListResponse:
+    with _translate_watchlist_error():
+        item = service.get_item(ticker)
+    rows = technical_alert_rules_repo.list_recent(item.ticker, limit=100)
+    return TechnicalAlertRuleListResponse(
+        items=[TechnicalAlertRuleResponse.from_domain(row) for row in rows],
+        total=len(rows),
+    )
+
+
+@router.post(
+    "/{ticker}/technical-alert-rules",
+    response_model=TechnicalAlertRuleResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses=error_responses(401, 403, 404, 422, 500),
+)
+def create_technical_alert_rule(
+    ticker: str,
+    payload: TechnicalAlertRuleCreateRequest,
+    service: WatchlistService = Depends(get_watchlist_service),
+    technical_alert_rules_repo: TechnicalAlertRulesReader = Depends(get_technical_alert_rules_repository),
+) -> TechnicalAlertRuleResponse:
+    with _translate_watchlist_error():
+        item = service.get_item(ticker)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        rule = TechnicalAlertRule.create(
+            ticker=item.ticker,
+            rule_name=payload.rule_name,
+            field_key=payload.field_key,
+            operator=payload.operator,
+            threshold_value=payload.threshold_value,
+            threshold_upper=payload.threshold_upper,
+            is_active=payload.is_active,
+            note=payload.note,
+            created_at=now_iso,
+            updated_at=now_iso,
+        )
+    except ValueError as exc:
+        raise UnprocessableEntityError(str(exc)) from exc
+    technical_alert_rules_repo.upsert(rule)
+    return TechnicalAlertRuleResponse.from_domain(rule)
+
+
+@router.patch(
+    "/{ticker}/technical-alert-rules/{rule_id}",
+    response_model=TechnicalAlertRuleResponse,
+    responses=error_responses(401, 403, 404, 422, 500),
+)
+def update_technical_alert_rule(
+    ticker: str,
+    rule_id: str,
+    payload: TechnicalAlertRuleUpdateRequest,
+    service: WatchlistService = Depends(get_watchlist_service),
+    technical_alert_rules_repo: TechnicalAlertRulesReader = Depends(get_technical_alert_rules_repository),
+) -> TechnicalAlertRuleResponse:
+    with _translate_watchlist_error():
+        item = service.get_item(ticker)
+    existing = technical_alert_rules_repo.get(item.ticker, rule_id)
+    if existing is None:
+        raise NotFoundError("technical alert rule が見つかりません。")
+    try:
+        updated = TechnicalAlertRule(
+            rule_id=existing.rule_id,
+            ticker=item.ticker,
+            rule_name=payload.rule_name if payload.rule_name is not None else existing.rule_name,
+            field_key=payload.field_key if payload.field_key is not None else existing.field_key,
+            operator=payload.operator if payload.operator is not None else existing.operator,
+            threshold_value=payload.threshold_value if payload.threshold_value is not None else existing.threshold_value,
+            threshold_upper=payload.threshold_upper if payload.threshold_upper is not None else existing.threshold_upper,
+            is_active=payload.is_active if payload.is_active is not None else existing.is_active,
+            note=payload.note if payload.note is not None else existing.note,
+            created_at=existing.created_at,
+            updated_at=datetime.now(timezone.utc).isoformat(),
+        )
+    except ValueError as exc:
+        raise UnprocessableEntityError(str(exc)) from exc
+    technical_alert_rules_repo.upsert(updated)
+    return TechnicalAlertRuleResponse.from_domain(updated)
 
 
 @router.get(
@@ -640,6 +742,27 @@ def _load_recent_notifications_by_ticker_optional(
             rows = []
         rows_by_ticker[ticker] = rows
     return rows_by_ticker
+
+
+def _load_technical_alert_rules_optional(*, request: Request, ticker: str) -> list[TechnicalAlertRule]:
+    try:
+        repository = _resolve_status_dependency(
+            request=request,
+            value_key="technical_alert_rules_repository",
+            factory_key="technical_alert_rules_repository_factory",
+        )
+    except InternalServerError as exc:
+        LOGGER.warning("technical alert rules の取得をスキップ: ticker=%s reason=%s", ticker, exc)
+        return []
+
+    try:
+        list_recent = getattr(repository, "list_recent", None)
+        if callable(list_recent):
+            return _call_repository(list_recent, ticker=ticker, limit=100)
+        return []
+    except InternalServerError as exc:
+        LOGGER.warning("technical alert rules の取得をスキップ: ticker=%s reason=%s", ticker, exc)
+        return []
 
 
 def _resolve_cooldown_hours(*, request: Request) -> int:

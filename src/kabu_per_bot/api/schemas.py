@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from kabu_per_bot.grok_sns_settings import GrokSnsSettings, validate_grok_sns_settings
 from kabu_per_bot.immediate_schedule import ImmediateSchedule, validate_immediate_schedule
 from kabu_per_bot.signal import NotificationLogEntry
+from kabu_per_bot.technical import TechnicalAlertOperator, TechnicalAlertRule, is_valid_technical_indicator_field_key
 from kabu_per_bot.watchlist import (
     EvaluationNotifyMode,
     MetricType,
@@ -508,8 +509,96 @@ class CommitteeLogSummaryResponse(BaseModel):
     strength_distribution: dict[str, int]
 
 
+class TechnicalAlertRuleResponse(BaseModel):
+    rule_id: str
+    ticker: str
+    rule_name: str
+    field_key: str
+    operator: TechnicalAlertOperator
+    threshold_value: float | None = None
+    threshold_upper: float | None = None
+    is_active: bool
+    note: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+    @classmethod
+    def from_domain(cls, rule: TechnicalAlertRule) -> "TechnicalAlertRuleResponse":
+        return cls(
+            rule_id=rule.rule_id,
+            ticker=rule.ticker,
+            rule_name=rule.rule_name,
+            field_key=rule.field_key,
+            operator=rule.operator,
+            threshold_value=rule.threshold_value,
+            threshold_upper=rule.threshold_upper,
+            is_active=rule.is_active,
+            note=rule.note,
+            created_at=rule.created_at,
+            updated_at=rule.updated_at,
+        )
+
+
+class TechnicalAlertRuleListResponse(BaseModel):
+    items: list[TechnicalAlertRuleResponse]
+    total: int = Field(ge=0)
+
+
+class TechnicalAlertRuleCreateRequest(BaseModel):
+    rule_name: str = Field(min_length=1, max_length=120)
+    field_key: str
+    operator: TechnicalAlertOperator
+    threshold_value: float | None = None
+    threshold_upper: float | None = None
+    is_active: bool = True
+    note: str | None = Field(default=None, max_length=200)
+
+    @field_validator("field_key")
+    @classmethod
+    def validate_field_key(cls, value: str) -> str:
+        normalized = value.strip()
+        if not is_valid_technical_indicator_field_key(normalized):
+            raise ValueError(f"unsupported technical field_key: {value}")
+        return normalized
+
+
+class TechnicalAlertRuleUpdateRequest(BaseModel):
+    rule_name: str | None = Field(default=None, min_length=1, max_length=120)
+    field_key: str | None = None
+    operator: TechnicalAlertOperator | None = None
+    threshold_value: float | None = None
+    threshold_upper: float | None = None
+    is_active: bool | None = None
+    note: str | None = Field(default=None, max_length=200)
+
+    @field_validator("field_key")
+    @classmethod
+    def validate_optional_field_key(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not is_valid_technical_indicator_field_key(normalized):
+            raise ValueError(f"unsupported technical field_key: {value}")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_non_empty(self) -> "TechnicalAlertRuleUpdateRequest":
+        if (
+            self.rule_name is None
+            and self.field_key is None
+            and self.operator is None
+            and self.threshold_value is None
+            and self.threshold_upper is None
+            and self.is_active is None
+            and self.note is None
+        ):
+            raise ValueError("更新内容が指定されていません。")
+        return self
+
+
 class WatchlistDetailResponse(BaseModel):
     item: WatchlistItemResponse
     summary: WatchlistDetailSummaryResponse
     notifications: NotificationLogListResponse
     history: WatchlistHistoryListResponse
+    technical_rules: TechnicalAlertRuleListResponse

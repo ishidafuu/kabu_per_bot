@@ -17,6 +17,7 @@ from kabu_per_bot.metrics import DailyMetric, MetricMedians
 from kabu_per_bot.signal import NotificationLogEntry, SignalState
 from kabu_per_bot.ir_url_candidates import IrUrlCandidate, IrUrlSuggestionError
 from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
+from kabu_per_bot.technical import TechnicalAlertOperator, TechnicalAlertRule
 from kabu_per_bot.storage.firestore_schema import normalize_ticker
 from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchPriority
 from kabu_per_bot.watchlist import CreateResult, WatchlistHistoryAction, WatchlistHistoryRecord, WatchlistItem, WatchlistService
@@ -160,6 +161,32 @@ class FakeGlobalSettingsRepository:
         return self.settings
 
 
+@dataclass
+class FakeTechnicalAlertRulesRepository:
+    rows: list[TechnicalAlertRule] = field(default_factory=list)
+
+    def get(self, ticker: str, rule_id: str) -> TechnicalAlertRule | None:
+        normalized = normalize_ticker(ticker)
+        for row in self.rows:
+            if row.ticker == normalized and row.rule_id == rule_id:
+                return row
+        return None
+
+    def upsert(self, rule: TechnicalAlertRule) -> None:
+        self.rows = [
+            row
+            for row in self.rows
+            if not (row.ticker == rule.ticker and row.rule_id == rule.rule_id)
+        ]
+        self.rows.append(rule)
+
+    def list_recent(self, ticker: str, *, limit: int) -> list[TechnicalAlertRule]:
+        normalized = normalize_ticker(ticker)
+        values = [row for row in self.rows if row.ticker == normalized]
+        values.sort(key=lambda row: row.updated_at or row.created_at or "", reverse=True)
+        return values[:limit]
+
+
 class FakeTokenVerifier:
     def verify(self, token: str) -> dict[str, str]:
         if token == "valid-token":
@@ -212,6 +239,7 @@ def _build_client(
     metric_medians_repository=None,
     signal_state_repository=None,
     earnings_calendar_repository=None,
+    technical_alert_rules_repository=None,
 ) -> TestClient:
     repository = InMemoryWatchlistRepository()
     service = WatchlistService(repository, max_items=max_items)
@@ -223,6 +251,7 @@ def _build_client(
         metric_medians_repository=metric_medians_repository,
         signal_state_repository=signal_state_repository,
         earnings_calendar_repository=earnings_calendar_repository,
+        technical_alert_rules_repository=technical_alert_rules_repository,
         ir_url_candidate_service=ir_url_candidate_service,
         token_verifier=FakeTokenVerifier(),
     )
@@ -537,6 +566,7 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(body["notifications"]["items"][0]["body"], "【超PER割安】3901:TSE 富士フイルム ...")
         self.assertEqual(body["history"]["total"], 1)
         self.assertEqual(body["history"]["items"][0]["reason"], "初回登録")
+        self.assertEqual(body["technical_rules"]["total"], 0)
 
     def test_watchlist_detail_supports_notification_filters(self) -> None:
         now = datetime.now(timezone.utc).isoformat()
@@ -925,9 +955,124 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(schema.status_code, 200)
         paths = schema.json()["paths"]
         self.assertIn("/api/v1/watchlist/{ticker}/detail", paths)
+        self.assertIn("/api/v1/watchlist/{ticker}/technical-alert-rules", paths)
         post_responses = paths["/api/v1/watchlist"]["post"]["responses"]
         for status_code in ("401", "403", "409", "422", "429", "500"):
             self.assertIn(status_code, post_responses)
+
+    def test_technical_alert_rule_crud(self) -> None:
+        technical_repo = FakeTechnicalAlertRulesRepository()
+        client = _build_client(technical_alert_rules_repository=technical_repo)
+
+        client.post(
+            "/api/v1/watchlist",
+            headers=_auth_header(),
+            json={
+                "ticker": "3901:TSE",
+                "name": "富士フイルム",
+                "metric_type": "PER",
+                "notify_channel": "DISCORD",
+                "notify_timing": "IMMEDIATE",
+            },
+        )
+
+        create_response = client.post(
+            "/api/v1/watchlist/3901:TSE/technical-alert-rules",
+            headers=_auth_header(),
+            json={
+                "rule_name": "25日線上抜け",
+                "field_key": "close_vs_ma25",
+                "operator": "GTE",
+                "threshold_value": 0,
+                "note": "終値基準",
+            },
+        )
+        self.assertEqual(create_response.status_code, 201)
+        created = create_response.json()
+        self.assertEqual(created["field_key"], "close_vs_ma25")
+        self.assertEqual(created["operator"], "GTE")
+
+        list_response = client.get(
+            "/api/v1/watchlist/3901:TSE/technical-alert-rules",
+            headers=_auth_header(),
+        )
+        self.assertEqual(list_response.status_code, 200)
+        listed = list_response.json()
+        self.assertEqual(listed["total"], 1)
+
+        patch_response = client.patch(
+            f"/api/v1/watchlist/3901:TSE/technical-alert-rules/{created['rule_id']}",
+            headers=_auth_header(),
+            json={"is_active": False},
+        )
+        self.assertEqual(patch_response.status_code, 200)
+        self.assertFalse(patch_response.json()["is_active"])
+
+    def test_technical_alert_rule_rejects_invalid_field_key(self) -> None:
+        technical_repo = FakeTechnicalAlertRulesRepository()
+        client = _build_client(technical_alert_rules_repository=technical_repo)
+
+        client.post(
+            "/api/v1/watchlist",
+            headers=_auth_header(),
+            json={
+                "ticker": "3901:TSE",
+                "name": "富士フイルム",
+                "metric_type": "PER",
+                "notify_channel": "DISCORD",
+                "notify_timing": "IMMEDIATE",
+            },
+        )
+
+        response = client.post(
+            "/api/v1/watchlist/3901:TSE/technical-alert-rules",
+            headers=_auth_header(),
+            json={
+                "rule_name": "invalid",
+                "field_key": "unknown_field",
+                "operator": "GTE",
+                "threshold_value": 0,
+            },
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_watchlist_detail_includes_technical_rules(self) -> None:
+        technical_repo = FakeTechnicalAlertRulesRepository(
+            rows=[
+                TechnicalAlertRule.create(
+                    ticker="3901:TSE",
+                    rule_name="25日線上抜け",
+                    field_key="close_vs_ma25",
+                    operator=TechnicalAlertOperator.GTE,
+                    threshold_value=0.0,
+                    created_at="2026-03-08T00:00:00+00:00",
+                    updated_at="2026-03-08T00:00:00+00:00",
+                    rule_id="rule-1",
+                )
+            ]
+        )
+        client = _build_client(
+            technical_alert_rules_repository=technical_repo,
+            notification_log_repository=FakeNotificationLogRepository(),
+            watchlist_history_repository=FakeWatchlistHistoryRepository(),
+        )
+        client.post(
+            "/api/v1/watchlist",
+            headers=_auth_header(),
+            json={
+                "ticker": "3901:TSE",
+                "name": "富士フイルム",
+                "metric_type": "PER",
+                "notify_channel": "DISCORD",
+                "notify_timing": "IMMEDIATE",
+            },
+        )
+        response = client.get("/api/v1/watchlist/3901:TSE/detail", headers=_auth_header())
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["technical_rules"]["total"], 1)
+        self.assertEqual(body["technical_rules"]["items"][0]["rule_id"], "rule-1")
 
     def test_watchlist_list_include_status(self) -> None:
         repository = InMemoryWatchlistRepository()
