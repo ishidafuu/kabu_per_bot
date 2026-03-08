@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 from kabu_per_bot.admin_ops import (
     AdminOpsConfigError,
     AdminOpsJob,
+    BackfillRunRequest,
     CloudRunAdminOpsService,
     JobExecution,
     TickerScopedRunRequest,
@@ -88,7 +89,67 @@ class AdminOpsServiceTest(unittest.TestCase):
         self.assertEqual(actual.execution_name, "new")
         self.assertEqual(
             service._request_json.call_args.kwargs["payload"],
-            {"overrides": {"containerOverrides": [{"args": ["--tickers", "6501:TSE"]}]}},
+            {
+                "overrides": {
+                    "containerOverrides": [{"args": ["scripts/run_technical_full_refresh_job.py", "--tickers", "6501:TSE"]}]
+                }
+            },
+        )
+
+    def test_run_job_passes_script_and_backfill_args(self) -> None:
+        service = object.__new__(CloudRunAdminOpsService)
+        job = AdminOpsJob(key="backfill", label="バックフィル", job_name="kabu-backfill")
+        service._jobs = (job,)
+        service._job_index = {job.key: job}
+        service._base_run_url = "https://example.com"
+        service._request_json = Mock(return_value={})
+        new = JobExecution(
+            job_key="backfill",
+            job_label="バックフィル",
+            job_name="kabu-backfill",
+            execution_name="new",
+            status="PENDING",
+            create_time=datetime.now(timezone.utc).isoformat(),
+            start_time=None,
+            completion_time=None,
+            message=None,
+            log_uri=None,
+            skip_reasons=(),
+            skip_reason_error=None,
+        )
+        service.list_executions = Mock(side_effect=[(), (new,)])
+
+        actual = service.run_job(
+            job_key="backfill",
+            backfill=BackfillRunRequest(
+                from_date="2026-02-01",
+                to_date="2026-02-10",
+                tickers=("6501:TSE",),
+                dry_run=True,
+            ),
+        )
+
+        self.assertEqual(actual.execution_name, "new")
+        self.assertEqual(
+            service._request_json.call_args.kwargs["payload"],
+            {
+                "overrides": {
+                    "containerOverrides": [
+                        {
+                            "args": [
+                                "scripts/run_backfill_daily_metrics.py",
+                                "--from-date",
+                                "2026-02-01",
+                                "--to-date",
+                                "2026-02-10",
+                                "--tickers",
+                                "6501:TSE",
+                                "--dry-run",
+                            ]
+                        }
+                    ]
+                }
+            },
         )
 
     def test_get_summary_skip_only_queries_daily_jobs_only(self) -> None:

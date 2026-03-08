@@ -15,6 +15,11 @@ _RUNNING_STATUSES = {"PENDING", "RUNNING"}
 _DAILY_JOB_KEYS = {"daily", "daily_at21", "immediate_open", "immediate_close", "technical_daily"}
 _RUN_LOOKUP_TIMEOUT_SECONDS = 12
 _RUN_LOOKUP_INTERVAL_SECONDS = 0.5
+_JOB_BASE_ARGS: dict[str, list[str]] = {
+    "backfill": ["scripts/run_backfill_daily_metrics.py"],
+    "technical_daily": ["scripts/run_technical_daily_job.py"],
+    "technical_full_refresh": ["scripts/run_technical_full_refresh_job.py"],
+}
 
 
 class AdminOpsError(RuntimeError):
@@ -134,13 +139,21 @@ class CloudRunAdminOpsService:
                 raise AdminOpsConfigError("backfill 実行には from/to の指定が必要です。")
             if ticker_scope is not None:
                 raise AdminOpsConfigError("ticker指定は job=backfill では使用できません。")
-            payload = {"overrides": {"containerOverrides": [{"args": _build_backfill_args(backfill)}]}}
+            payload = {
+                "overrides": {
+                    "containerOverrides": [{"args": _build_job_args(job.key, _build_backfill_args(backfill))}]
+                }
+            }
         elif backfill is not None:
             raise AdminOpsConfigError("backfill指定は job=backfill でのみ使用できます。")
         elif ticker_scope is not None:
             if job.key not in {"technical_daily", "technical_full_refresh"}:
                 raise AdminOpsConfigError("ticker指定は技術ジョブでのみ使用できます。")
-            payload = {"overrides": {"containerOverrides": [{"args": _build_ticker_scope_args(ticker_scope)}]}}
+            payload = {
+                "overrides": {
+                    "containerOverrides": [{"args": _build_job_args(job.key, _build_ticker_scope_args(ticker_scope))}]
+                }
+            }
 
         requested_at = datetime.now(timezone.utc)
         self._request_json(
@@ -550,7 +563,6 @@ def _build_backfill_args(request: BackfillRunRequest) -> list[str]:
     if from_date > to_date:
         raise AdminOpsConfigError("from_date は to_date 以下で指定してください。")
     args = [
-        "scripts/run_backfill_daily_metrics.py",
         "--from-date",
         from_date,
         "--to-date",
@@ -569,3 +581,10 @@ def _build_backfill_args(request: BackfillRunRequest) -> list[str]:
 
 def _build_ticker_scope_args(request: TickerScopedRunRequest) -> list[str]:
     return ["--tickers", ",".join(request.tickers)]
+
+
+def _build_job_args(job_key: str, extra_args: list[str]) -> list[str]:
+    base_args = _JOB_BASE_ARGS.get(job_key)
+    if not base_args:
+        raise AdminOpsConfigError(f"job={job_key} の override args 定義がありません。")
+    return [*base_args, *extra_args]
