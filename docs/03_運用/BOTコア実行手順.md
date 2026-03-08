@@ -54,6 +54,8 @@ PYTHONPATH=src python -m unittest discover -s tests
 | Grok SNS通知 | `scripts/run_intelligence_job.py --intel-source grok_only --respect-grok-schedule` | `IMMEDIATE/AT_21`（`--execution-mode`準拠） | `grok_sns.enabled=true` かつ JST定時一致時のみ |
 | 基礎調査（月次） | `scripts/run_baseline_research_job.py` | なし（委員会評価入力データ更新） | JSTで毎月1日かつ `baseline_monthly_scheduled_time` 一致時のみ |
 | 増分バックフィル | `scripts/run_incremental_backfill_job.py` | なし（補完処理） | 常に実行 |
+| 技術日次 | `scripts/run_technical_daily_job.py` | 技術アラート（Discord） | 常に実行 |
+| 技術全件再同期 | `scripts/run_technical_full_refresh_job.py` | なし（通知抑止で再同期のみ実行） | 常に実行 |
 
 ```bash
 PYTHONPATH=src python scripts/run_daily_job.py
@@ -102,6 +104,28 @@ PYTHONPATH=src python scripts/run_immediate_window_job.py --window close --disco
 - `global_settings/runtime.immediate_schedule` の時間帯・間隔に一致した時刻のみ実処理する。
 - 帯外や間隔未一致の時刻は `processed=0 sent=0 skipped=0 errors=0` を返して正常終了する。
 
+価格・需給テクニカルの日次ジョブを実行する場合:
+
+```bash
+PYTHONPATH=src python scripts/run_technical_daily_job.py --discord-webhook-url <DISCORD_WEBHOOK_URL_DAILY>
+PYTHONPATH=src python scripts/run_technical_daily_job.py --stdout
+```
+
+- `watchlist.is_active=true` の銘柄を対象に `price_bars_daily` 同期、`technical_indicators_daily` 再計算、技術アラート通知をまとめて実行する。
+- 実行結果は `price_bars_daily` / `technical_indicators_daily` / `technical_sync_state` / `technical_alert_state` / `notification_log` に反映される。
+- 標準出力JSONは `processed_tickers` / `sent_notifications` / `skipped_notifications` / `errors` を返す。
+
+価格・需給テクニカルの全件再同期を実行する場合:
+
+```bash
+PYTHONPATH=src python scripts/run_technical_full_refresh_job.py --stdout
+PYTHONPATH=src python scripts/run_technical_full_refresh_job.py --tickers 6501:TSE --stdout
+```
+
+- `technical_sync_state` を参照せず、保存可能期間全体を再取得・再計算する。
+- `run_technical_full_refresh_job.py` は内部で `full_refresh=true` と `skip_alerts=true` を固定する。
+- 分割・併合後の再調整吸収や障害復旧では、まず全件再同期でデータ整合性を戻し、その後に通常の `technical_daily` を再実行する。
+
 ### 4.2 設定の優先順位（実装準拠）
 
 1. `global_settings/runtime`（管理画面 `/ops` から更新）
@@ -138,6 +162,8 @@ PYTHONPATH=src python scripts/run_immediate_window_job.py --window close --disco
 - `kabu-grok` <- `sc-kabu-grok`（毎分起動、管理画面の Grok定時取得時刻と一致した分のみ実処理）
 - `kabu-baseline-research` <- `sc-kabu-baseline-research`（毎月1日 18:00 JST）
 - `kabu-backfill-incremental` <- `sc-kabu-backfill-incremental`（土曜21:15 JST）
+- `kabu-technical-daily`（Cloud Run Job のみ作成。定期スケジューラは未付与のため `/ops` または手動実行で使用）
+- `kabu-technical-full-refresh`（Cloud Run Job のみ作成。障害復旧・再調整吸収用）
 - `kabu-earnings-weekly` <- `sc-kabu-earnings-weekly`（土曜21:00 JST）
 - `kabu-earnings-tomorrow` <- `sc-kabu-earnings-tomorrow`（毎日21:00 JST）
 
@@ -154,6 +180,8 @@ gcloud run jobs executions list --job=kabu-daily --region=asia-northeast1 --proj
 gcloud run jobs executions list --job=kabu-daily-at21 --region=asia-northeast1 --project=<GCP_PROJECT_ID>
 gcloud run jobs executions list --job=kabu-intelligence --region=asia-northeast1 --project=<GCP_PROJECT_ID>
 gcloud run jobs executions list --job=kabu-grok --region=asia-northeast1 --project=<GCP_PROJECT_ID>
+gcloud run jobs executions list --job=kabu-technical-daily --region=asia-northeast1 --project=<GCP_PROJECT_ID>
+gcloud run jobs executions list --job=kabu-technical-full-refresh --region=asia-northeast1 --project=<GCP_PROJECT_ID>
 gcloud scheduler jobs list --location=asia-northeast1 --project=<GCP_PROJECT_ID>
 ```
 

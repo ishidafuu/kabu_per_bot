@@ -1,7 +1,7 @@
-# Firestoreスキーマ設計（Issue 02）
+# Firestoreスキーマ設計
 
-このドキュメントは、現行実装のFirestore構成と、合意済みの拡張予定をまとめた設計書である。  
-未実装の項目は `拡張予定` と明記して区別する。
+このドキュメントは、現行実装のFirestore構成をまとめた設計書である。  
+`PER / PSR` 系の既存日次データと、価格・需給テクニカル系の保存先は別コレクションで運用する。
 
 ## 1. コレクション一覧
 
@@ -15,6 +15,11 @@
 8. `job_run`
 9. `intel_seen`
 10. `global_settings`
+11. `price_bars_daily`
+12. `technical_indicators_daily`
+13. `technical_sync_state`
+14. `technical_alert_rules`
+15. `technical_alert_state`
 
 ## 2. 一意制約（ドキュメントIDで担保）
 
@@ -60,9 +65,24 @@ FirestoreはRDBの一意制約を持たないため、ドキュメントIDを合
      - `grok_sns_enabled`
      - `grok_sns_scheduled_time`
      - `grok_sns_per_ticker_cooldown_hours`
-     - `grok_sns_prompt_template`
-     - `updated_at`
-     - `updated_by`
+      - `grok_sns_prompt_template`
+      - `updated_at`
+      - `updated_by`
+10. `price_bars_daily`
+   - doc id: `{ticker}|{trade_date}`
+   - 主なフィールド: `ticker`, `trade_date`, `code`, `date`, `open`, `high`, `low`, `close`, `volume`, `turnover_value`, `adj_open`, `adj_high`, `adj_low`, `adj_close`, `adj_volume`, `source`, `fetched_at`, `data_source_plan`, `raw_payload_version`, `updated_at`
+11. `technical_indicators_daily`
+   - doc id: `{ticker}|{trade_date}`
+   - 主なフィールド: `ticker`, `trade_date`, `schema_version`, `calculated_at`, 各種価格・需給テクニカル指標
+12. `technical_sync_state`
+   - doc id: `{ticker}`
+   - 主なフィールド: `ticker`, `latest_fetched_trade_date`, `latest_calculated_trade_date`, `last_fetch_from`, `last_fetch_to`, `last_run_at`, `last_status`, `last_error`, `last_full_refresh_at`, `schema_version`
+13. `technical_alert_rules`
+   - doc id: `{ticker}|{rule_id}`
+   - 主なフィールド: `ticker`, `rule_id`, `rule_name`, `field_key`, `operator`, `threshold_value`, `threshold_upper`, `is_active`, `note`, `created_at`, `updated_at`
+14. `technical_alert_state`
+   - doc id: `{ticker}|{rule_id}`
+   - 主なフィールド: `ticker`, `rule_id`, `last_evaluated_trade_date`, `last_condition_met`, `last_triggered_at`, `updated_at`
 
 ## 3. インデックス
 
@@ -75,26 +95,36 @@ FirestoreはRDBの一意制約を持たないため、ドキュメントIDを合
 - `earnings_calendar`: `earnings_date asc`, `ticker asc`
 - `notification_log`: `ticker asc`, `sent_at desc`
 - `notification_log`: `category asc`, `sent_at desc`
+- `price_bars_daily`: `ticker asc`, `trade_date desc`
+- `technical_indicators_daily`: `ticker asc`, `trade_date desc`
 
 ## 4. マイグレーション
 
-初期マイグレーションID: `0001_initial`
+適用済みマイグレーション:
 
-- 実行スクリプト:
-  - `/Users/ishidafuu/Documents/repository/kabu_per_bot/scripts/migrate_firestore_v0001.py`
-- 実行結果:
-  - `_meta/schema` にスキーマバージョン保存
-  - `_meta/schema/migrations/0001_initial` に適用記録保存
-  - `_meta/schema/collections/{collection}` にコレクション登録
-- 並行実行対策:
-  - `_meta/schema/migrations/0001_initial_lock` をロックとして使用し、同時適用を抑制する
-  - 適用記録（`0001_initial`）は最後に保存する
+1. `0001_initial`
+   - 実行スクリプト:
+     - `/Users/ishidafuu/Documents/repository/kabu_per_bot/scripts/migrate_firestore_v0001.py`
+   - 実行結果:
+     - `_meta/schema` にスキーマバージョン保存
+     - `_meta/schema/migrations/0001_initial` に適用記録保存
+     - `_meta/schema/collections/{collection}` にコレクション登録
+2. `0002_technical_indicators`
+   - 実行スクリプト:
+     - `/Users/ishidafuu/Documents/repository/kabu_per_bot/scripts/migrate_firestore_v0002_technical_indicators.py`
+   - 実行結果:
+     - `_meta/schema/migrations/0002_technical_indicators` に適用記録保存
+     - `_meta/schema/collections/price_bars_daily` を登録
+     - `_meta/schema/collections/technical_indicators_daily` を登録
+     - `_meta/schema/collections/technical_sync_state` を登録
+     - `_meta/schema/collections/technical_alert_rules` を登録
+     - `_meta/schema/collections/technical_alert_state` を登録
 
 この仕組みにより、同じマイグレーションの二重適用を防止する。
 
-## 5. 拡張予定: 価格・需給テクニカル指標
+## 5. 価格・需給テクニカル指標
 
-本章は未実装の拡張予定であり、価格・需給テクニカル指標の保存先を `daily_metrics` から分離する前提で定義する。  
+本章は現行実装済みの価格・需給テクニカル系コレクションを定義する。  
 指標そのものの計算式・例外処理は [価格・需給テクニカル指標仕様_ドラフト.md](/Users/ishidafuu/Documents/repository/kabu_per_bot/docs/01_要件定義/価格・需給テクニカル指標仕様_ドラフト.md) を正とする。
 
 ### 5.1 追加コレクション一覧
@@ -102,6 +132,8 @@ FirestoreはRDBの一意制約を持たないため、ドキュメントIDを合
 1. `price_bars_daily`
 2. `technical_indicators_daily`
 3. `technical_sync_state`
+4. `technical_alert_rules`
+5. `technical_alert_state`
 
 ### 5.2 一意制約（ドキュメントIDで担保）
 
@@ -176,6 +208,39 @@ FirestoreはRDBの一意制約を持たないため、ドキュメントIDを合
      - 再計算の進捗管理
      - 障害時の再開位置管理
 
+4. `technical_alert_rules`
+   - doc id: `{ticker}|{rule_id}`
+   - 必須フィールド:
+     - `ticker`
+     - `rule_id`
+     - `rule_name`
+     - `field_key`
+     - `operator`
+     - `is_active`
+   - 任意フィールド:
+     - `threshold_value`
+     - `threshold_upper`
+     - `note`
+     - `created_at`
+     - `updated_at`
+   - 用途:
+     - 銘柄ごとの技術アラート条件設定
+     - Web管理画面からの追加・更新・無効化
+
+5. `technical_alert_state`
+   - doc id: `{ticker}|{rule_id}`
+   - 必須フィールド:
+     - `ticker`
+     - `rule_id`
+     - `last_condition_met`
+   - 任意フィールド:
+     - `last_evaluated_trade_date`
+     - `last_triggered_at`
+     - `updated_at`
+   - 用途:
+     - 前回判定結果の保持
+     - 数値条件のクロス判定とクールダウン補助
+
 ### 5.3 保存方針
 
 1. `price_bars_daily` は `raw input` の正本として扱う。
@@ -195,24 +260,24 @@ FirestoreはRDBの一意制約を持たないため、ドキュメントIDを合
 4. 同期待ち銘柄の状態確認
    - `technical_sync_state` を `ticker` 単位で取得
 
-### 5.5 追加インデックス案
+### 5.5 追加インデックス
 
-`firestore.indexes.json` への追加候補は以下とする。
+`firestore.indexes.json` には以下を定義済みとする。
 
 - `price_bars_daily`: `ticker asc`, `trade_date desc`
 - `technical_indicators_daily`: `ticker asc`, `trade_date desc`
 
 `technical_sync_state` は doc id 直接参照を基本とするため、追加の複合インデックスは不要とする。
 
-### 5.6 想定マイグレーション
+### 5.6 マイグレーション
 
-実装時は新規マイグレーションとして、以下を想定する。
-
-- 想定マイグレーションID: `0002_technical_indicators`
-- 想定作業:
+- マイグレーションID: `0002_technical_indicators`
+- 実施内容:
   - `_meta/schema/collections/price_bars_daily` を登録
   - `_meta/schema/collections/technical_indicators_daily` を登録
   - `_meta/schema/collections/technical_sync_state` を登録
+  - `_meta/schema/collections/technical_alert_rules` を登録
+  - `_meta/schema/collections/technical_alert_state` を登録
   - `firestore.indexes.json` に複合インデックスを追加
   - スキーマバージョンを `2` に更新
 
@@ -223,9 +288,7 @@ FirestoreはRDBの一意制約を持たないため、ドキュメントIDを合
 3. 再計算は `直近260営業日` の再書込を基本とし、`200日MA` と `52週高値` を安全に更新できるようにする。
 4. 週1回または手動で全件再同期ジョブを持ち、分割・併合などで広範囲に再調整がかかった場合を吸収する。
 
-### 5.8 `firestore.indexes.json` 追記案
-
-実装時は、既存の `indexes` 配列へ以下を追加する想定とする。
+### 5.8 `firestore.indexes.json` 定義
 
 ```json
 {
@@ -252,10 +315,10 @@ FirestoreはRDBの一意制約を持たないため、ドキュメントIDを合
 2. 現時点では `where + orderBy` の追加要件を置かないため、最小構成は上記2本とする。
 3. Web側で将来 `schema_version` や `last_status` 条件検索を入れる場合は、その時点で追加する。
 
-### 5.9 `0002_technical_indicators` マイグレーション雛形
+### 5.9 `0002_technical_indicators` マイグレーション実装メモ
 
 既存の `v0001` は `src/kabu_per_bot/storage/firestore_migration.py` と `scripts/migrate_firestore_v0001.py` の2層構成である。  
-`v0002` も同じ方針で、`別モジュール + 別スクリプト` で追加する。
+`v0002` も同じ方針で、`別モジュール + 別スクリプト` で実装済みである。
 
 想定ファイル:
 
@@ -285,6 +348,8 @@ TECHNICAL_COLLECTIONS = (
     "price_bars_daily",
     "technical_indicators_daily",
     "technical_sync_state",
+    "technical_alert_rules",
+    "technical_alert_state",
 )
 
 
