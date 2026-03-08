@@ -8,6 +8,7 @@ from kabu_per_bot.storage.firestore_schema import normalize_ticker, normalize_tr
 from kabu_per_bot.technical import TechnicalSyncState
 from kabu_per_bot.technical_indicators import recalculate_recent_technical_indicators
 from kabu_per_bot.technical_pipeline import TechnicalAlertPipelineConfig, run_technical_alert_pipeline
+from kabu_per_bot.technical_profiles import TechnicalProfile
 from kabu_per_bot.technical_sync import (
     DEFAULT_TECHNICAL_INITIAL_LOOKBACK_DAYS,
     DEFAULT_TECHNICAL_OVERLAP_DAYS,
@@ -82,6 +83,7 @@ def run_technical_job(
     technical_alert_rules_repo,
     technical_alert_state_repo,
     notification_log_repo,
+    technical_profiles_repo,
     sender,
     cooldown_hours: int,
     now_iso: str,
@@ -110,6 +112,9 @@ def run_technical_job(
             full_refresh=full_refresh,
         )
         try:
+            profile: TechnicalProfile | None = None
+            if technical_profiles_repo is not None and item.technical_profile_id is not None:
+                profile = technical_profiles_repo.get(item.technical_profile_id)
             sync_result = sync_ticker_price_bars(
                 item=item,
                 from_date=from_date,
@@ -124,6 +129,7 @@ def run_technical_job(
                 price_bars_repo=price_bars_repo,
                 indicators_repo=indicators_repo,
                 sync_state_repo=sync_state_repo,
+                profile=profile,
                 calculated_at=now_iso,
             )
             total_fetched += sync_result.fetched_rows
@@ -181,6 +187,7 @@ def run_technical_job(
             technical_alert_rules_repo=technical_alert_rules_repo,
             technical_alert_state_repo=technical_alert_state_repo,
             notification_log_repo=notification_log_repo,
+            technical_profiles_repo=technical_profiles_repo,
             sender=sender,
             config=TechnicalAlertPipelineConfig(
                 trade_date=normalized_to_date,

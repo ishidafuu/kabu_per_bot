@@ -23,6 +23,7 @@ from kabu_per_bot.storage.firestore_technical_alert_state_repository import Fire
 from kabu_per_bot.storage.firestore_technical_indicators_daily_repository import (
     FirestoreTechnicalIndicatorsDailyRepository,
 )
+from kabu_per_bot.storage.firestore_technical_profiles_repository import FirestoreTechnicalProfilesRepository
 from kabu_per_bot.storage.firestore_technical_sync_state_repository import FirestoreTechnicalSyncStateRepository
 from kabu_per_bot.storage.firestore_watchlist_repository import FirestoreWatchlistRepository
 from kabu_per_bot.technical_job import run_technical_job, select_active_watchlist_items
@@ -249,6 +250,7 @@ def _run(
         sync_state_repo = FirestoreTechnicalSyncStateRepository(client)
         technical_alert_rules_repo = FirestoreTechnicalAlertRulesRepository(client)
         technical_alert_state_repo = FirestoreTechnicalAlertStateRepository(client)
+        technical_profiles_repo = FirestoreTechnicalProfilesRepository(client)
         notification_log_repo = FirestoreNotificationLogRepository(client)
         alert_notification_repo = (
             _resolve_notification_log_repo(args, notification_log_repo)
@@ -283,6 +285,7 @@ def _run(
             technical_alert_rules_repo=technical_alert_rules_repo,
             technical_alert_state_repo=technical_alert_state_repo,
             notification_log_repo=alert_notification_repo,
+            technical_profiles_repo=technical_profiles_repo,
             sender=sender,
             cooldown_hours=runtime_settings.cooldown_hours,
             now_iso=now_iso,

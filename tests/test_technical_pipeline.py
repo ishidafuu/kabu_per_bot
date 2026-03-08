@@ -11,6 +11,7 @@ from kabu_per_bot.technical import (
     TechnicalAlertState,
     TechnicalIndicatorsDaily,
 )
+from kabu_per_bot.technical_profiles import TechnicalProfile, TechnicalProfileType
 from kabu_per_bot.technical_pipeline import TechnicalAlertPipelineConfig, run_technical_alert_pipeline
 from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchlistItem
 
@@ -74,6 +75,14 @@ class InMemoryNotificationLogRepo:
 
 
 @dataclass
+class InMemoryTechnicalProfilesRepo:
+    rows: dict[str, TechnicalProfile] = field(default_factory=dict)
+
+    def get(self, profile_id: str) -> TechnicalProfile | None:
+        return self.rows.get(profile_id)
+
+
+@dataclass
 class SpySender:
     messages: list[str] = field(default_factory=list)
 
@@ -88,6 +97,7 @@ def _watch_item(ticker: str) -> WatchlistItem:
         metric_type=MetricType.PER,
         notify_channel=NotifyChannel.DISCORD,
         notify_timing=NotifyTiming.IMMEDIATE,
+        technical_profile_id="custom_profile",
     )
 
 
@@ -132,6 +142,7 @@ class TechnicalPipelineTest(unittest.TestCase):
             technical_alert_rules_repo=rules_repo,
             technical_alert_state_repo=state_repo,
             notification_log_repo=log_repo,
+            technical_profiles_repo=InMemoryTechnicalProfilesRepo(),
             sender=sender,
             config=TechnicalAlertPipelineConfig(
                 trade_date="2026-03-08",
@@ -197,6 +208,7 @@ class TechnicalPipelineTest(unittest.TestCase):
             technical_alert_rules_repo=rules_repo,
             technical_alert_state_repo=state_repo,
             notification_log_repo=log_repo,
+            technical_profiles_repo=InMemoryTechnicalProfilesRepo(),
             sender=sender,
             config=TechnicalAlertPipelineConfig(
                 trade_date="2026-03-08",
@@ -239,6 +251,7 @@ class TechnicalPipelineTest(unittest.TestCase):
             technical_alert_rules_repo=rules_repo,
             technical_alert_state_repo=state_repo,
             notification_log_repo=log_repo,
+            technical_profiles_repo=InMemoryTechnicalProfilesRepo(),
             sender=sender,
             config=TechnicalAlertPipelineConfig(
                 trade_date="2026-03-08",
@@ -252,6 +265,69 @@ class TechnicalPipelineTest(unittest.TestCase):
         self.assertEqual(result.sent_notifications, 0)
         self.assertEqual(state_repo.rows, [])
         self.assertEqual(sender.messages, [])
+
+    def test_pipeline_marks_profile_strong_alert_and_can_suppress_weak_alert(self) -> None:
+        indicators_repo = InMemoryTechnicalIndicatorsRepo(
+            rows=[
+                _indicator("2026-03-08", cross_down_ma200=True, turnover_spike=True),
+                _indicator("2026-03-07", cross_down_ma200=False, turnover_spike=False),
+            ]
+        )
+        rules_repo = InMemoryTechnicalAlertRulesRepo(
+            rows=[
+                TechnicalAlertRule.create(
+                    ticker="3901:TSE",
+                    rule_name="200日線下抜け",
+                    field_key="cross_down_ma200",
+                    operator=TechnicalAlertOperator.IS_TRUE,
+                    rule_id="rule-strong",
+                ),
+                TechnicalAlertRule.create(
+                    ticker="3901:TSE",
+                    rule_name="売買代金スパイク",
+                    field_key="turnover_spike",
+                    operator=TechnicalAlertOperator.IS_TRUE,
+                    rule_id="rule-weak",
+                ),
+            ]
+        )
+        state_repo = InMemoryTechnicalAlertStateRepo()
+        log_repo = InMemoryNotificationLogRepo()
+        sender = SpySender()
+        profiles_repo = InMemoryTechnicalProfilesRepo(
+            rows={
+                "custom_profile": TechnicalProfile(
+                    profile_id="custom_profile",
+                    profile_type=TechnicalProfileType.CUSTOM,
+                    profile_key="custom_profile",
+                    name="カスタム",
+                    description="テスト",
+                    flags={"suppress_minor_alerts": True},
+                    strong_alerts=("cross_down_ma200",),
+                    weak_alerts=("turnover_spike",),
+                )
+            }
+        )
+
+        result = run_technical_alert_pipeline(
+            watchlist_items=[_watch_item("3901:TSE")],
+            technical_indicators_repo=indicators_repo,
+            technical_alert_rules_repo=rules_repo,
+            technical_alert_state_repo=state_repo,
+            notification_log_repo=log_repo,
+            technical_profiles_repo=profiles_repo,
+            sender=sender,
+            config=TechnicalAlertPipelineConfig(
+                trade_date="2026-03-08",
+                cooldown_hours=2,
+                now_iso="2026-03-08T06:30:00+00:00",
+            ),
+        )
+
+        self.assertEqual(result.sent_notifications, 1)
+        self.assertEqual(len(log_repo.rows), 1)
+        self.assertTrue(log_repo.rows[0].is_strong)
+        self.assertEqual(log_repo.rows[0].condition_key, "TECH:rule-strong")
 
 
 if __name__ == "__main__":

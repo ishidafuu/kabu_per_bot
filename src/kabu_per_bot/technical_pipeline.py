@@ -15,6 +15,8 @@ from kabu_per_bot.technical_alerts import (
     describe_technical_alert_threshold,
     evaluate_technical_alert_rule,
 )
+from kabu_per_bot.technical_profile_runtime import resolve_technical_profile_runtime_settings
+from kabu_per_bot.technical_profiles import TechnicalProfile
 from kabu_per_bot.watchlist import NotifyChannel, NotifyTiming, WatchlistItem
 
 
@@ -55,6 +57,11 @@ class NotificationLogRepository(Protocol):
         """Get recent notification log rows."""
 
 
+class TechnicalProfilesRepository(Protocol):
+    def get(self, profile_id: str) -> TechnicalProfile | None:
+        """Get profile by id."""
+
+
 @dataclass(frozen=True)
 class TechnicalAlertPipelineConfig:
     trade_date: str
@@ -71,6 +78,7 @@ def run_technical_alert_pipeline(
     technical_alert_rules_repo: TechnicalAlertRulesRepository,
     technical_alert_state_repo: TechnicalAlertStateRepository,
     notification_log_repo: NotificationLogRepository,
+    technical_profiles_repo: TechnicalProfilesRepository | None,
     sender: MessageSender,
     config: TechnicalAlertPipelineConfig,
 ) -> PipelineResult:
@@ -89,6 +97,7 @@ def run_technical_alert_pipeline(
                 technical_alert_rules_repo=technical_alert_rules_repo,
                 technical_alert_state_repo=technical_alert_state_repo,
                 notification_log_repo=notification_log_repo,
+                technical_profiles_repo=technical_profiles_repo,
                 sender=sender,
                 config=config,
             )
@@ -106,6 +115,7 @@ def _process_ticker(
     technical_alert_rules_repo: TechnicalAlertRulesRepository,
     technical_alert_state_repo: TechnicalAlertStateRepository,
     notification_log_repo: NotificationLogRepository,
+    technical_profiles_repo: TechnicalProfilesRepository | None,
     sender: MessageSender,
     config: TechnicalAlertPipelineConfig,
 ) -> PipelineResult:
@@ -121,9 +131,19 @@ def _process_ticker(
 
     sent = 0
     skipped = 0
+    profile = (
+        technical_profiles_repo.get(item.technical_profile_id)
+        if technical_profiles_repo is not None and item.technical_profile_id is not None
+        else None
+    )
+    runtime = resolve_technical_profile_runtime_settings(profile)
     rules = technical_alert_rules_repo.list_recent(item.ticker, limit=100)
     for rule in rules:
         if not rule.is_active:
+            continue
+        is_strong = rule.field_key in runtime.strong_alerts
+        is_weak = rule.field_key in runtime.weak_alerts
+        if runtime.suppress_minor_alerts and is_weak and not is_strong:
             continue
         previous_state = technical_alert_state_repo.get(item.ticker, rule.rule_id)
         evaluation = evaluate_technical_alert_rule(
@@ -163,6 +183,7 @@ def _process_ticker(
                 cooldown_hours=config.cooldown_hours,
                 now_iso=config.now_iso,
                 channel=config.channel,
+                is_strong=is_strong,
             )
             sent += dispatched_sent
             skipped += dispatched_skipped
@@ -214,6 +235,7 @@ def _dispatch_with_cooldown(
     cooldown_hours: int,
     now_iso: str,
     channel: str,
+    is_strong: bool,
 ) -> tuple[int, int]:
     recent = notification_log_repo.list_recent(ticker, limit=100)
     decision = evaluate_cooldown(
@@ -222,7 +244,7 @@ def _dispatch_with_cooldown(
         candidate_ticker=ticker,
         candidate_category=message.category,
         candidate_condition_key=message.condition_key,
-        candidate_is_strong=False,
+        candidate_is_strong=is_strong,
         recent_entries=recent,
     )
     if not decision.should_send:
@@ -238,7 +260,7 @@ def _dispatch_with_cooldown(
             sent_at=now_iso,
             channel=channel,
             payload_hash=message.payload_hash,
-            is_strong=False,
+            is_strong=is_strong,
             body=message.body,
         )
     )

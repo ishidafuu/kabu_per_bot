@@ -8,6 +8,11 @@ from typing import Protocol
 
 from kabu_per_bot.storage.firestore_schema import normalize_ticker
 from kabu_per_bot.technical import PriceBarDaily, TechnicalIndicatorsDaily, TechnicalSyncState
+from kabu_per_bot.technical_profile_runtime import (
+    TechnicalProfileRuntimeSettings,
+    resolve_technical_profile_runtime_settings,
+)
+from kabu_per_bot.technical_profiles import TechnicalProfile
 
 
 TECHNICAL_INDICATOR_SCHEMA_VERSION = 1
@@ -45,6 +50,7 @@ def calculate_technical_indicators_for_bars(
     *,
     ticker: str,
     bars: list[PriceBarDaily],
+    profile: TechnicalProfile | None = None,
     schema_version: int = TECHNICAL_INDICATOR_SCHEMA_VERSION,
     calculated_at: str | None = None,
 ) -> list[TechnicalIndicatorsDaily]:
@@ -54,6 +60,7 @@ def calculate_technical_indicators_for_bars(
     normalized_ticker = normalize_ticker(ticker)
     sorted_bars = sorted(bars, key=lambda row: row.trade_date)
     resolved_calculated_at = calculated_at or datetime.now(timezone.utc).isoformat()
+    runtime = resolve_technical_profile_runtime_settings(profile)
 
     ma5_values: list[float | None] = []
     ma25_values: list[float | None] = []
@@ -184,20 +191,25 @@ def calculate_technical_indicators_for_bars(
         above_ma75 = _gt(bar.adj_close, ma_75)
         above_ma200 = _gt(bar.adj_close, ma_200)
         high_52w_near = bool(high_52w is not None and bar.adj_close is not None and bar.adj_close >= high_52w * 0.97)
-        ytd_high_near = bool(ytd_high is not None and bar.adj_close is not None and bar.adj_close >= ytd_high * 0.97)
+        ytd_high_near = bool(
+            ytd_high is not None
+            and bar.adj_close is not None
+            and bar.adj_close >= ytd_high * runtime.ytd_high_near_ratio
+        )
         trend_short_up = bool(above_ma25 and _gt(ma_5, ma_25) and _gt(slope_ma25, 0))
         trend_mid_up = bool(above_ma75 and _gt(ma_25, ma_75) and _gt(slope_ma75, 0))
         trend_mid_up_values.append(trend_mid_up)
         trend_long_up = bool(above_ma200 and _gt(ma_75, ma_200) and _gt(slope_ma200, 0))
-        overheated_short = bool(dev_25 is not None and dev_25 >= 15)
-        overheated_mid = bool(dev_75 is not None and dev_75 >= 25)
-        liquidity_ok = bool(avg_turnover_20d is not None and avg_turnover_20d >= 100_000_000)
-        volume_expanding = bool(volume_ratio is not None and volume_ratio >= 1.5)
-        turnover_expanding = bool(turnover_ratio is not None and turnover_ratio >= 1.5)
+        overheated_short = bool(dev_25 is not None and dev_25 >= runtime.overheated_short)
+        overheated_mid = bool(dev_75 is not None and dev_75 >= runtime.overheated_mid)
+        liquidity_ok = bool(avg_turnover_20d is not None and avg_turnover_20d >= runtime.liquidity_ok)
+        volume_expanding = bool(volume_ratio is not None and volume_ratio >= runtime.volume_expanding)
+        turnover_expanding = bool(turnover_ratio is not None and turnover_ratio >= runtime.turnover_expanding)
         breakdown_ma75 = bool(ma_75 is not None and bar.adj_close is not None and bar.adj_close < ma_75)
         rebound_from_ma25 = _rebound_from_ma(
             bars=sorted_bars,
             ma_values=ma25_values,
+            runtime=runtime,
             index=index,
             lookback_days=5,
             current_close=bar.adj_close,
@@ -208,6 +220,7 @@ def calculate_technical_indicators_for_bars(
         rebound_from_ma75 = _rebound_from_ma(
             bars=sorted_bars,
             ma_values=ma75_values,
+            runtime=runtime,
             index=index,
             lookback_days=10,
             current_close=bar.adj_close,
@@ -234,19 +247,19 @@ def calculate_technical_indicators_for_bars(
             ytd_high is not None
             and turnover_ratio is not None
             and bar.adj_close is not None
-            and bar.adj_close >= ytd_high * 0.99
+            and bar.adj_close >= ytd_high * runtime.near_ytd_high_breakout_ratio
             and bar.adj_close < ytd_high
-            and turnover_ratio >= 1.2
+            and turnover_ratio >= runtime.near_ytd_high_breakout_turnover_ratio
         )
-        turnover_spike = bool(turnover_ratio is not None and turnover_ratio >= 2.0)
-        volume_spike = bool(volume_ratio is not None and volume_ratio >= 2.0)
+        turnover_spike = bool(turnover_ratio is not None and turnover_ratio >= runtime.turnover_spike)
+        volume_spike = bool(volume_ratio is not None and volume_ratio >= runtime.volume_spike)
         sharp_drop_high_volume = bool(
             change_pct is not None
             and volume_ratio is not None
             and close_position_in_range is not None
-            and change_pct <= -5
-            and volume_ratio >= 2.0
-            and close_position_in_range <= 0.35
+            and change_pct <= runtime.sharp_drop_change_pct
+            and volume_ratio >= runtime.sharp_drop_volume_ratio
+            and close_position_in_range <= runtime.sharp_drop_close_position_max
         )
         rebound_after_pullback = _rebound_after_pullback(
             bars=sorted_bars,
@@ -391,6 +404,7 @@ def recalculate_recent_technical_indicators(
     price_bars_repo: PriceBarDailyReader,
     indicators_repo: TechnicalIndicatorsDailyWriter,
     sync_state_repo: TechnicalSyncStateReaderWriter,
+    profile: TechnicalProfile | None = None,
     read_limit: int = TECHNICAL_READ_WINDOW_DAYS,
     write_limit: int = TECHNICAL_REWRITE_WINDOW_DAYS,
     calculated_at: str | None = None,
@@ -415,6 +429,7 @@ def recalculate_recent_technical_indicators(
     calculated = calculate_technical_indicators_for_bars(
         ticker=ticker,
         bars=bars,
+        profile=profile,
         schema_version=TECHNICAL_INDICATOR_SCHEMA_VERSION,
         calculated_at=resolved_calculated_at,
     )
@@ -697,6 +712,7 @@ def _rebound_from_ma(
     *,
     bars: list[PriceBarDaily],
     ma_values: list[float | None],
+    runtime: TechnicalProfileRuntimeSettings,
     index: int,
     lookback_days: int,
     current_close: float | None,
@@ -711,7 +727,7 @@ def _rebound_from_ma(
         or close_position_in_range is None
         or current_close <= current_ma
         or change_pct <= 0
-        or close_position_in_range < 0.6
+        or close_position_in_range < runtime.rebound_close_position_min
     ):
         return False
     start = max(0, index - lookback_days + 1)
@@ -720,7 +736,7 @@ def _rebound_from_ma(
         adj_low = bars[current_index].adj_low
         if ma_value is None or adj_low is None or ma_value == 0:
             continue
-        if abs(adj_low / ma_value - 1) <= 0.02:
+        if abs(adj_low / ma_value - 1) <= runtime.rebound_touch_band_pct / 100:
             return True
     return False
 
