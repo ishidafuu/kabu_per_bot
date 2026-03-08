@@ -651,6 +651,42 @@ th {
   gap: 12px;
 }
 
+.technical-template-section {
+  display: grid;
+  gap: 10px;
+}
+
+.technical-template-head {
+  align-items: baseline;
+}
+
+.technical-template-head h4 {
+  margin: 0;
+}
+
+.technical-template-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.technical-template-card {
+  min-height: 88px;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+}
+
+.technical-template-card strong {
+  font-size: 0.95rem;
+}
+
+.technical-template-card span {
+  color: #475569;
+  line-height: 1.5;
+  white-space: normal;
+}
+
 .technical-rule-form-grid {
   display: grid;
   gap: 12px;

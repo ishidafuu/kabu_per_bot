@@ -15,26 +15,11 @@ import type {
   WatchlistDetailResponse,
 } from '../../types/watchlistDetail';
 import type { GetWatchlistDetailParams, ListWatchlistParams, WatchlistClient } from './watchlistClient';
+import { TECHNICAL_SUPPORTED_FIELD_KEYS } from '../technicalRuleCatalog';
 
 const MAX_WATCHLIST_COUNT = 100;
 const TICKER_PATTERN = /^\d{4}:TSE$/;
 const TECHNICAL_OPERATORS = new Set(['IS_TRUE', 'IS_FALSE', 'GTE', 'LTE', 'BETWEEN', 'OUTSIDE']);
-const TECHNICAL_FIELD_KEYS = new Set([
-  'close_vs_ma25',
-  'close_vs_ma75',
-  'close_vs_ma200',
-  'volume_ratio',
-  'turnover_ratio',
-  'atr_pct_14',
-  'volatility_20d',
-  'new_high_20d',
-  'new_high_52w',
-  'cross_up_ma25',
-  'cross_down_ma25',
-  'trend_mid_up',
-  'perfect_order_flag',
-]);
-
 const seedWatchlist: WatchlistItem[] = [
   {
     ticker: '1332:TSE',
@@ -713,7 +698,7 @@ const _validateTechnicalRuleInput = (
   if (!input.rule_name.trim()) {
     throw new ApiError(422, 'ルール名が不正です');
   }
-  if (!TECHNICAL_FIELD_KEYS.has(input.field_key)) {
+  if (!TECHNICAL_SUPPORTED_FIELD_KEYS.has(input.field_key)) {
     throw new ApiError(422, 'field_key が不正です');
   }
   if (!TECHNICAL_OPERATORS.has(input.operator)) {

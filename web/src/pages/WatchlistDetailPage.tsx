@@ -5,6 +5,13 @@ import { AppLayout } from '../components/AppLayout';
 import { createWatchlistClient } from '../lib/api';
 import { toUserMessage } from '../lib/api/errors';
 import { appConfig } from '../lib/config';
+import {
+  getTechnicalFieldOption,
+  isBooleanTechnicalField,
+  TECHNICAL_FIELD_OPTIONS,
+  TECHNICAL_HIGHLIGHT_KEYS,
+  TECHNICAL_RULE_TEMPLATES,
+} from '../lib/technicalRuleCatalog';
 import type {
   TechnicalAlertOperator,
   TechnicalAlertRule,
@@ -23,22 +30,6 @@ const dateTimeFormatter = new Intl.DateTimeFormat('ja-JP', {
   hour12: false,
   timeZone: 'Asia/Tokyo',
 });
-
-const TECHNICAL_FIELD_OPTIONS = [
-  { key: 'close_vs_ma25', label: '終値-25日線乖離', valueType: 'number' },
-  { key: 'close_vs_ma75', label: '終値-75日線乖離', valueType: 'number' },
-  { key: 'close_vs_ma200', label: '終値-200日線乖離', valueType: 'number' },
-  { key: 'volume_ratio', label: '出来高倍率', valueType: 'number' },
-  { key: 'turnover_ratio', label: '売買代金倍率', valueType: 'number' },
-  { key: 'atr_pct_14', label: 'ATR% (14日)', valueType: 'number' },
-  { key: 'volatility_20d', label: '20日ボラティリティ', valueType: 'number' },
-  { key: 'new_high_20d', label: '20日高値更新', valueType: 'boolean' },
-  { key: 'new_high_52w', label: '52週高値更新', valueType: 'boolean' },
-  { key: 'cross_up_ma25', label: '25日線上抜け', valueType: 'boolean' },
-  { key: 'cross_down_ma25', label: '25日線下抜け', valueType: 'boolean' },
-  { key: 'trend_mid_up', label: '中期上昇トレンド', valueType: 'boolean' },
-  { key: 'perfect_order_flag', label: 'パーフェクトオーダー', valueType: 'boolean' },
-] as const;
 
 const OPERATOR_OPTIONS: Array<{ value: TechnicalAlertOperator; label: string }> = [
   { value: 'IS_TRUE', label: 'TRUE' },
@@ -127,16 +118,8 @@ const needsUpperThreshold = (operator: TechnicalAlertOperator): boolean => {
   return operator === 'BETWEEN' || operator === 'OUTSIDE';
 };
 
-const getTechnicalFieldOption = (fieldKey: string) => {
-  return TECHNICAL_FIELD_OPTIONS.find((row) => row.key === fieldKey) ?? TECHNICAL_FIELD_OPTIONS[0];
-};
-
-const isBooleanFieldKey = (fieldKey: string): boolean => {
-  return getTechnicalFieldOption(fieldKey).valueType === 'boolean';
-};
-
 const getOperatorOptions = (fieldKey: string): Array<{ value: TechnicalAlertOperator; label: string }> => {
-  return isBooleanFieldKey(fieldKey) ? BOOLEAN_OPERATOR_OPTIONS : NUMERIC_OPERATOR_OPTIONS;
+  return isBooleanTechnicalField(fieldKey) ? BOOLEAN_OPERATOR_OPTIONS : NUMERIC_OPERATOR_OPTIONS;
 };
 
 type RuleFormState = {
@@ -197,18 +180,6 @@ const toRulePayload = (form: RuleFormState): TechnicalAlertRuleCreateInput => {
   return payload;
 };
 
-const technicalHighlightKeys = [
-  'close_vs_ma25',
-  'close_vs_ma75',
-  'close_vs_ma200',
-  'volume_ratio',
-  'turnover_ratio',
-  'atr_pct_14',
-  'volatility_20d',
-  'cross_up_ma25',
-  'new_high_20d',
-] as const;
-
 export const WatchlistDetailPage = () => {
   const { ticker } = useParams();
   const { getIdToken } = useAuth();
@@ -232,9 +203,21 @@ export const WatchlistDetailPage = () => {
   const historyLimit = 10;
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const currentFieldOption = getTechnicalFieldOption(ruleForm.field_key);
+  const currentFieldOption = getTechnicalFieldOption(ruleForm.field_key) ?? TECHNICAL_FIELD_OPTIONS[0];
   const currentOperatorOptions = getOperatorOptions(ruleForm.field_key);
   const currentFieldIsBoolean = currentFieldOption.valueType === 'boolean';
+  const groupedFieldOptions = useMemo(() => {
+    const groups = new Map<string, { label: string; options: Array<(typeof TECHNICAL_FIELD_OPTIONS)[number]> }>();
+    for (const option of TECHNICAL_FIELD_OPTIONS) {
+      const current = groups.get(option.categoryKey);
+      if (current) {
+        current.options.push(option);
+      } else {
+        groups.set(option.categoryKey, { label: option.categoryLabel, options: [option] });
+      }
+    }
+    return Array.from(groups.values());
+  }, []);
 
   const fetchDetail = useCallback(async (): Promise<void> => {
     if (!ticker) {
@@ -274,6 +257,25 @@ export const WatchlistDetailPage = () => {
   const resetRuleForm = (): void => {
     setEditingRuleId(null);
     setRuleForm(buildEmptyRuleForm());
+  };
+
+  const applyRuleTemplate = (templateId: string): void => {
+    const template = TECHNICAL_RULE_TEMPLATES.find((row) => row.id === templateId);
+    if (!template) {
+      return;
+    }
+    setEditingRuleId(null);
+    setRuleMessage('');
+    setRuleError('');
+    setRuleForm({
+      rule_name: template.ruleName,
+      field_key: template.fieldKey,
+      operator: template.operator,
+      threshold_value: template.thresholdValue != null ? String(template.thresholdValue) : '',
+      threshold_upper: template.thresholdUpper != null ? String(template.thresholdUpper) : '',
+      note: template.note,
+      is_active: true,
+    });
   };
 
   const startEditRule = (rule: TechnicalAlertRule): void => {
@@ -352,10 +354,10 @@ export const WatchlistDetailPage = () => {
   const summary = detail?.summary;
   const technicalRules = detail?.technical_rules.items ?? [];
   const latestTechnical = detail?.latest_technical;
-  const latestTechnicalRows = technicalHighlightKeys
+  const latestTechnicalRows = TECHNICAL_HIGHLIGHT_KEYS
     .map((key) => ({
       key,
-      label: TECHNICAL_FIELD_OPTIONS.find((row) => row.key === key)?.label ?? key,
+      label: getTechnicalFieldOption(key)?.label ?? key,
       value: latestTechnical?.values[key],
     }))
     .filter((row) => row.value != null);
@@ -598,6 +600,9 @@ export const WatchlistDetailPage = () => {
               </div>
               <p className="technical-rule-note">{rule.note ?? 'メモなし'}</p>
               <div className="technical-rule-card-foot">
+                <span className="muted">
+                  指標: {getTechnicalFieldOption(rule.field_key)?.label ?? rule.field_key}
+                </span>
                 <span className="muted">更新: {formatDateTime(rule.updated_at)}</span>
                 <div className="technical-rule-actions">
                   <button type="button" className="secondary" onClick={() => startEditRule(rule)}>
@@ -623,6 +628,27 @@ export const WatchlistDetailPage = () => {
           <div className="panel-header">
             <h3>{editingRuleId ? 'ルールを編集' : 'ルールを追加'}</h3>
           </div>
+          <div className="technical-template-section">
+            <div className="panel-header technical-template-head">
+              <h4>テンプレートから作成</h4>
+              <span className="muted">よく使う条件を下書きとして適用します。</span>
+            </div>
+            <div className="technical-template-grid">
+              {TECHNICAL_RULE_TEMPLATES.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  className="secondary technical-template-card"
+                  onClick={() => {
+                    applyRuleTemplate(template.id);
+                  }}
+                >
+                  <strong>{template.label}</strong>
+                  <span>{template.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="technical-rule-form-grid">
             <label>
               ルール名
@@ -639,7 +665,7 @@ export const WatchlistDetailPage = () => {
                 value={ruleForm.field_key}
                 onChange={(event) => {
                   const nextFieldKey = event.target.value;
-                  const nextFieldIsBoolean = isBooleanFieldKey(nextFieldKey);
+                  const nextFieldIsBoolean = isBooleanTechnicalField(nextFieldKey);
                   setRuleForm((current) => ({
                     ...current,
                     field_key: nextFieldKey,
@@ -649,10 +675,14 @@ export const WatchlistDetailPage = () => {
                   }));
                 }}
               >
-                {TECHNICAL_FIELD_OPTIONS.map((row) => (
-                  <option key={row.key} value={row.key}>
-                    {row.label}
-                  </option>
+                {groupedFieldOptions.map((group) => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.options.map((row) => (
+                      <option key={row.key} value={row.key}>
+                        {row.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </label>
@@ -677,6 +707,13 @@ export const WatchlistDetailPage = () => {
             {currentFieldIsBoolean && (
               <div className="form-note-block">
                 <span className="muted">フラグ項目です。しきい値は不要で、TRUE / FALSE 判定のみ指定できます。</span>
+              </div>
+            )}
+            {!currentFieldIsBoolean && (
+              <div className="form-note-block">
+                <span className="muted">
+                  分類: {currentFieldOption.categoryLabel} / 指標: {currentFieldOption.label}
+                </span>
               </div>
             )}
             {!currentFieldIsBoolean && !isBooleanOperator(ruleForm.operator) && (
@@ -722,6 +759,9 @@ export const WatchlistDetailPage = () => {
               保存直後から有効にする
             </label>
           </div>
+          <p className="muted">
+            文字列系の指標（例: `candle_type`, `ma_alignment_short_mid_long`）は、現行アラート評価が数値/フラグのみ対応のため候補に含めていません。
+          </p>
           <div className="technical-rule-actions">
             <button
               type="button"
