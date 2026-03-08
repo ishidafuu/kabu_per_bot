@@ -139,7 +139,9 @@ export const OpsPage = () => {
   const [opsError, setOpsError] = useState('');
   const [opsForbidden, setOpsForbidden] = useState(false);
   const [opNotice, setOpNotice] = useState('');
-  const [runningJobKey, setRunningJobKey] = useState<VisibleJobKey | 'discord_test' | 'grok_cooldown_reset' | null>(null);
+  const [runningJobKey, setRunningJobKey] = useState<
+    VisibleJobKey | 'technical_missing' | 'discord_test' | 'grok_cooldown_reset' | null
+  >(null);
   const [globalSettings, setGlobalSettings] = useState<AdminGlobalSettings | null>(null);
   const [cooldownHoursInput, setCooldownHoursInput] = useState('');
   const [intelNotificationMaxAgeDaysInput, setIntelNotificationMaxAgeDaysInput] = useState('30');
@@ -283,6 +285,41 @@ export const OpsPage = () => {
       setRunningJobKey(null);
     }
   }, [client]);
+
+  const runMissingTechnicalLatest = useCallback(async (): Promise<void> => {
+    const accepted = window.confirm(
+      'ウォッチリスト内で未計算の最新テクニカルだけを一括取得します。\n技術全件再同期ジョブを未計算銘柄に限定して起動します。続行しますか？',
+    );
+    if (!accepted) {
+      return;
+    }
+
+    setRunningJobKey('technical_missing');
+    setOpsError('');
+    setOpNotice('');
+    try {
+      const response = await client.runMissingTechnicalLatest();
+      if (!response.started) {
+        setOpNotice(response.message);
+        await refreshOps();
+        return;
+      }
+      const tickerPreview =
+        response.target_tickers.length <= 5
+          ? response.target_tickers.join(', ')
+          : `${response.target_tickers.slice(0, 5).join(', ')} ほか`;
+      setOpNotice(`${response.message} 対象: ${tickerPreview} / execution: ${response.execution?.execution_name ?? '-'}`);
+      await refreshOps();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        setOpsError(error.detail);
+      } else {
+        setOpsError(toUserMessage(error));
+      }
+    } finally {
+      setRunningJobKey(null);
+    }
+  }, [client, refreshOps]);
 
   const resetGrokCooldown = useCallback(async (): Promise<void> => {
     const accepted = window.confirm(
@@ -720,6 +757,22 @@ export const OpsPage = () => {
             <p className="muted">
               ▶️ 定期実行の代替や障害時の再実行を行う画面です。通常運用では定期実行に任せ、必要時のみ手動実行してください。
             </p>
+            <div className="ops-helper-card">
+              <div>
+                <h3>未計算の最新テクニカルを一括取得</h3>
+                <p className="muted">
+                  `latest_technical` が未作成のウォッチリスト銘柄だけを対象に、技術全件再同期ジョブを ticker 指定付きで起動します。
+                </p>
+              </div>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => void runMissingTechnicalLatest()}
+                disabled={runningJobKey !== null || isLoading}
+              >
+                {runningJobKey === 'technical_missing' ? '起動中...' : '未計算のみ一括取得'}
+              </button>
+            </div>
           </section>
           <section className="panel table-panel">
             <header className="panel-header">

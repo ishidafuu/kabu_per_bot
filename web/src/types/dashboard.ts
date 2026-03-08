@@ -123,6 +123,14 @@ export interface RunAdminJobResponse {
   execution: AdminOpsExecution;
 }
 
+export interface RunMissingTechnicalResponse {
+  started: boolean;
+  target_count: number;
+  target_tickers: string[];
+  execution?: AdminOpsExecution | null;
+  message: string;
+}
+
 export interface AdminGrokCooldownResetResponse {
   reset_at: string;
   deleted_entries: number;

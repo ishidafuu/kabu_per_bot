@@ -7,6 +7,7 @@ import type {
   AdminOpsSummary,
   BackfillRunPayload,
   DashboardSummary,
+  RunMissingTechnicalResponse,
   RunAdminJobResponse,
 } from '../../types/dashboard';
 import { HttpClient } from './httpClient';
@@ -23,6 +24,7 @@ export interface DashboardClient {
   getAdminGlobalSettings(): Promise<AdminGlobalSettings>;
   updateAdminGlobalSettings(payload: AdminGlobalSettingsUpdatePayload): Promise<AdminGlobalSettings>;
   runAdminJob(jobKey: AdminJobKey, payload?: BackfillRunPayload): Promise<RunAdminJobResponse>;
+  runMissingTechnicalLatest(): Promise<RunMissingTechnicalResponse>;
   listAdminExecutions(jobKey: AdminJobKey, limit?: number): Promise<AdminOpsExecution[]>;
   sendDiscordTest(): Promise<{ sent_at: string }>;
   resetGrokCooldown(ticker?: string): Promise<AdminGrokCooldownResetResponse>;
@@ -66,6 +68,12 @@ export class HttpDashboardClient implements DashboardClient {
     return this.httpClient.request<RunAdminJobResponse>(`/admin/ops/jobs/${jobKey}/run`, {
       method: 'POST',
       body: payload ? JSON.stringify(payload) : undefined,
+    });
+  }
+
+  async runMissingTechnicalLatest(): Promise<RunMissingTechnicalResponse> {
+    return this.httpClient.request<RunMissingTechnicalResponse>('/admin/ops/technical/missing-latest/run', {
+      method: 'POST',
     });
   }
 

@@ -11,15 +11,19 @@ from kabu_per_bot.admin_ops import (
     BackfillRunRequest,
     JobExecution,
     SkipReasonCount,
+    TickerScopedRunRequest,
 )
 from kabu_per_bot.api.dependencies import (
     AdminOpsReader,
     IntelSeenReader,
     NotificationLogReader,
+    TechnicalIndicatorsReader,
     get_admin_ops_service,
     get_authenticated_uid,
     get_intel_seen_repository,
     get_notification_log_repository,
+    get_technical_indicators_repository,
+    get_watchlist_service,
     require_admin_user,
 )
 from kabu_per_bot.api.errors import BadRequestError, ConflictError, InternalServerError, NotFoundError
@@ -31,10 +35,12 @@ from kabu_per_bot.api.schemas import (
     AdminOpsExecutionListResponse,
     AdminOpsExecutionResponse,
     AdminOpsJobResponse,
+    AdminOpsMissingTechnicalRunResponse,
     AdminOpsRunResponse,
     AdminOpsSkipReasonResponse,
     AdminOpsSummaryResponse,
 )
+from kabu_per_bot.watchlist import WatchlistService
 
 router = APIRouter(
     prefix="/admin/ops",
@@ -127,6 +133,52 @@ def run_admin_job(
     except Exception as exc:
         raise InternalServerError(f"ジョブ実行に失敗しました: {exc}") from exc
     return AdminOpsRunResponse(execution=_to_execution_response(execution))
+
+
+@router.post(
+    "/technical/missing-latest/run",
+    response_model=AdminOpsMissingTechnicalRunResponse,
+    responses=error_responses(400, 401, 403, 404, 409, 500),
+)
+def run_missing_latest_technical_job(
+    service: WatchlistService = Depends(get_watchlist_service),
+    technical_indicators_repository: TechnicalIndicatorsReader = Depends(get_technical_indicators_repository),
+    admin_ops_service: AdminOpsReader = Depends(get_admin_ops_service),
+) -> AdminOpsMissingTechnicalRunResponse:
+    try:
+        items = service.list_items()
+        missing_tickers = sorted(
+            item.ticker
+            for item in items
+            if not technical_indicators_repository.list_recent(item.ticker, limit=1)
+        )
+        if not missing_tickers:
+            return AdminOpsMissingTechnicalRunResponse(
+                started=False,
+                target_count=0,
+                target_tickers=[],
+                execution=None,
+                message="未計算の最新テクニカルはありません。",
+            )
+        execution = admin_ops_service.run_job(
+            job_key="technical_full_refresh",
+            ticker_scope=TickerScopedRunRequest(tickers=tuple(missing_tickers)),
+        )
+    except AdminOpsNotFoundError as exc:
+        raise NotFoundError(str(exc)) from exc
+    except AdminOpsConflictError as exc:
+        raise ConflictError(str(exc)) from exc
+    except AdminOpsConfigError as exc:
+        raise BadRequestError(str(exc)) from exc
+    except Exception as exc:
+        raise InternalServerError(f"未計算テクニカル一括取得の起動に失敗しました: {exc}") from exc
+    return AdminOpsMissingTechnicalRunResponse(
+        started=True,
+        target_count=len(missing_tickers),
+        target_tickers=missing_tickers,
+        execution=_to_execution_response(execution),
+        message=f"未計算の最新テクニカル {len(missing_tickers)}銘柄分の取得を受け付けました。",
+    )
 
 
 @router.post(

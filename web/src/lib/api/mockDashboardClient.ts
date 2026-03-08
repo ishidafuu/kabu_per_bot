@@ -8,6 +8,7 @@ import type {
   AdminOpsJob,
   BackfillRunPayload,
   DashboardSummary,
+  RunMissingTechnicalResponse,
   RunAdminJobResponse,
 } from '../../types/dashboard';
 import { getMockWatchlistCount } from './mockWatchlistClient';
@@ -31,6 +32,8 @@ const mockJobs: AdminOpsJob[] = [
   { key: 'immediate_close', label: '引け帯ジョブ（IMMEDIATE）', job_name: 'kabu-immediate-close', configured: true },
   { key: 'daily', label: '日次ジョブ（IMMEDIATE）', job_name: 'kabu-daily', configured: true },
   { key: 'daily_at21', label: '21:05ジョブ（AT_21）', job_name: 'kabu-daily-at21', configured: true },
+  { key: 'technical_daily', label: '技術日次ジョブ', job_name: 'kabu-technical-daily', configured: true },
+  { key: 'technical_full_refresh', label: '技術全件再同期ジョブ', job_name: 'kabu-technical-full-refresh', configured: true },
   { key: 'earnings_weekly', label: '今週決算ジョブ', job_name: 'kabu-earnings-weekly', configured: true },
   { key: 'earnings_tomorrow', label: '明日決算ジョブ', job_name: 'kabu-earnings-tomorrow', configured: true },
   {
@@ -145,6 +148,18 @@ export class MockDashboardClient implements DashboardClient {
       throw new Error('backfill payload is required');
     }
     return { execution: appendExecution(jobKey) };
+  }
+
+  async runMissingTechnicalLatest(): Promise<RunMissingTechnicalResponse> {
+    await wait(120);
+    const execution = appendExecution('technical_full_refresh');
+    return {
+      started: true,
+      target_count: 2,
+      target_tickers: ['3901:TSE', '9432:TSE'],
+      execution,
+      message: '未計算の最新テクニカル 2銘柄分の取得を受け付けました。',
+    };
   }
 
   async listAdminExecutions(jobKey: AdminJobKey, limit = 20): Promise<AdminOpsExecution[]> {

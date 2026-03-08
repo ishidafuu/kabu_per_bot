@@ -280,6 +280,14 @@ class AdminOpsRunResponse(BaseModel):
     execution: AdminOpsExecutionResponse
 
 
+class AdminOpsMissingTechnicalRunResponse(BaseModel):
+    started: bool
+    target_count: int = Field(ge=0)
+    target_tickers: list[str] = Field(default_factory=list)
+    execution: AdminOpsExecutionResponse | None = None
+    message: str
+
+
 class AdminOpsDiscordTestResponse(BaseModel):
     sent_at: str
 

@@ -340,6 +340,23 @@ th {
   gap: 8px;
 }
 
+.ops-helper-card {
+  margin-top: 12px;
+  border-radius: 18px;
+  padding: 14px;
+  border: 1px solid rgba(14, 116, 144, 0.18);
+  background: linear-gradient(145deg, rgba(240, 249, 255, 0.94), rgba(248, 250, 252, 0.96));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ops-helper-card h3 {
+  margin: 0 0 4px;
+}
+
 .ops-subnav {
   display: flex;
   flex-wrap: wrap;

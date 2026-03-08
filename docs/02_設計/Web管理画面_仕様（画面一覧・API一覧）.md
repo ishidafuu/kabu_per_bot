@@ -67,6 +67,8 @@
     - 技術全件再同期ジョブ
     - 今週決算
     - 明日決算
+  - 技術補助操作
+    - `latest_technical` 未作成のウォッチリスト銘柄のみを対象にした一括取得
   - Discord疎通テスト送信
   - Grokクールダウン全解除（`SNS注目` 通知ログ削除、通知・Grok設定メニューから実行）
   - 各ジョブの用途説明と通常スケジュール表示
@@ -385,7 +387,16 @@
   - 200レスポンス:
     - `sent_at`
 
-5. `POST /admin/ops/grok/cooldown/reset`
+5. `POST /admin/ops/technical/missing-latest/run`
+  - 目的: ウォッチリストのうち `latest_technical` が未作成の銘柄だけを抽出し、`technical_full_refresh` を ticker scope 付きで起動
+  - 200レスポンス:
+    - `started`
+    - `target_count`
+    - `target_tickers[]`
+    - `execution`
+    - `message`
+
+6. `POST /admin/ops/grok/cooldown/reset`
   - 目的: Grok再通知抑制に使う `SNS注目` 通知ログと `intel_seen(kind=SNS)` を削除し、再取得/再通知可能にする
   - クエリ:
     - `ticker`（任意: `1234:TSE` 形式。未指定時は全銘柄）
