@@ -25,19 +25,19 @@ const dateTimeFormatter = new Intl.DateTimeFormat('ja-JP', {
 });
 
 const TECHNICAL_FIELD_OPTIONS = [
-  { key: 'close_vs_ma25', label: '終値-25日線乖離' },
-  { key: 'close_vs_ma75', label: '終値-75日線乖離' },
-  { key: 'close_vs_ma200', label: '終値-200日線乖離' },
-  { key: 'volume_ratio', label: '出来高倍率' },
-  { key: 'turnover_ratio', label: '売買代金倍率' },
-  { key: 'atr_pct_14', label: 'ATR% (14日)' },
-  { key: 'volatility_20d', label: '20日ボラティリティ' },
-  { key: 'new_high_20d', label: '20日高値更新' },
-  { key: 'new_high_52w', label: '52週高値更新' },
-  { key: 'cross_up_ma25', label: '25日線上抜け' },
-  { key: 'cross_down_ma25', label: '25日線下抜け' },
-  { key: 'trend_mid_up', label: '中期上昇トレンド' },
-  { key: 'perfect_order_flag', label: 'パーフェクトオーダー' },
+  { key: 'close_vs_ma25', label: '終値-25日線乖離', valueType: 'number' },
+  { key: 'close_vs_ma75', label: '終値-75日線乖離', valueType: 'number' },
+  { key: 'close_vs_ma200', label: '終値-200日線乖離', valueType: 'number' },
+  { key: 'volume_ratio', label: '出来高倍率', valueType: 'number' },
+  { key: 'turnover_ratio', label: '売買代金倍率', valueType: 'number' },
+  { key: 'atr_pct_14', label: 'ATR% (14日)', valueType: 'number' },
+  { key: 'volatility_20d', label: '20日ボラティリティ', valueType: 'number' },
+  { key: 'new_high_20d', label: '20日高値更新', valueType: 'boolean' },
+  { key: 'new_high_52w', label: '52週高値更新', valueType: 'boolean' },
+  { key: 'cross_up_ma25', label: '25日線上抜け', valueType: 'boolean' },
+  { key: 'cross_down_ma25', label: '25日線下抜け', valueType: 'boolean' },
+  { key: 'trend_mid_up', label: '中期上昇トレンド', valueType: 'boolean' },
+  { key: 'perfect_order_flag', label: 'パーフェクトオーダー', valueType: 'boolean' },
 ] as const;
 
 const OPERATOR_OPTIONS: Array<{ value: TechnicalAlertOperator; label: string }> = [
@@ -48,6 +48,9 @@ const OPERATOR_OPTIONS: Array<{ value: TechnicalAlertOperator; label: string }> 
   { value: 'BETWEEN', label: '範囲内' },
   { value: 'OUTSIDE', label: '範囲外' },
 ];
+
+const BOOLEAN_OPERATOR_OPTIONS = OPERATOR_OPTIONS.filter((row) => row.value === 'IS_TRUE' || row.value === 'IS_FALSE');
+const NUMERIC_OPERATOR_OPTIONS = OPERATOR_OPTIONS.filter((row) => row.value !== 'IS_TRUE' && row.value !== 'IS_FALSE');
 
 const formatDateTime = (value?: string | null): string => {
   if (!value) {
@@ -122,6 +125,18 @@ const isBooleanOperator = (operator: TechnicalAlertOperator): boolean => {
 
 const needsUpperThreshold = (operator: TechnicalAlertOperator): boolean => {
   return operator === 'BETWEEN' || operator === 'OUTSIDE';
+};
+
+const getTechnicalFieldOption = (fieldKey: string) => {
+  return TECHNICAL_FIELD_OPTIONS.find((row) => row.key === fieldKey) ?? TECHNICAL_FIELD_OPTIONS[0];
+};
+
+const isBooleanFieldKey = (fieldKey: string): boolean => {
+  return getTechnicalFieldOption(fieldKey).valueType === 'boolean';
+};
+
+const getOperatorOptions = (fieldKey: string): Array<{ value: TechnicalAlertOperator; label: string }> => {
+  return isBooleanFieldKey(fieldKey) ? BOOLEAN_OPERATOR_OPTIONS : NUMERIC_OPERATOR_OPTIONS;
 };
 
 type RuleFormState = {
@@ -217,6 +232,9 @@ export const WatchlistDetailPage = () => {
   const historyLimit = 10;
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const currentFieldOption = getTechnicalFieldOption(ruleForm.field_key);
+  const currentOperatorOptions = getOperatorOptions(ruleForm.field_key);
+  const currentFieldIsBoolean = currentFieldOption.valueType === 'boolean';
 
   const fetchDetail = useCallback(async (): Promise<void> => {
     if (!ticker) {
@@ -616,11 +634,19 @@ export const WatchlistDetailPage = () => {
               />
             </label>
             <label>
-              field_key
+              指標
               <select
                 value={ruleForm.field_key}
                 onChange={(event) => {
-                  setRuleForm((current) => ({ ...current, field_key: event.target.value }));
+                  const nextFieldKey = event.target.value;
+                  const nextFieldIsBoolean = isBooleanFieldKey(nextFieldKey);
+                  setRuleForm((current) => ({
+                    ...current,
+                    field_key: nextFieldKey,
+                    operator: nextFieldIsBoolean ? 'IS_TRUE' : isBooleanOperator(current.operator) ? 'GTE' : current.operator,
+                    threshold_value: nextFieldIsBoolean ? '' : current.threshold_value || '0',
+                    threshold_upper: nextFieldIsBoolean ? '' : current.threshold_upper,
+                  }));
                 }}
               >
                 {TECHNICAL_FIELD_OPTIONS.map((row) => (
@@ -631,7 +657,7 @@ export const WatchlistDetailPage = () => {
               </select>
             </label>
             <label>
-              演算子
+              判定方法
               <select
                 value={ruleForm.operator}
                 onChange={(event) => {
@@ -641,16 +667,21 @@ export const WatchlistDetailPage = () => {
                   }));
                 }}
               >
-                {OPERATOR_OPTIONS.map((row) => (
+                {currentOperatorOptions.map((row) => (
                   <option key={row.value} value={row.value}>
                     {row.label}
                   </option>
                 ))}
               </select>
             </label>
-            {!isBooleanOperator(ruleForm.operator) && (
+            {currentFieldIsBoolean && (
+              <div className="form-note-block">
+                <span className="muted">フラグ項目です。しきい値は不要で、TRUE / FALSE 判定のみ指定できます。</span>
+              </div>
+            )}
+            {!currentFieldIsBoolean && !isBooleanOperator(ruleForm.operator) && (
               <label>
-                しきい値
+                {needsUpperThreshold(ruleForm.operator) ? '下限値' : '基準値'}
                 <input
                   value={ruleForm.threshold_value}
                   onChange={(event) => {
@@ -659,7 +690,7 @@ export const WatchlistDetailPage = () => {
                 />
               </label>
             )}
-            {needsUpperThreshold(ruleForm.operator) && (
+            {!currentFieldIsBoolean && needsUpperThreshold(ruleForm.operator) && (
               <label>
                 上限値
                 <input

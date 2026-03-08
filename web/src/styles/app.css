@@ -653,6 +653,15 @@ th {
   width: 100%;
 }
 
+.form-note-block {
+  display: flex;
+  align-items: end;
+}
+
+.form-note-block .muted {
+  margin: 0;
+}
+
 .technical-rule-note-field {
   grid-column: 1 / -1;
 }
