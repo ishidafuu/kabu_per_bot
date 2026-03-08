@@ -12,6 +12,7 @@ export type AdminJobKey =
   | 'daily_at21'
   | 'technical_daily'
   | 'technical_full_refresh'
+  | 'technical_profile_auto_assign'
   | 'earnings_weekly'
   | 'earnings_tomorrow'
   | 'committee_baseline_refresh'

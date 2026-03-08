@@ -57,6 +57,7 @@ PYTHONPATH=src python -m unittest discover -s tests
 | 増分バックフィル | `scripts/run_incremental_backfill_job.py` | なし（補完処理） | 常に実行 |
 | 技術日次 | `scripts/run_technical_daily_job.py` | 技術アラート（Discord） | 常に実行 |
 | 技術全件再同期 | `scripts/run_technical_full_refresh_job.py` | なし（通知抑止で再同期のみ実行） | 常に実行 |
+| 技術プロファイル自動割当 | `scripts/run_technical_profile_auto_assign_job.py` | なし（watchlist の technical_profile_id 更新） | 常に実行 |
 
 ```bash
 PYTHONPATH=src python scripts/run_daily_job.py
@@ -128,6 +129,18 @@ PYTHONPATH=src python scripts/run_technical_full_refresh_job.py --tickers 6501:T
 - `run_technical_full_refresh_job.py` は内部で `full_refresh=true` と `skip_alerts=true` を固定する。
 - 分割・併合後の再調整吸収や障害復旧では、まず全件再同期でデータ整合性を戻し、その後に通常の `technical_daily` を再実行する。
 
+技術プロファイル自動割当を実行する場合:
+
+```bash
+PYTHONPATH=src python scripts/run_technical_profile_auto_assign_job.py
+PYTHONPATH=src python scripts/run_technical_profile_auto_assign_job.py --allow-manual-fallback
+```
+
+- `watchlist.is_active=true` かつ `technical_profile_manual_override=false` の銘柄を対象に、優先順 `low_liquidity -> large_core -> value_dividend -> small_growth` で `technical_profile_id` を更新する。
+- 判定には最新 `technical_indicators_daily` と `market_cap` を使用する。
+- `value_dividend` は既定では `manual_only` とし、`--allow-manual-fallback` を指定した場合のみ `fallback_rule` を評価する。
+- 標準出力JSONは `processed_tickers` / `updated_tickers` / `skipped_manual_override` / `matched_tickers` / `assignments` を返す。
+
 ### 4.2 設定の優先順位（実装準拠）
 
 1. `global_settings/runtime`（管理画面 `/ops` から更新）
@@ -166,6 +179,7 @@ PYTHONPATH=src python scripts/run_technical_full_refresh_job.py --tickers 6501:T
 - `kabu-backfill-incremental` <- `sc-kabu-backfill-incremental`（土曜21:15 JST）
 - `kabu-technical-daily`（Cloud Run Job のみ作成。定期スケジューラは未付与のため `/ops` または手動実行で使用）
 - `kabu-technical-full-refresh`（Cloud Run Job のみ作成。障害復旧・再調整吸収用）
+- `kabu-technical-profile-auto-assign`（Cloud Run Job のみ作成。プロファイル自動割当用）
 - `kabu-earnings-weekly` <- `sc-kabu-earnings-weekly`（土曜21:00 JST）
 - `kabu-earnings-tomorrow` <- `sc-kabu-earnings-tomorrow`（毎日21:00 JST）
 
@@ -184,6 +198,7 @@ gcloud run jobs executions list --job=kabu-intelligence --region=asia-northeast1
 gcloud run jobs executions list --job=kabu-grok --region=asia-northeast1 --project=<GCP_PROJECT_ID>
 gcloud run jobs executions list --job=kabu-technical-daily --region=asia-northeast1 --project=<GCP_PROJECT_ID>
 gcloud run jobs executions list --job=kabu-technical-full-refresh --region=asia-northeast1 --project=<GCP_PROJECT_ID>
+gcloud run jobs executions list --job=kabu-technical-profile-auto-assign --region=asia-northeast1 --project=<GCP_PROJECT_ID>
 gcloud scheduler jobs list --location=asia-northeast1 --project=<GCP_PROJECT_ID>
 ```
 

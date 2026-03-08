@@ -48,6 +48,10 @@ const JOB_GUIDES: Record<VisibleJobKey, JobGuide> = {
     summary: 'ウォッチリスト銘柄の価格バーと技術指標を全件再同期します。',
     schedule: '通常は定期実行なし（必要時のみ手動実行）',
   },
+  technical_profile_auto_assign: {
+    summary: 'ウォッチリスト銘柄へ技術プロファイルを自動割当します。manual override の銘柄は上書きしません。',
+    schedule: '通常は定期実行なし（必要時のみ手動実行）',
+  },
   earnings_weekly: {
     summary: '来週決算分の通知候補を作成し、今週決算通知を送信します。',
     schedule: '通常は土曜21:00に定期実行',

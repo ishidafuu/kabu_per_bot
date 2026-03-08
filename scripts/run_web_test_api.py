@@ -229,6 +229,11 @@ class InMemoryAdminOpsService:
             AdminOpsJob(key="backfill", label="バックフィルジョブ", job_name="kabu-backfill"),
             AdminOpsJob(key="technical_daily", label="技術日次ジョブ", job_name="kabu-technical-daily"),
             AdminOpsJob(key="technical_full_refresh", label="技術全件再同期ジョブ", job_name="kabu-technical-full-refresh"),
+            AdminOpsJob(
+                key="technical_profile_auto_assign",
+                label="技術プロファイル自動割当ジョブ",
+                job_name="kabu-technical-profile-auto-assign",
+            ),
         )
 
     def list_executions(self, *, job_key: str, limit: int = 20) -> tuple[JobExecution, ...]:

@@ -19,6 +19,7 @@ _JOB_BASE_ARGS: dict[str, list[str]] = {
     "backfill": ["scripts/run_backfill_daily_metrics.py"],
     "technical_daily": ["scripts/run_technical_daily_job.py"],
     "technical_full_refresh": ["scripts/run_technical_full_refresh_job.py"],
+    "technical_profile_auto_assign": ["scripts/run_technical_profile_auto_assign_job.py"],
 }
 
 
@@ -476,6 +477,14 @@ def _load_default_jobs() -> tuple[AdminOpsJob, ...]:
             key="technical_full_refresh",
             label="技術全件再同期ジョブ",
             job_name=_env_or_default("OPS_TECHNICAL_FULL_REFRESH_JOB_NAME", "kabu-technical-full-refresh"),
+        ),
+        AdminOpsJob(
+            key="technical_profile_auto_assign",
+            label="技術プロファイル自動割当ジョブ",
+            job_name=_env_or_default(
+                "OPS_TECHNICAL_PROFILE_AUTO_ASSIGN_JOB_NAME",
+                "kabu-technical-profile-auto-assign",
+            ),
         ),
     )
 

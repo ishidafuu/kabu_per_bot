@@ -34,6 +34,12 @@ const mockJobs: AdminOpsJob[] = [
   { key: 'daily_at21', label: '21:05ジョブ（AT_21）', job_name: 'kabu-daily-at21', configured: true },
   { key: 'technical_daily', label: '技術日次ジョブ', job_name: 'kabu-technical-daily', configured: true },
   { key: 'technical_full_refresh', label: '技術全件再同期ジョブ', job_name: 'kabu-technical-full-refresh', configured: true },
+  {
+    key: 'technical_profile_auto_assign',
+    label: '技術プロファイル自動割当ジョブ',
+    job_name: 'kabu-technical-profile-auto-assign',
+    configured: true,
+  },
   { key: 'earnings_weekly', label: '今週決算ジョブ', job_name: 'kabu-earnings-weekly', configured: true },
   { key: 'earnings_tomorrow', label: '明日決算ジョブ', job_name: 'kabu-earnings-tomorrow', configured: true },
   {

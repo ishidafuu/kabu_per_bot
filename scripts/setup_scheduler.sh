@@ -36,6 +36,7 @@ INTELLIGENCE_JOB_NAME="${INTELLIGENCE_JOB_NAME:-kabu-intelligence}"
 GROK_JOB_NAME="${GROK_JOB_NAME:-kabu-grok}"
 TECHNICAL_DAILY_JOB_NAME="${TECHNICAL_DAILY_JOB_NAME:-kabu-technical-daily}"
 TECHNICAL_FULL_REFRESH_JOB_NAME="${TECHNICAL_FULL_REFRESH_JOB_NAME:-kabu-technical-full-refresh}"
+TECHNICAL_PROFILE_AUTO_ASSIGN_JOB_NAME="${TECHNICAL_PROFILE_AUTO_ASSIGN_JOB_NAME:-kabu-technical-profile-auto-assign}"
 
 DAILY_SCHEDULER_NAME="${DAILY_SCHEDULER_NAME:-sc-kabu-daily}"
 DAILY_AT21_SCHEDULER_NAME="${DAILY_AT21_SCHEDULER_NAME:-sc-kabu-daily-at21}"
@@ -653,6 +654,12 @@ main() {
       "${daily_env}" \
       "${runtime_sa_email}" \
       "JQUANTS_API_KEY=${JQUANTS_SECRET_NAME}:latest,DISCORD_WEBHOOK_URL=${SECRET_NAME}:latest,DISCORD_WEBHOOK_URL_DAILY=${DAILY_SECRET_NAME}:latest"
+    upsert_run_job \
+      "${TECHNICAL_PROFILE_AUTO_ASSIGN_JOB_NAME}" \
+      "scripts/run_technical_profile_auto_assign_job.py" \
+      "${daily_env}" \
+      "${runtime_sa_email}" \
+      "JQUANTS_API_KEY=${JQUANTS_SECRET_NAME}:latest"
   else
     log_warn "J-Quants Secret が未利用のため、増分バックフィルJob/Schedulerは作成しません。"
   fi
@@ -702,6 +709,7 @@ EOF
   gcloud run jobs executions list --job=${BACKFILL_INCREMENTAL_JOB_NAME} --region=${REGION} --project=${PROJECT_ID}
   gcloud run jobs executions list --job=${TECHNICAL_DAILY_JOB_NAME} --region=${REGION} --project=${PROJECT_ID}
   gcloud run jobs executions list --job=${TECHNICAL_FULL_REFRESH_JOB_NAME} --region=${REGION} --project=${PROJECT_ID}
+  gcloud run jobs executions list --job=${TECHNICAL_PROFILE_AUTO_ASSIGN_JOB_NAME} --region=${REGION} --project=${PROJECT_ID}
   gcloud scheduler jobs run ${BACKFILL_INCREMENTAL_SCHEDULER_NAME} --location=${SCHEDULER_LOCATION} --project=${PROJECT_ID}
 EOF
   fi

@@ -163,6 +163,7 @@ class TechnicalDailyJobScriptTest(unittest.TestCase):
             patch.object(target, "FirestoreTechnicalSyncStateRepository", return_value=object()),
             patch.object(target, "FirestoreTechnicalAlertRulesRepository", return_value=object()),
             patch.object(target, "FirestoreTechnicalAlertStateRepository", return_value=object()),
+            patch.object(target, "FirestoreTechnicalProfilesRepository", return_value=object()),
             patch.object(target, "FirestoreNotificationLogRepository", return_value=notification_log_repo),
             patch.object(target, "JQuantsV2Client", return_value=object()),
             patch.object(target, "run_technical_job", return_value=result) as mocked_run,
@@ -206,6 +207,7 @@ class TechnicalDailyJobScriptTest(unittest.TestCase):
             patch.object(target, "FirestoreTechnicalSyncStateRepository", return_value=object()),
             patch.object(target, "FirestoreTechnicalAlertRulesRepository", return_value=object()),
             patch.object(target, "FirestoreTechnicalAlertStateRepository", return_value=object()),
+            patch.object(target, "FirestoreTechnicalProfilesRepository", return_value=object()),
             patch.object(target, "FirestoreNotificationLogRepository", return_value=notification_log_repo),
             patch.object(target, "JQuantsV2Client", return_value=object()),
             patch.object(target, "run_technical_job", return_value=TechnicalJobResult(
