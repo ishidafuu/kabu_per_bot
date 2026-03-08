@@ -17,6 +17,9 @@ const NotificationLogsPage = lazy(async () => ({
 }));
 const UserGuidePage = lazy(async () => ({ default: (await import('./pages/UserGuidePage')).UserGuidePage }));
 const OpsPage = lazy(async () => ({ default: (await import('./pages/OpsPage')).OpsPage }));
+const TechnicalProfilesPage = lazy(async () => ({
+  default: (await import('./pages/TechnicalProfilesPage')).TechnicalProfilesPage,
+}));
 
 const routeFallback = <div className="route-loading">読み込み中...</div>;
 
@@ -88,6 +91,16 @@ function App() {
             <ProtectedRoute>
               <Suspense fallback={routeFallback}>
                 <UserGuidePage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/technical-profiles"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={routeFallback}>
+                <TechnicalProfilesPage />
               </Suspense>
             </ProtectedRoute>
           }

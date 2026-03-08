@@ -210,6 +210,36 @@ button:disabled {
   color: #f8fafc;
 }
 
+.technical-profiles-layout {
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+}
+
+.technical-profile-list {
+  display: grid;
+  gap: 12px;
+}
+
+.technical-profile-card {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  padding: 14px;
+  border: 1px solid #d2deec;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  cursor: pointer;
+}
+
+.technical-profile-card.selected {
+  border-color: #0f766e;
+  background: #ecfeff;
+}
+
+.technical-profile-card span,
+.technical-profile-card small {
+  color: #64748b;
+}
+
 .search-row {
   display: grid;
   grid-template-columns: 1fr auto auto;

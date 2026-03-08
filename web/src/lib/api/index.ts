@@ -6,8 +6,11 @@ import type { NotificationLogClient } from './notificationLogClient';
 import { HttpNotificationLogClient } from './notificationLogClient';
 import { MockDashboardClient } from './mockDashboardClient';
 import { MockNotificationLogClient } from './mockNotificationLogClient';
+import { MockTechnicalProfilesClient } from './mockTechnicalProfilesClient';
 import { MockWatchlistClient } from './mockWatchlistClient';
 import { MockWatchlistHistoryClient } from './mockWatchlistHistoryClient';
+import type { TechnicalProfilesClient } from './technicalProfilesClient';
+import { HttpTechnicalProfilesClient } from './technicalProfilesClient';
 import type { WatchlistClient } from './watchlistClient';
 import { HttpWatchlistClient } from './watchlistClient';
 import type { WatchlistHistoryClient } from './watchlistHistoryClient';
@@ -37,6 +40,17 @@ export const createDashboardClient = (
 
   const httpClient = new HttpClient(appConfig.apiBaseUrl, options.getToken);
   return new HttpDashboardClient(httpClient);
+};
+
+export const createTechnicalProfilesClient = (
+  options: ClientFactoryOptions,
+): TechnicalProfilesClient => {
+  if (appConfig.useMockApi) {
+    return new MockTechnicalProfilesClient();
+  }
+
+  const httpClient = new HttpClient(appConfig.apiBaseUrl, options.getToken);
+  return new HttpTechnicalProfilesClient(httpClient);
 };
 
 export const createWatchlistHistoryClient = (
