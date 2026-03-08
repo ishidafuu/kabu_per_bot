@@ -83,6 +83,8 @@ class FirestoreWatchlistRepositoryTest(unittest.TestCase):
             metric_type=MetricType.PER,
             notify_channel=NotifyChannel.DISCORD,
             notify_timing=NotifyTiming.IMMEDIATE,
+            technical_profile_id="system_large_core",
+            technical_profile_manual_override=True,
             created_at="2026-02-12T00:00:00+00:00",
             updated_at="2026-02-12T00:00:00+00:00",
         )
@@ -97,6 +99,8 @@ class FirestoreWatchlistRepositoryTest(unittest.TestCase):
             metric_type=MetricType.PSR,
             notify_channel=NotifyChannel.OFF,
             notify_timing=NotifyTiming.AT_21,
+            technical_profile_id="system_large_core",
+            technical_profile_manual_override=True,
             created_at=item.created_at,
             updated_at="2026-02-13T00:00:00+00:00",
         )
@@ -106,6 +110,7 @@ class FirestoreWatchlistRepositoryTest(unittest.TestCase):
         assert fetched is not None
         self.assertEqual(fetched.metric_type, MetricType.PSR)
         self.assertEqual(fetched.notify_channel, NotifyChannel.OFF)
+        self.assertTrue(fetched.technical_profile_manual_override)
 
         self.assertTrue(repo.delete("3901:TSE"))
         self.assertFalse(repo.delete("3901:TSE"))

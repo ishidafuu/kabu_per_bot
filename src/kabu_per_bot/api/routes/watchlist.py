@@ -506,6 +506,7 @@ def create_watchlist_item(
     payload: WatchlistCreateRequest,
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> WatchlistItemResponse:
+    _ensure_technical_profile_exists(request=request, technical_profile_id=payload.technical_profile_id)
     with _translate_watchlist_error():
         created = service.add_item(
             ticker=payload.ticker,
@@ -524,6 +525,8 @@ def create_watchlist_item(
             ir_urls=payload.ir_urls,
             x_official_account=payload.x_official_account,
             x_executive_accounts=[row.model_dump() for row in payload.x_executive_accounts],
+            technical_profile_id=payload.technical_profile_id,
+            technical_profile_manual_override=payload.technical_profile_manual_override,
             reason=payload.reason,
         )
     _run_watchlist_registration_warmup(request=request, item=created)
@@ -536,12 +539,14 @@ def create_watchlist_item(
     responses=error_responses(400, 401, 403, 404, 422, 500),
 )
 def update_watchlist_item(
+    request: Request,
     ticker: str,
     payload: WatchlistUpdateRequest,
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> WatchlistItemResponse:
     if not payload.has_updates():
         raise BadRequestError("更新対象のフィールドを1つ以上指定してください。")
+    _ensure_technical_profile_exists(request=request, technical_profile_id=payload.technical_profile_id)
 
     with _translate_watchlist_error():
         updated = service.update_item(
@@ -565,6 +570,8 @@ def update_watchlist_item(
                 if payload.x_executive_accounts is not None
                 else None
             ),
+            technical_profile_id=payload.technical_profile_id,
+            technical_profile_manual_override=payload.technical_profile_manual_override,
         )
     return WatchlistItemResponse.from_domain(updated)
 
@@ -616,6 +623,22 @@ def _resolve_status_dependency_from_app(
         raise InternalServerError(f"{value_key} の初期化に失敗しました。") from exc
     setattr(app.state, value_key, dependency)
     return dependency
+
+
+def _ensure_technical_profile_exists(
+    *,
+    request: Request,
+    technical_profile_id: str | None,
+) -> None:
+    if technical_profile_id is None:
+        return
+    technical_profiles_repo = _resolve_status_dependency(
+        request=request,
+        value_key="technical_profiles_repository",
+        factory_key="technical_profiles_repository_factory",
+    )
+    if technical_profiles_repo.get(technical_profile_id) is None:
+        raise UnprocessableEntityError("technical_profile_id が存在しません。")
 
 
 def _build_watchlist_item_response(

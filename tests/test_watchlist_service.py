@@ -126,6 +126,30 @@ class WatchlistServiceTest(unittest.TestCase):
         self.assertEqual(updated.priority, WatchPriority.HIGH)
         self.assertEqual(updated.updated_at, "2026-02-13T00:00:00+00:00")
 
+    def test_technical_profile_assignment_can_be_saved_and_updated(self) -> None:
+        repo = InMemoryWatchlistRepository()
+        service = WatchlistService(repo)
+
+        created = service.add_item(
+            ticker="3901:TSE",
+            name="富士フイルム",
+            metric_type=MetricType.PER,
+            notify_channel=NotifyChannel.DISCORD,
+            notify_timing=NotifyTiming.IMMEDIATE,
+            technical_profile_id="custom_swing_plus",
+            technical_profile_manual_override=True,
+        )
+        self.assertEqual(created.technical_profile_id, "custom_swing_plus")
+        self.assertTrue(created.technical_profile_manual_override)
+
+        updated = service.update_item(
+            "3901:TSE",
+            technical_profile_id="system_large_core",
+            technical_profile_manual_override=False,
+        )
+        self.assertEqual(updated.technical_profile_id, "system_large_core")
+        self.assertFalse(updated.technical_profile_manual_override)
+
     def test_evaluation_settings_defaults_and_update(self) -> None:
         repo = InMemoryWatchlistRepository()
         service = WatchlistService(repo)
@@ -212,11 +236,13 @@ class WatchlistServiceTest(unittest.TestCase):
                 "always_notify_enabled": "true",
                 "ai_enabled": "false",
                 "is_active": "1",
+                "technical_profile_manual_override": "1",
             }
         )
         self.assertTrue(item.always_notify_enabled)
         self.assertTrue(item.ai_enabled)
         self.assertTrue(item.is_active)
+        self.assertTrue(item.technical_profile_manual_override)
 
     def test_from_document_legacy_notify_channel_maps_to_discord(self) -> None:
         for legacy_value in ("LINE", "line", "BOTH", "both"):

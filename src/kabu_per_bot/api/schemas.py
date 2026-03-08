@@ -54,6 +54,8 @@ class WatchlistItemResponse(BaseModel):
     ir_urls: list[str]
     x_official_account: str | None = None
     x_executive_accounts: list[XAccountLinkResponse]
+    technical_profile_id: str | None = None
+    technical_profile_manual_override: bool = False
     current_metric_value: float | None = None
     median_1w: float | None = None
     median_3m: float | None = None
@@ -104,6 +106,8 @@ class WatchlistItemResponse(BaseModel):
             ir_urls=list(item.ir_urls),
             x_official_account=item.x_official_account,
             x_executive_accounts=[WatchlistItemResponse.XAccountLinkResponse.from_domain(row) for row in item.x_executive_accounts],
+            technical_profile_id=item.technical_profile_id,
+            technical_profile_manual_override=item.technical_profile_manual_override,
             current_metric_value=current_metric_value,
             median_1w=median_1w,
             median_3m=median_3m,
@@ -148,6 +152,8 @@ class WatchlistCreateRequest(BaseModel):
     ir_urls: list[str] = Field(default_factory=list, max_length=10)
     x_official_account: str | None = Field(default=None, max_length=16)
     x_executive_accounts: list[XAccountLinkRequest] = Field(default_factory=list, max_length=10)
+    technical_profile_id: str | None = Field(default=None, max_length=120)
+    technical_profile_manual_override: bool = False
 
     @field_validator("notify_channel")
     @classmethod
@@ -177,6 +183,8 @@ class WatchlistUpdateRequest(BaseModel):
     ir_urls: list[str] | None = Field(default=None, max_length=10)
     x_official_account: str | None = Field(default=None, max_length=16)
     x_executive_accounts: list[XAccountLinkRequest] | None = Field(default=None, max_length=10)
+    technical_profile_id: str | None = Field(default=None, max_length=120)
+    technical_profile_manual_override: bool | None = None
 
     @field_validator("notify_channel")
     @classmethod
@@ -206,6 +214,8 @@ class WatchlistUpdateRequest(BaseModel):
                 self.ir_urls is not None,
                 self.x_official_account is not None,
                 self.x_executive_accounts is not None,
+                self.technical_profile_id is not None,
+                self.technical_profile_manual_override is not None,
             )
         )
 

@@ -7,7 +7,7 @@ import logging
 import re
 from typing import Any, Protocol
 
-from kabu_per_bot.storage.firestore_schema import normalize_ticker
+from kabu_per_bot.storage.firestore_schema import normalize_ticker, technical_profile_doc_id
 
 LOGGER = logging.getLogger(__name__)
 
@@ -108,6 +108,8 @@ class WatchlistItem:
     ir_urls: tuple[str, ...] = ()
     x_official_account: str | None = None
     x_executive_accounts: tuple[XAccountLink, ...] = ()
+    technical_profile_id: str | None = None
+    technical_profile_manual_override: bool = False
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -155,6 +157,12 @@ class WatchlistItem:
             ir_urls=_parse_ir_urls(data.get("ir_urls")),
             x_official_account=_normalize_optional_x_handle(data.get("x_official_account")),
             x_executive_accounts=_parse_x_executive_accounts(data.get("x_executive_accounts")),
+            technical_profile_id=_normalize_technical_profile_id(data.get("technical_profile_id")),
+            technical_profile_manual_override=_coerce_bool(
+                data.get("technical_profile_manual_override"),
+                field_name="technical_profile_manual_override",
+                default=False,
+            ),
             created_at=(str(data["created_at"]) if data.get("created_at") else None),
             updated_at=(str(data["updated_at"]) if data.get("updated_at") else None),
         )
@@ -177,6 +185,8 @@ class WatchlistItem:
             "ir_urls": list(self.ir_urls),
             "x_official_account": self.x_official_account,
             "x_executive_accounts": [entry.to_document() for entry in self.x_executive_accounts],
+            "technical_profile_id": self.technical_profile_id,
+            "technical_profile_manual_override": self.technical_profile_manual_override,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -327,6 +337,8 @@ class WatchlistService:
         ir_urls: list[str] | tuple[str, ...] | None = None,
         x_official_account: str | None = None,
         x_executive_accounts: list[XAccountLink | dict[str, Any]] | tuple[XAccountLink | dict[str, Any], ...] | None = None,
+        technical_profile_id: str | None = None,
+        technical_profile_manual_override: bool = False,
         now_iso: str | None = None,
         reason: str | None = None,
     ) -> WatchlistItem:
@@ -362,6 +374,8 @@ class WatchlistService:
             ir_urls=_normalize_ir_urls(ir_urls),
             x_official_account=_normalize_optional_x_handle(x_official_account),
             x_executive_accounts=_normalize_x_executive_accounts(x_executive_accounts),
+            technical_profile_id=_normalize_technical_profile_id(technical_profile_id),
+            technical_profile_manual_override=bool(technical_profile_manual_override),
             created_at=current_time,
             updated_at=current_time,
         )
@@ -423,6 +437,8 @@ class WatchlistService:
         ir_urls: list[str] | tuple[str, ...] | None = None,
         x_official_account: str | None = None,
         x_executive_accounts: list[XAccountLink | dict[str, Any]] | tuple[XAccountLink | dict[str, Any], ...] | None = None,
+        technical_profile_id: str | None = None,
+        technical_profile_manual_override: bool | None = None,
         now_iso: str | None = None,
     ) -> WatchlistItem:
         normalized_ticker = normalize_ticker(ticker)
@@ -494,6 +510,16 @@ class WatchlistService:
                 existing.x_executive_accounts
                 if x_executive_accounts is None
                 else _normalize_x_executive_accounts(x_executive_accounts)
+            ),
+            technical_profile_id=(
+                existing.technical_profile_id
+                if technical_profile_id is None
+                else _normalize_technical_profile_id(technical_profile_id)
+            ),
+            technical_profile_manual_override=(
+                existing.technical_profile_manual_override
+                if technical_profile_manual_override is None
+                else bool(technical_profile_manual_override)
             ),
             created_at=existing.created_at,
             updated_at=now_iso or self._now_iso(),
@@ -683,3 +709,12 @@ def _normalize_role(value: Any) -> str | None:
         return None
     normalized = str(value).strip()
     return normalized or None
+
+
+def _normalize_technical_profile_id(value: Any) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    return technical_profile_doc_id(normalized)

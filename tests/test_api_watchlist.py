@@ -19,6 +19,7 @@ from kabu_per_bot.signal import NotificationLogEntry, SignalState
 from kabu_per_bot.ir_url_candidates import IrUrlCandidate, IrUrlSuggestionError
 from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
 from kabu_per_bot.technical import TechnicalAlertOperator, TechnicalAlertRule, TechnicalIndicatorsDaily
+from kabu_per_bot.technical_profiles import TechnicalProfile, TechnicalProfileType
 from kabu_per_bot.storage.firestore_schema import normalize_ticker
 from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchPriority
 from kabu_per_bot.watchlist import CreateResult, WatchlistHistoryAction, WatchlistHistoryRecord, WatchlistItem, WatchlistService
@@ -206,6 +207,26 @@ class FakeTechnicalIndicatorsRepository:
         return values[:limit]
 
 
+@dataclass
+class FakeTechnicalProfilesRepository:
+    rows: dict[str, TechnicalProfile] = field(default_factory=dict)
+
+    def get(self, profile_id: str) -> TechnicalProfile | None:
+        return self.rows.get(profile_id)
+
+    def list_all(self, *, include_inactive: bool = True) -> list[TechnicalProfile]:
+        values = list(self.rows.values())
+        if not include_inactive:
+            values = [row for row in values if row.is_active]
+        return values
+
+    def upsert(self, profile: TechnicalProfile) -> None:
+        self.rows[profile.profile_id] = profile
+
+    def delete(self, profile_id: str) -> bool:
+        return self.rows.pop(profile_id, None) is not None
+
+
 class FakeTokenVerifier:
     def verify(self, token: str) -> dict[str, str]:
         if token == "valid-token":
@@ -305,6 +326,7 @@ def _build_client(
     earnings_calendar_repository=None,
     technical_alert_rules_repository=None,
     technical_indicators_repository=None,
+    technical_profiles_repository=None,
     admin_ops_service=None,
 ) -> TestClient:
     repository = InMemoryWatchlistRepository()
@@ -319,6 +341,7 @@ def _build_client(
         earnings_calendar_repository=earnings_calendar_repository,
         technical_alert_rules_repository=technical_alert_rules_repository,
         technical_indicators_repository=technical_indicators_repository,
+        technical_profiles_repository=technical_profiles_repository,
         admin_ops_service=admin_ops_service,
         ir_url_candidate_service=ir_url_candidate_service,
         token_verifier=FakeTokenVerifier(),
@@ -327,6 +350,26 @@ def _build_client(
 
 
 class WatchlistApiTest(unittest.TestCase):
+    def _technical_profiles_repository(self) -> FakeTechnicalProfilesRepository:
+        return FakeTechnicalProfilesRepository(
+            rows={
+                "system_large_core": TechnicalProfile(
+                    profile_id="system_large_core",
+                    profile_type=TechnicalProfileType.SYSTEM,
+                    profile_key="large_core",
+                    name="大型・主力",
+                    description="大型株向け",
+                ),
+                "custom_swing_plus": TechnicalProfile(
+                    profile_id="custom_swing_plus",
+                    profile_type=TechnicalProfileType.CUSTOM,
+                    profile_key="swing_plus",
+                    name="スイング強気",
+                    description="カスタム",
+                ),
+            }
+        )
+
     def test_healthz(self) -> None:
         client = _build_client()
         response = client.get("/api/v1/healthz")
@@ -383,7 +426,7 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertIn("token_verifier", body["error"]["message"])
 
     def test_watchlist_crud_and_search(self) -> None:
-        client = _build_client()
+        client = _build_client(technical_profiles_repository=self._technical_profiles_repository())
 
         create_1 = client.post(
             "/api/v1/watchlist",
@@ -395,6 +438,8 @@ class WatchlistApiTest(unittest.TestCase):
                 "notify_channel": "DISCORD",
                 "notify_timing": "IMMEDIATE",
                 "always_notify_enabled": True,
+                "technical_profile_id": "system_large_core",
+                "technical_profile_manual_override": True,
             },
         )
         self.assertEqual(create_1.status_code, 201)
@@ -405,6 +450,8 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(create_1.json()["evaluation_notify_mode"], "ALERT_ONLY")
         self.assertEqual(create_1.json()["evaluation_top_n"], 3)
         self.assertEqual(create_1.json()["evaluation_min_strength"], 4)
+        self.assertEqual(create_1.json()["technical_profile_id"], "system_large_core")
+        self.assertTrue(create_1.json()["technical_profile_manual_override"])
 
         create_2 = client.post(
             "/api/v1/watchlist",
@@ -445,6 +492,8 @@ class WatchlistApiTest(unittest.TestCase):
                 "evaluation_notify_mode": "ALERT_ONLY",
                 "evaluation_top_n": 5,
                 "evaluation_min_strength": 5,
+                "technical_profile_id": "custom_swing_plus",
+                "technical_profile_manual_override": False,
             },
         )
         self.assertEqual(update.status_code, 200)
@@ -456,6 +505,8 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(update.json()["evaluation_notify_mode"], "ALERT_ONLY")
         self.assertEqual(update.json()["evaluation_top_n"], 5)
         self.assertEqual(update.json()["evaluation_min_strength"], 5)
+        self.assertEqual(update.json()["technical_profile_id"], "custom_swing_plus")
+        self.assertFalse(update.json()["technical_profile_manual_override"])
 
         delete = client.delete("/api/v1/watchlist/3901:TSE", headers=_auth_header())
         self.assertEqual(delete.status_code, 204)
@@ -465,7 +516,7 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(missing.json()["error"]["code"], "not_found")
 
     def test_watchlist_supports_priority_filter(self) -> None:
-        client = _build_client()
+        client = _build_client(technical_profiles_repository=self._technical_profiles_repository())
         payloads = [
             {
                 "ticker": "3901:TSE",
@@ -495,6 +546,25 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(body["total"], 1)
         self.assertEqual(body["items"][0]["ticker"], "3901:TSE")
         self.assertEqual(body["items"][0]["priority"], "HIGH")
+
+    def test_watchlist_rejects_unknown_technical_profile(self) -> None:
+        client = _build_client(technical_profiles_repository=self._technical_profiles_repository())
+
+        response = client.post(
+            "/api/v1/watchlist",
+            headers=_auth_header(),
+            json={
+                "ticker": "3901:TSE",
+                "name": "富士フイルム",
+                "metric_type": "PER",
+                "notify_channel": "DISCORD",
+                "notify_timing": "IMMEDIATE",
+                "technical_profile_id": "missing_profile",
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["error"]["code"], "validation_error")
 
     def test_watchlist_detail_returns_summary_notifications_and_history(self) -> None:
         now = datetime.now(timezone.utc)
