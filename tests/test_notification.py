@@ -11,6 +11,7 @@ from kabu_per_bot.notification import (
     format_intel_update_message,
     format_signal_message,
     format_signal_status_message,
+    format_technical_alert_message,
 )
 from kabu_per_bot.committee.types import CommitteeEvaluation, LensDirection, LensEvaluation, LensKey
 from kabu_per_bot.signal import SignalState
@@ -199,6 +200,27 @@ class NotificationFormatterTest(unittest.TestCase):
         self.assertIn("次の確認:", message.body)
         self.assertIn("📅 決算まで: 当日", message.body)
         self.assertEqual(message.category, "データ不明")
+
+    def test_technical_alert_message_format(self) -> None:
+        message = format_technical_alert_message(
+            ticker="3901:TSE",
+            company_name="富士フイルム",
+            rule_id="rule-ma25",
+            rule_name="25日線回復",
+            field_key="close_vs_ma25",
+            trade_date="2026-03-08",
+            current_value=0.5,
+            previous_value=-0.4,
+            threshold_label=">= 0.00",
+            note="終値ベース",
+        )
+        self.assertIn("【技術アラート】3901:TSE 富士フイルム", message.body)
+        self.assertIn("ルール名: 25日線回復", message.body)
+        self.assertIn("現在値: 0.50", message.body)
+        self.assertIn("しきい値: >= 0.00", message.body)
+        self.assertIn("補助情報: field=close_vs_ma25 / 前回値=-0.40", message.body)
+        self.assertIn("メモ: 終値ベース", message.body)
+        self.assertEqual(message.condition_key, "TECH:rule-ma25")
 
     def test_intel_update_message_format(self) -> None:
         message = format_intel_update_message(

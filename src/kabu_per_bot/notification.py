@@ -335,10 +335,53 @@ def format_committee_evaluation_message(
     )
 
 
+def format_technical_alert_message(
+    *,
+    ticker: str,
+    company_name: str,
+    rule_id: str,
+    rule_name: str,
+    field_key: str,
+    trade_date: str,
+    current_value,
+    previous_value,
+    threshold_label: str,
+    note: str | None = None,
+) -> NotificationMessage:
+    normalized_ticker = normalize_ticker(ticker)
+    lines = [
+        f"【技術アラート】{normalized_ticker} {company_name}",
+        f"ルール名: {rule_name}",
+        f"判定日: {trade_date}",
+        f"現在値: {_fmt_technical_value(current_value)}",
+        f"しきい値: {threshold_label}",
+        f"補助情報: field={field_key} / 前回値={_fmt_technical_value(previous_value)}",
+    ]
+    if note:
+        lines.append(f"メモ: {note.strip()}")
+    return NotificationMessage(
+        ticker=normalized_ticker,
+        category="技術アラート",
+        condition_key=f"TECH:{rule_id}",
+        body="\n".join(lines),
+        is_strong=False,
+    )
+
+
 def _fmt(value: float | None) -> str:
     if value is None:
         return "N/A"
     return f"{value:.2f}"
+
+
+def _fmt_technical_value(value) -> str:
+    if value is None:
+        return "N/A"
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, (int, float)):
+        return f"{float(value):.2f}"
+    return str(value)
 
 
 def _lens_direction_label(value: LensDirection) -> str:
