@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import logging
 
-import scripts.run_technical_daily_job as daily_job
+try:
+    import scripts.run_technical_daily_job as daily_job
+except ModuleNotFoundError:
+    import run_technical_daily_job as daily_job
 
 
 LOGGER = logging.getLogger(__name__)
