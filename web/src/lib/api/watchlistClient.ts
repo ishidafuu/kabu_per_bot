@@ -7,7 +7,12 @@ import type {
   WatchlistListResponse,
   WatchlistUpdateInput,
 } from '../../types/watchlist';
-import type { WatchlistDetailResponse } from '../../types/watchlistDetail';
+import type {
+  TechnicalAlertRule,
+  TechnicalAlertRuleCreateInput,
+  TechnicalAlertRuleUpdateInput,
+  WatchlistDetailResponse,
+} from '../../types/watchlistDetail';
 import { HttpClient } from './httpClient';
 
 export interface GetWatchlistDetailParams {
@@ -32,6 +37,12 @@ export interface ListWatchlistParams {
 export interface WatchlistClient {
   list(params?: ListWatchlistParams): Promise<WatchlistListResponse>;
   getDetail(ticker: string, params?: GetWatchlistDetailParams): Promise<WatchlistDetailResponse>;
+  createTechnicalAlertRule(ticker: string, input: TechnicalAlertRuleCreateInput): Promise<TechnicalAlertRule>;
+  updateTechnicalAlertRule(
+    ticker: string,
+    ruleId: string,
+    input: TechnicalAlertRuleUpdateInput,
+  ): Promise<TechnicalAlertRule>;
   suggestIrUrlCandidates(input: IrUrlCandidateSuggestInput): Promise<IrUrlCandidateListResponse>;
   create(input: WatchlistCreateInput): Promise<WatchlistItem>;
   update(ticker: string, input: WatchlistUpdateInput): Promise<WatchlistItem>;
@@ -108,6 +119,30 @@ export class HttpWatchlistClient implements WatchlistClient {
     return this.httpClient.request<WatchlistDetailResponse>(path, {
       method: 'GET',
     });
+  }
+
+  async createTechnicalAlertRule(ticker: string, input: TechnicalAlertRuleCreateInput): Promise<TechnicalAlertRule> {
+    return this.httpClient.request<TechnicalAlertRule>(
+      `/watchlist/${encodeURIComponent(ticker)}/technical-alert-rules`,
+      {
+        method: 'POST',
+        body: JSON.stringify(input),
+      },
+    );
+  }
+
+  async updateTechnicalAlertRule(
+    ticker: string,
+    ruleId: string,
+    input: TechnicalAlertRuleUpdateInput,
+  ): Promise<TechnicalAlertRule> {
+    return this.httpClient.request<TechnicalAlertRule>(
+      `/watchlist/${encodeURIComponent(ticker)}/technical-alert-rules/${encodeURIComponent(ruleId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      },
+    );
   }
 
   async create(input: WatchlistCreateInput): Promise<WatchlistItem> {

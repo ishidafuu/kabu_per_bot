@@ -40,6 +40,14 @@ const JOB_GUIDES: Record<VisibleJobKey, JobGuide> = {
     summary: '21:05向けの再評価を手動で実行します（AT_21銘柄向け）。',
     schedule: '通常は平日21:05に定期実行',
   },
+  technical_daily: {
+    summary: 'ウォッチリスト銘柄の価格バー同期、技術指標計算、技術アラート通知を日次で実行します。',
+    schedule: '通常は平日18:10に定期実行',
+  },
+  technical_full_refresh: {
+    summary: 'ウォッチリスト銘柄の価格バーと技術指標を全件再同期します。',
+    schedule: '通常は定期実行なし（必要時のみ手動実行）',
+  },
   earnings_weekly: {
     summary: '来週決算分の通知候補を作成し、今週決算通知を送信します。',
     schedule: '通常は土曜21:00に定期実行',
@@ -107,6 +115,15 @@ const formatGrokBalance = (settings: AdminGlobalSettings | null, isLoading: bool
 
 const isVisibleJobKey = (key: AdminJobKey): key is VisibleJobKey => {
   return key !== 'backfill';
+};
+
+const getJobGuide = (key: VisibleJobKey): JobGuide => {
+  return (
+    JOB_GUIDES[key] ?? {
+      schedule: '未設定',
+      summary: 'ジョブ説明はまだ登録されていません。',
+    }
+  );
 };
 
 const getHistoryPageLabel = (index: number): number => {
@@ -735,7 +752,7 @@ export const OpsPage = () => {
                     </tr>
                   )}
                   {jobRows.map((row) => {
-                    const guide = JOB_GUIDES[row.key];
+                    const guide = getJobGuide(row.key);
                     return (
                       <tr key={row.key}>
                         <td>{row.label}</td>

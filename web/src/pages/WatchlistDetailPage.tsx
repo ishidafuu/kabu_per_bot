@@ -5,7 +5,13 @@ import { AppLayout } from '../components/AppLayout';
 import { createWatchlistClient } from '../lib/api';
 import { toUserMessage } from '../lib/api/errors';
 import { appConfig } from '../lib/config';
-import type { WatchlistDetailResponse } from '../types/watchlistDetail';
+import type {
+  TechnicalAlertOperator,
+  TechnicalAlertRule,
+  TechnicalAlertRuleCreateInput,
+  TechnicalAlertRuleUpdateInput,
+  WatchlistDetailResponse,
+} from '../types/watchlistDetail';
 
 const dateTimeFormatter = new Intl.DateTimeFormat('ja-JP', {
   year: 'numeric',
@@ -17,6 +23,31 @@ const dateTimeFormatter = new Intl.DateTimeFormat('ja-JP', {
   hour12: false,
   timeZone: 'Asia/Tokyo',
 });
+
+const TECHNICAL_FIELD_OPTIONS = [
+  { key: 'close_vs_ma25', label: '終値-25日線乖離' },
+  { key: 'close_vs_ma75', label: '終値-75日線乖離' },
+  { key: 'close_vs_ma200', label: '終値-200日線乖離' },
+  { key: 'volume_ratio', label: '出来高倍率' },
+  { key: 'turnover_ratio', label: '売買代金倍率' },
+  { key: 'atr_pct_14', label: 'ATR% (14日)' },
+  { key: 'volatility_20d', label: '20日ボラティリティ' },
+  { key: 'new_high_20d', label: '20日高値更新' },
+  { key: 'new_high_52w', label: '52週高値更新' },
+  { key: 'cross_up_ma25', label: '25日線上抜け' },
+  { key: 'cross_down_ma25', label: '25日線下抜け' },
+  { key: 'trend_mid_up', label: '中期上昇トレンド' },
+  { key: 'perfect_order_flag', label: 'パーフェクトオーダー' },
+] as const;
+
+const OPERATOR_OPTIONS: Array<{ value: TechnicalAlertOperator; label: string }> = [
+  { value: 'IS_TRUE', label: 'TRUE' },
+  { value: 'IS_FALSE', label: 'FALSE' },
+  { value: 'GTE', label: '>=' },
+  { value: 'LTE', label: '<=' },
+  { value: 'BETWEEN', label: '範囲内' },
+  { value: 'OUTSIDE', label: '範囲外' },
+];
 
 const formatDateTime = (value?: string | null): string => {
   if (!value) {
@@ -36,6 +67,38 @@ const formatNumber = (value?: number | null): string => {
   return value.toFixed(2);
 };
 
+const formatTechnicalValue = (value: string | number | boolean | null | undefined): string => {
+  if (value == null) {
+    return '-';
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'TRUE' : 'FALSE';
+  }
+  if (typeof value === 'number') {
+    return value.toFixed(2);
+  }
+  return value;
+};
+
+const formatThreshold = (rule: TechnicalAlertRule): string => {
+  if (rule.operator === 'IS_TRUE') {
+    return 'TRUE';
+  }
+  if (rule.operator === 'IS_FALSE') {
+    return 'FALSE';
+  }
+  if (rule.operator === 'GTE') {
+    return `>= ${formatNumber(rule.threshold_value)}`;
+  }
+  if (rule.operator === 'LTE') {
+    return `<= ${formatNumber(rule.threshold_value)}`;
+  }
+  if (rule.operator === 'BETWEEN') {
+    return `${formatNumber(rule.threshold_value)} - ${formatNumber(rule.threshold_upper)}`;
+  }
+  return `< ${formatNumber(rule.threshold_value)} または > ${formatNumber(rule.threshold_upper)}`;
+};
+
 const formatEarnings = (date?: string | null, time?: string | null): string => {
   if (!date) {
     return '-';
@@ -53,6 +116,84 @@ const formatEarningsDays = (days?: number | null): string => {
   return `${days}日`;
 };
 
+const isBooleanOperator = (operator: TechnicalAlertOperator): boolean => {
+  return operator === 'IS_TRUE' || operator === 'IS_FALSE';
+};
+
+const needsUpperThreshold = (operator: TechnicalAlertOperator): boolean => {
+  return operator === 'BETWEEN' || operator === 'OUTSIDE';
+};
+
+type RuleFormState = {
+  rule_name: string;
+  field_key: string;
+  operator: TechnicalAlertOperator;
+  threshold_value: string;
+  threshold_upper: string;
+  note: string;
+  is_active: boolean;
+};
+
+const buildEmptyRuleForm = (): RuleFormState => ({
+  rule_name: '',
+  field_key: TECHNICAL_FIELD_OPTIONS[0].key,
+  operator: 'GTE',
+  threshold_value: '0',
+  threshold_upper: '',
+  note: '',
+  is_active: true,
+});
+
+const parseOptionalNumber = (value: string): number | null => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = Number(trimmed);
+  if (Number.isNaN(parsed)) {
+    throw new Error('しきい値は数値で入力してください。');
+  }
+  return parsed;
+};
+
+const toRulePayload = (form: RuleFormState): TechnicalAlertRuleCreateInput => {
+  const payload: TechnicalAlertRuleCreateInput = {
+    rule_name: form.rule_name.trim(),
+    field_key: form.field_key,
+    operator: form.operator,
+    is_active: form.is_active,
+    note: form.note.trim() || null,
+  };
+  if (!payload.rule_name) {
+    throw new Error('ルール名を入力してください。');
+  }
+  if (!isBooleanOperator(form.operator)) {
+    payload.threshold_value = parseOptionalNumber(form.threshold_value);
+    if (payload.threshold_value == null) {
+      throw new Error('しきい値を入力してください。');
+    }
+  }
+  if (needsUpperThreshold(form.operator)) {
+    payload.threshold_upper = parseOptionalNumber(form.threshold_upper);
+    if (payload.threshold_upper == null) {
+      throw new Error('上限値を入力してください。');
+    }
+  }
+  return payload;
+};
+
+const technicalHighlightKeys = [
+  'close_vs_ma25',
+  'close_vs_ma75',
+  'close_vs_ma200',
+  'volume_ratio',
+  'turnover_ratio',
+  'atr_pct_14',
+  'volatility_20d',
+  'cross_up_ma25',
+  'new_high_20d',
+] as const;
+
 export const WatchlistDetailPage = () => {
   const { ticker } = useParams();
   const { getIdToken } = useAuth();
@@ -64,6 +205,11 @@ export const WatchlistDetailPage = () => {
   const [strongOnly, setStrongOnly] = useState(false);
   const [offset, setOffset] = useState(0);
   const [historyOffset, setHistoryOffset] = useState(0);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [ruleForm, setRuleForm] = useState<RuleFormState>(buildEmptyRuleForm);
+  const [ruleMessage, setRuleMessage] = useState('');
+  const [ruleError, setRuleError] = useState('');
+  const [isSavingRule, setIsSavingRule] = useState(false);
   const limit = appConfig.pageSize;
   const historyLimit = 10;
   const [isLoading, setIsLoading] = useState(false);
@@ -104,6 +250,76 @@ export const WatchlistDetailPage = () => {
     setCategory(categoryInput.trim());
   };
 
+  const resetRuleForm = (): void => {
+    setEditingRuleId(null);
+    setRuleForm(buildEmptyRuleForm());
+  };
+
+  const startEditRule = (rule: TechnicalAlertRule): void => {
+    setEditingRuleId(rule.rule_id);
+    setRuleForm({
+      rule_name: rule.rule_name,
+      field_key: rule.field_key,
+      operator: rule.operator,
+      threshold_value: rule.threshold_value != null ? String(rule.threshold_value) : '',
+      threshold_upper: rule.threshold_upper != null ? String(rule.threshold_upper) : '',
+      note: rule.note ?? '',
+      is_active: rule.is_active,
+    });
+    setRuleMessage('');
+    setRuleError('');
+  };
+
+  const handleSubmitRule = async (): Promise<void> => {
+    if (!ticker) {
+      return;
+    }
+    setIsSavingRule(true);
+    setRuleMessage('');
+    setRuleError('');
+    try {
+      const payload = toRulePayload(ruleForm);
+      if (editingRuleId) {
+        const updatePayload: TechnicalAlertRuleUpdateInput = payload;
+        await client.updateTechnicalAlertRule(ticker, editingRuleId, updatePayload);
+        setRuleMessage('技術アラートルールを更新しました。');
+      } else {
+        await client.createTechnicalAlertRule(ticker, payload);
+        setRuleMessage('技術アラートルールを追加しました。');
+      }
+      resetRuleForm();
+      await fetchDetail();
+    } catch (error) {
+      if (error instanceof Error) {
+        setRuleError(error.message);
+      } else {
+        setRuleError(toUserMessage(error));
+      }
+    } finally {
+      setIsSavingRule(false);
+    }
+  };
+
+  const toggleRuleActive = async (rule: TechnicalAlertRule): Promise<void> => {
+    if (!ticker) {
+      return;
+    }
+    setIsSavingRule(true);
+    setRuleMessage('');
+    setRuleError('');
+    try {
+      await client.updateTechnicalAlertRule(ticker, rule.rule_id, {
+        is_active: !rule.is_active,
+      });
+      setRuleMessage(rule.is_active ? '技術アラートルールを無効化しました。' : '技術アラートルールを有効化しました。');
+      await fetchDetail();
+    } catch (error) {
+      setRuleError(toUserMessage(error));
+    } finally {
+      setIsSavingRule(false);
+    }
+  };
+
   const notificationTotal = detail?.notifications.total ?? 0;
   const historyTotal = detail?.history.total ?? 0;
   const canGoNotificationPrev = offset > 0;
@@ -113,6 +329,15 @@ export const WatchlistDetailPage = () => {
 
   const item = detail?.item;
   const summary = detail?.summary;
+  const technicalRules = detail?.technical_rules.items ?? [];
+  const latestTechnical = detail?.latest_technical;
+  const latestTechnicalRows = technicalHighlightKeys
+    .map((key) => ({
+      key,
+      label: TECHNICAL_FIELD_OPTIONS.find((row) => row.key === key)?.label ?? key,
+      value: latestTechnical?.values[key],
+    }))
+    .filter((row) => row.value != null);
 
   return (
     <AppLayout
@@ -227,6 +452,225 @@ export const WatchlistDetailPage = () => {
         </article>
       </section>
 
+      <section className="detail-grid">
+        <article className="panel detail-card">
+          <div className="panel-header">
+            <h2>最新テクニカル</h2>
+            <span className="muted">{latestTechnical ? `${latestTechnical.trade_date} 基準` : '未計算'}</span>
+          </div>
+          <div className="detail-status-grid">
+            {latestTechnicalRows.length === 0 && (
+              <p className="empty-note">最新テクニカル指標はまだ保存されていません。</p>
+            )}
+            {latestTechnicalRows.map((row) => (
+              <div key={row.key} className="watchlist-meta-item technical-meta-item">
+                <span className="muted">{row.label}</span>
+                <strong>{formatTechnicalValue(row.value)}</strong>
+                <small>{row.key}</small>
+              </div>
+            ))}
+            {latestTechnical && (
+              <div className="watchlist-meta-item technical-meta-item">
+                <span className="muted">計算時刻</span>
+                <strong>{formatDateTime(latestTechnical.calculated_at)}</strong>
+                <small>schema v{latestTechnical.schema_version}</small>
+              </div>
+            )}
+          </div>
+        </article>
+
+        <article className="panel detail-card">
+          <div className="panel-header">
+            <h2>直近発火履歴</h2>
+            <span className="muted">{detail?.technical_alert_history.total ?? 0}件</span>
+          </div>
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>送信日時</th>
+                  <th>条件キー</th>
+                  <th>本文</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(detail?.technical_alert_history.items.length ?? 0) === 0 && (
+                  <tr>
+                    <td colSpan={3} className="empty-cell">
+                      技術アラートの発火履歴はありません。
+                    </td>
+                  </tr>
+                )}
+                {detail?.technical_alert_history.items.map((row) => (
+                  <tr key={row.entry_id}>
+                    <td>{formatDateTime(row.sent_at)}</td>
+                    <td>{row.condition_key}</td>
+                    <td className="detail-body-cell">{row.body ?? '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section className="panel detail-rule-panel">
+        <div className="panel-header">
+          <h2>技術アラートルール</h2>
+          <span className="muted">{detail?.technical_rules.total ?? 0}件</span>
+        </div>
+        {ruleMessage && <p className="success-text">{ruleMessage}</p>}
+        {ruleError && <p className="error-text">{ruleError}</p>}
+        <div className="technical-rule-list">
+          {technicalRules.length === 0 && <p className="empty-note">ルールはまだ登録されていません。</p>}
+          {technicalRules.map((rule) => (
+            <article
+              key={rule.rule_id}
+              className={`technical-rule-card${rule.is_active ? '' : ' is-inactive'}`}
+            >
+              <div className="technical-rule-card-head">
+                <div>
+                  <h3>{rule.rule_name}</h3>
+                  <p className="muted">
+                    {rule.field_key} / {formatThreshold(rule)}
+                  </p>
+                </div>
+                <span className={`technical-rule-badge${rule.is_active ? ' is-active' : ''}`}>
+                  {rule.is_active ? '有効' : '無効'}
+                </span>
+              </div>
+              <p className="technical-rule-note">{rule.note ?? 'メモなし'}</p>
+              <div className="technical-rule-card-foot">
+                <span className="muted">更新: {formatDateTime(rule.updated_at)}</span>
+                <div className="technical-rule-actions">
+                  <button type="button" className="secondary" onClick={() => startEditRule(rule)}>
+                    編集
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={isSavingRule}
+                    onClick={() => {
+                      void toggleRuleActive(rule);
+                    }}
+                  >
+                    {rule.is_active ? '無効化' : '有効化'}
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="technical-rule-editor">
+          <div className="panel-header">
+            <h3>{editingRuleId ? 'ルールを編集' : 'ルールを追加'}</h3>
+          </div>
+          <div className="technical-rule-form-grid">
+            <label>
+              ルール名
+              <input
+                value={ruleForm.rule_name}
+                onChange={(event) => {
+                  setRuleForm((current) => ({ ...current, rule_name: event.target.value }));
+                }}
+              />
+            </label>
+            <label>
+              field_key
+              <select
+                value={ruleForm.field_key}
+                onChange={(event) => {
+                  setRuleForm((current) => ({ ...current, field_key: event.target.value }));
+                }}
+              >
+                {TECHNICAL_FIELD_OPTIONS.map((row) => (
+                  <option key={row.key} value={row.key}>
+                    {row.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              演算子
+              <select
+                value={ruleForm.operator}
+                onChange={(event) => {
+                  setRuleForm((current) => ({
+                    ...current,
+                    operator: event.target.value as TechnicalAlertOperator,
+                  }));
+                }}
+              >
+                {OPERATOR_OPTIONS.map((row) => (
+                  <option key={row.value} value={row.value}>
+                    {row.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {!isBooleanOperator(ruleForm.operator) && (
+              <label>
+                しきい値
+                <input
+                  value={ruleForm.threshold_value}
+                  onChange={(event) => {
+                    setRuleForm((current) => ({ ...current, threshold_value: event.target.value }));
+                  }}
+                />
+              </label>
+            )}
+            {needsUpperThreshold(ruleForm.operator) && (
+              <label>
+                上限値
+                <input
+                  value={ruleForm.threshold_upper}
+                  onChange={(event) => {
+                    setRuleForm((current) => ({ ...current, threshold_upper: event.target.value }));
+                  }}
+                />
+              </label>
+            )}
+            <label className="technical-rule-note-field">
+              メモ
+              <textarea
+                value={ruleForm.note}
+                rows={3}
+                onChange={(event) => {
+                  setRuleForm((current) => ({ ...current, note: event.target.value }));
+                }}
+              />
+            </label>
+            <label className="inline-checkbox">
+              <input
+                type="checkbox"
+                checked={ruleForm.is_active}
+                onChange={(event) => {
+                  setRuleForm((current) => ({ ...current, is_active: event.target.checked }));
+                }}
+              />
+              保存直後から有効にする
+            </label>
+          </div>
+          <div className="technical-rule-actions">
+            <button
+              type="button"
+              disabled={isSavingRule}
+              onClick={() => {
+                void handleSubmitRule();
+              }}
+            >
+              {editingRuleId ? '更新する' : '追加する'}
+            </button>
+            {editingRuleId && (
+              <button type="button" className="secondary" onClick={resetRuleForm}>
+                編集をやめる
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
       <section className="panel table-panel detail-table-panel">
         <div className="panel-header">
           <h2>通知タイムライン</h2>
@@ -261,7 +705,7 @@ export const WatchlistDetailPage = () => {
                 <tr key={row.entry_id}>
                   <td>{formatDateTime(row.sent_at)}</td>
                   <td>{row.category}</td>
-                  <td>{row.is_strong ? 'true' : 'false'}</td>
+                  <td>{row.is_strong ? '強' : '通常'}</td>
                   <td>{row.condition_key}</td>
                   <td className="detail-body-cell">{row.body ?? '-'}</td>
                 </tr>
@@ -270,23 +714,27 @@ export const WatchlistDetailPage = () => {
           </table>
         </div>
         <div className="pagination-row">
-          <span className="muted">総件数: {notificationTotal}</span>
           <button
             type="button"
-            className="ghost"
+            className="secondary"
             disabled={!canGoNotificationPrev || isLoading}
             onClick={() => {
-              setOffset((prev) => Math.max(prev - limit, 0));
+              setOffset((current) => Math.max(0, current - limit));
             }}
           >
             前へ
           </button>
+          <span className="muted">
+            {notificationTotal === 0
+              ? '0 / 0'
+              : `${offset + 1}-${Math.min(offset + limit, notificationTotal)} / ${notificationTotal}`}
+          </span>
           <button
             type="button"
-            className="ghost"
+            className="secondary"
             disabled={!canGoNotificationNext || isLoading}
             onClick={() => {
-              setOffset((prev) => prev + limit);
+              setOffset((current) => current + limit);
             }}
           >
             次へ
@@ -296,23 +744,29 @@ export const WatchlistDetailPage = () => {
 
       <section className="panel table-panel detail-table-panel">
         <div className="panel-header">
-          <h2>ウォッチリスト操作履歴</h2>
+          <h2>操作履歴</h2>
         </div>
         <div className="table-wrapper">
           <table>
             <thead>
               <tr>
-                <th>操作日時</th>
-                <th>操作種別</th>
-                <th>理由メモ</th>
-                <th>履歴ID</th>
+                <th>日時</th>
+                <th>操作</th>
+                <th>理由</th>
               </tr>
             </thead>
             <tbody>
+              {isLoading && (detail?.history.items.length ?? 0) === 0 && (
+                <tr>
+                  <td colSpan={3} className="empty-cell">
+                    読み込み中...
+                  </td>
+                </tr>
+              )}
               {!isLoading && (detail?.history.items.length ?? 0) === 0 && (
                 <tr>
-                  <td colSpan={4} className="empty-cell">
-                    履歴データがありません。
+                  <td colSpan={3} className="empty-cell">
+                    操作履歴はありません。
                   </td>
                 </tr>
               )}
@@ -321,30 +775,33 @@ export const WatchlistDetailPage = () => {
                   <td>{formatDateTime(row.acted_at)}</td>
                   <td>{row.action}</td>
                   <td>{row.reason ?? '-'}</td>
-                  <td>{row.record_id}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <div className="pagination-row">
-          <span className="muted">総件数: {historyTotal}</span>
           <button
             type="button"
-            className="ghost"
+            className="secondary"
             disabled={!canGoHistoryPrev || isLoading}
             onClick={() => {
-              setHistoryOffset((prev) => Math.max(prev - historyLimit, 0));
+              setHistoryOffset((current) => Math.max(0, current - historyLimit));
             }}
           >
             前へ
           </button>
+          <span className="muted">
+            {historyTotal === 0
+              ? '0 / 0'
+              : `${historyOffset + 1}-${Math.min(historyOffset + historyLimit, historyTotal)} / ${historyTotal}`}
+          </span>
           <button
             type="button"
-            className="ghost"
+            className="secondary"
             disabled={!canGoHistoryNext || isLoading}
             onClick={() => {
-              setHistoryOffset((prev) => prev + historyLimit);
+              setHistoryOffset((current) => current + historyLimit);
             }}
           >
             次へ

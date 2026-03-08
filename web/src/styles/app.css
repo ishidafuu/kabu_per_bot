@@ -504,6 +504,17 @@ th {
   font-weight: 500;
 }
 
+.success-text {
+  margin-top: 4px;
+  color: #166534;
+  font-weight: 600;
+}
+
+.empty-note {
+  padding: 14px;
+  color: #64748b;
+}
+
 .fit-content {
   width: fit-content;
 }
@@ -541,6 +552,100 @@ th {
   min-width: 460px;
   white-space: normal;
   line-height: 1.6;
+}
+
+.detail-rule-panel {
+  margin-bottom: 12px;
+}
+
+.technical-meta-item {
+  border-radius: 14px;
+  padding: 12px;
+  background: linear-gradient(145deg, rgba(239, 246, 255, 0.92), rgba(248, 250, 252, 0.94));
+  border: 1px solid rgba(147, 197, 253, 0.35);
+}
+
+.technical-rule-list {
+  display: grid;
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+
+.technical-rule-card {
+  border-radius: 18px;
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: linear-gradient(155deg, rgba(248, 250, 252, 0.95), rgba(255, 255, 255, 0.98));
+  display: grid;
+  gap: 10px;
+}
+
+.technical-rule-card.is-inactive {
+  opacity: 0.72;
+}
+
+.technical-rule-card-head,
+.technical-rule-card-foot,
+.technical-rule-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.technical-rule-card-head h3 {
+  margin: 0 0 4px;
+}
+
+.technical-rule-badge {
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #7f1d1d;
+  background: rgba(254, 226, 226, 0.9);
+}
+
+.technical-rule-badge.is-active {
+  color: #14532d;
+  background: rgba(220, 252, 231, 0.92);
+}
+
+.technical-rule-note {
+  margin: 0;
+  color: #334155;
+  line-height: 1.6;
+}
+
+.technical-rule-editor {
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.technical-rule-form-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.technical-rule-form-grid label {
+  display: grid;
+  gap: 6px;
+  color: #334155;
+  font-size: 0.92rem;
+}
+
+.technical-rule-form-grid input,
+.technical-rule-form-grid select,
+.technical-rule-form-grid textarea {
+  width: 100%;
+}
+
+.technical-rule-note-field {
+  grid-column: 1 / -1;
 }
 
 .watchlist-skip-reason-cell {

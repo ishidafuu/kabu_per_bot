@@ -10,6 +10,8 @@ export type AdminJobKey =
   | 'immediate_close'
   | 'daily'
   | 'daily_at21'
+  | 'technical_daily'
+  | 'technical_full_refresh'
   | 'earnings_weekly'
   | 'earnings_tomorrow'
   | 'committee_baseline_refresh'

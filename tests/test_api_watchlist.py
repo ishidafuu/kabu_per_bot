@@ -17,7 +17,7 @@ from kabu_per_bot.metrics import DailyMetric, MetricMedians
 from kabu_per_bot.signal import NotificationLogEntry, SignalState
 from kabu_per_bot.ir_url_candidates import IrUrlCandidate, IrUrlSuggestionError
 from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
-from kabu_per_bot.technical import TechnicalAlertOperator, TechnicalAlertRule
+from kabu_per_bot.technical import TechnicalAlertOperator, TechnicalAlertRule, TechnicalIndicatorsDaily
 from kabu_per_bot.storage.firestore_schema import normalize_ticker
 from kabu_per_bot.watchlist import MetricType, NotifyChannel, NotifyTiming, WatchPriority
 from kabu_per_bot.watchlist import CreateResult, WatchlistHistoryAction, WatchlistHistoryRecord, WatchlistItem, WatchlistService
@@ -187,6 +187,24 @@ class FakeTechnicalAlertRulesRepository:
         return values[:limit]
 
 
+@dataclass
+class FakeTechnicalIndicatorsRepository:
+    rows: list[TechnicalIndicatorsDaily] = field(default_factory=list)
+
+    def get(self, ticker: str, trade_date: str) -> TechnicalIndicatorsDaily | None:
+        normalized = normalize_ticker(ticker)
+        for row in self.rows:
+            if row.ticker == normalized and row.trade_date == trade_date:
+                return row
+        return None
+
+    def list_recent(self, ticker: str, *, limit: int) -> list[TechnicalIndicatorsDaily]:
+        normalized = normalize_ticker(ticker)
+        values = [row for row in self.rows if row.ticker == normalized]
+        values.sort(key=lambda row: row.trade_date, reverse=True)
+        return values[:limit]
+
+
 class FakeTokenVerifier:
     def verify(self, token: str) -> dict[str, str]:
         if token == "valid-token":
@@ -240,6 +258,7 @@ def _build_client(
     signal_state_repository=None,
     earnings_calendar_repository=None,
     technical_alert_rules_repository=None,
+    technical_indicators_repository=None,
 ) -> TestClient:
     repository = InMemoryWatchlistRepository()
     service = WatchlistService(repository, max_items=max_items)
@@ -252,6 +271,7 @@ def _build_client(
         signal_state_repository=signal_state_repository,
         earnings_calendar_repository=earnings_calendar_repository,
         technical_alert_rules_repository=technical_alert_rules_repository,
+        technical_indicators_repository=technical_indicators_repository,
         ir_url_candidate_service=ir_url_candidate_service,
         token_verifier=FakeTokenVerifier(),
     )
@@ -567,6 +587,8 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(body["history"]["total"], 1)
         self.assertEqual(body["history"]["items"][0]["reason"], "初回登録")
         self.assertEqual(body["technical_rules"]["total"], 0)
+        self.assertIsNone(body["latest_technical"])
+        self.assertEqual(body["technical_alert_history"]["total"], 0)
 
     def test_watchlist_detail_supports_notification_filters(self) -> None:
         now = datetime.now(timezone.utc).isoformat()
@@ -1037,6 +1059,21 @@ class WatchlistApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
 
     def test_watchlist_detail_includes_technical_rules(self) -> None:
+        technical_indicators_repo = FakeTechnicalIndicatorsRepository(
+            rows=[
+                TechnicalIndicatorsDaily(
+                    ticker="3901:TSE",
+                    trade_date="2026-03-08",
+                    schema_version=1,
+                    calculated_at="2026-03-08T00:00:00+00:00",
+                    values={
+                        "close_vs_ma25": 0.5,
+                        "volume_ratio": 1.8,
+                        "cross_up_ma25": True,
+                    },
+                )
+            ]
+        )
         technical_repo = FakeTechnicalAlertRulesRepository(
             rows=[
                 TechnicalAlertRule.create(
@@ -1053,6 +1090,7 @@ class WatchlistApiTest(unittest.TestCase):
         )
         client = _build_client(
             technical_alert_rules_repository=technical_repo,
+            technical_indicators_repository=technical_indicators_repo,
             notification_log_repository=FakeNotificationLogRepository(),
             watchlist_history_repository=FakeWatchlistHistoryRepository(),
         )
@@ -1073,6 +1111,8 @@ class WatchlistApiTest(unittest.TestCase):
         body = response.json()
         self.assertEqual(body["technical_rules"]["total"], 1)
         self.assertEqual(body["technical_rules"]["items"][0]["rule_id"], "rule-1")
+        self.assertEqual(body["latest_technical"]["trade_date"], "2026-03-08")
+        self.assertEqual(body["latest_technical"]["values"]["close_vs_ma25"], 0.5)
 
     def test_watchlist_list_include_status(self) -> None:
         repository = InMemoryWatchlistRepository()

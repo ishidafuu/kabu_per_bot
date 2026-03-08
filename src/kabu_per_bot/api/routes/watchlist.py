@@ -15,10 +15,12 @@ from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.api.dependencies import (
     NotificationLogReader,
     TechnicalAlertRulesReader,
+    TechnicalIndicatorsReader,
     WatchlistHistoryReader,
     create_firestore_client,
     get_notification_log_repository,
     get_technical_alert_rules_repository,
+    get_technical_indicators_repository,
     get_ir_url_candidate_service,
     get_watchlist_history_repository,
     get_watchlist_service,
@@ -52,6 +54,7 @@ from kabu_per_bot.api.schemas import (
     TechnicalAlertRuleListResponse,
     TechnicalAlertRuleResponse,
     TechnicalAlertRuleUpdateRequest,
+    TechnicalIndicatorSnapshotResponse,
     WatchlistCreateRequest,
     WatchlistDetailResponse,
     WatchlistDetailSummaryResponse,
@@ -69,7 +72,7 @@ from kabu_per_bot.signal import NotificationLogEntry, SignalState, evaluate_cool
 from kabu_per_bot.storage.firestore_daily_metrics_repository import FirestoreDailyMetricsRepository
 from kabu_per_bot.storage.firestore_metric_medians_repository import FirestoreMetricMediansRepository
 from kabu_per_bot.storage.firestore_signal_state_repository import FirestoreSignalStateRepository
-from kabu_per_bot.technical import TechnicalAlertRule
+from kabu_per_bot.technical import TechnicalAlertRule, TechnicalIndicatorsDaily
 from kabu_per_bot.watchlist import (
     MetricType,
     NotifyChannel,
@@ -307,6 +310,19 @@ def get_watchlist_item_detail(
     )
     history_total = _call_repository(watchlist_history_repo.count_timeline, ticker=item.ticker)
     technical_rules = _load_technical_alert_rules_optional(request=request, ticker=item.ticker)
+    latest_technical = _load_latest_technical_optional(request=request, ticker=item.ticker)
+    technical_alert_history_rows = _call_repository(
+        notification_log_repo.list_timeline,
+        ticker=item.ticker,
+        category="技術アラート",
+        limit=10,
+        offset=0,
+    )
+    technical_alert_history_total = _call_repository(
+        notification_log_repo.count_timeline,
+        ticker=item.ticker,
+        category="技術アラート",
+    )
 
     return WatchlistDetailResponse(
         item=item_response,
@@ -322,6 +338,15 @@ def get_watchlist_item_detail(
         technical_rules=TechnicalAlertRuleListResponse(
             items=[TechnicalAlertRuleResponse.from_domain(row) for row in technical_rules],
             total=len(technical_rules),
+        ),
+        latest_technical=(
+            TechnicalIndicatorSnapshotResponse.from_domain(latest_technical)
+            if latest_technical is not None
+            else None
+        ),
+        technical_alert_history=NotificationLogListResponse(
+            items=[NotificationLogItemResponse.from_domain(row) for row in technical_alert_history_rows],
+            total=technical_alert_history_total,
         ),
     )
 
@@ -763,6 +788,25 @@ def _load_technical_alert_rules_optional(*, request: Request, ticker: str) -> li
     except InternalServerError as exc:
         LOGGER.warning("technical alert rules の取得をスキップ: ticker=%s reason=%s", ticker, exc)
         return []
+
+
+def _load_latest_technical_optional(*, request: Request, ticker: str) -> TechnicalIndicatorsDaily | None:
+    try:
+        repository = _resolve_status_dependency(
+            request=request,
+            value_key="technical_indicators_repository",
+            factory_key="technical_indicators_repository_factory",
+        )
+    except InternalServerError as exc:
+        LOGGER.warning("latest technical の取得をスキップ: ticker=%s reason=%s", ticker, exc)
+        return None
+
+    try:
+        rows = _call_repository(repository.list_recent, ticker=ticker, limit=1)
+    except InternalServerError as exc:
+        LOGGER.warning("latest technical の取得をスキップ: ticker=%s reason=%s", ticker, exc)
+        return None
+    return rows[0] if rows else None
 
 
 def _resolve_cooldown_hours(*, request: Request) -> int:

@@ -5,7 +5,13 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from kabu_per_bot.grok_sns_settings import GrokSnsSettings, validate_grok_sns_settings
 from kabu_per_bot.immediate_schedule import ImmediateSchedule, validate_immediate_schedule
 from kabu_per_bot.signal import NotificationLogEntry
-from kabu_per_bot.technical import TechnicalAlertOperator, TechnicalAlertRule, is_valid_technical_indicator_field_key
+from kabu_per_bot.technical import (
+    TECHNICAL_INDICATOR_FIELD_KEYS,
+    TechnicalAlertOperator,
+    TechnicalAlertRule,
+    TechnicalIndicatorsDaily,
+    is_valid_technical_indicator_field_key,
+)
 from kabu_per_bot.watchlist import (
     EvaluationNotifyMode,
     MetricType,
@@ -596,9 +602,29 @@ class TechnicalAlertRuleUpdateRequest(BaseModel):
         return self
 
 
+class TechnicalIndicatorSnapshotResponse(BaseModel):
+    ticker: str
+    trade_date: str
+    schema_version: int
+    calculated_at: str
+    values: dict[str, bool | int | float | str | None]
+
+    @classmethod
+    def from_domain(cls, row: TechnicalIndicatorsDaily) -> "TechnicalIndicatorSnapshotResponse":
+        return cls(
+            ticker=row.ticker,
+            trade_date=row.trade_date,
+            schema_version=row.schema_version,
+            calculated_at=row.calculated_at,
+            values={key: row.values.get(key) for key in TECHNICAL_INDICATOR_FIELD_KEYS if key in row.values},
+        )
+
+
 class WatchlistDetailResponse(BaseModel):
     item: WatchlistItemResponse
     summary: WatchlistDetailSummaryResponse
     notifications: NotificationLogListResponse
     history: WatchlistHistoryListResponse
     technical_rules: TechnicalAlertRuleListResponse
+    latest_technical: TechnicalIndicatorSnapshotResponse | None = None
+    technical_alert_history: NotificationLogListResponse

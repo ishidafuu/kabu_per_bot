@@ -7,11 +7,32 @@ import type {
   WatchlistListResponse,
   WatchlistUpdateInput,
 } from '../../types/watchlist';
-import type { WatchlistDetailResponse } from '../../types/watchlistDetail';
+import type {
+  TechnicalAlertRule,
+  TechnicalAlertRuleCreateInput,
+  TechnicalAlertRuleUpdateInput,
+  WatchlistDetailResponse,
+} from '../../types/watchlistDetail';
 import type { GetWatchlistDetailParams, ListWatchlistParams, WatchlistClient } from './watchlistClient';
 
 const MAX_WATCHLIST_COUNT = 100;
 const TICKER_PATTERN = /^\d{4}:TSE$/;
+const TECHNICAL_OPERATORS = new Set(['IS_TRUE', 'IS_FALSE', 'GTE', 'LTE', 'BETWEEN', 'OUTSIDE']);
+const TECHNICAL_FIELD_KEYS = new Set([
+  'close_vs_ma25',
+  'close_vs_ma75',
+  'close_vs_ma200',
+  'volume_ratio',
+  'turnover_ratio',
+  'atr_pct_14',
+  'volatility_20d',
+  'new_high_20d',
+  'new_high_52w',
+  'cross_up_ma25',
+  'cross_down_ma25',
+  'trend_mid_up',
+  'perfect_order_flag',
+]);
 
 const seedWatchlist: WatchlistItem[] = [
   {
@@ -182,6 +203,23 @@ const seedWatchlist: WatchlistItem[] = [
 ];
 
 let mockStore = [...seedWatchlist];
+let mockTechnicalRules: Record<string, TechnicalAlertRule[]> = {
+  '6501:TSE': [
+    {
+      rule_id: 'mock-rule-1',
+      ticker: '6501:TSE',
+      rule_name: '25日線回復',
+      field_key: 'close_vs_ma25',
+      operator: 'GTE',
+      threshold_value: 0,
+      threshold_upper: null,
+      is_active: true,
+      note: '終値ベース',
+      created_at: '2026-03-07T09:00:00+09:00',
+      updated_at: '2026-03-07T09:00:00+09:00',
+    },
+  ],
+};
 
 const wait = (ms: number): Promise<void> =>
   new Promise((resolve) => {
@@ -273,6 +311,19 @@ export class MockWatchlistClient implements WatchlistClient {
         data_source: 'Yahoo!ファイナンス',
         data_fetched_at: monthAgo,
       },
+      {
+        entry_id: `${normalizedTicker}-3`,
+        ticker: normalizedTicker,
+        category: '技術アラート',
+        condition_key: 'TECH:mock-rule-1',
+        sent_at: weekAgo,
+        channel: 'DISCORD',
+        payload_hash: 'mock-technical',
+        is_strong: false,
+        body: `【技術アラート】${normalizedTicker} ${found.name} 25日線回復`,
+        data_source: 'J-Quants LITE',
+        data_fetched_at: weekAgo,
+      },
     ];
 
     const filteredNotifications = notificationRows.filter((row) => {
@@ -318,7 +369,97 @@ export class MockWatchlistClient implements WatchlistClient {
         ],
         total: 1,
       },
+      technical_rules: {
+        items: [...(mockTechnicalRules[normalizedTicker] ?? [])],
+        total: (mockTechnicalRules[normalizedTicker] ?? []).length,
+      },
+      latest_technical: {
+        ticker: normalizedTicker,
+        trade_date: '2026-03-08',
+        schema_version: 1,
+        calculated_at: recentSentAt,
+        values: {
+          close_vs_ma25: 1.42,
+          close_vs_ma75: 6.18,
+          close_vs_ma200: 12.44,
+          volume_ratio: 1.73,
+          turnover_ratio: 1.51,
+          atr_pct_14: 2.64,
+          volatility_20d: 22.35,
+          new_high_20d: false,
+          new_high_52w: false,
+          cross_up_ma25: true,
+          cross_down_ma25: false,
+          trend_mid_up: true,
+          perfect_order_flag: false,
+        },
+      },
+      technical_alert_history: {
+        items: notificationRows.filter((row) => row.category === '技術アラート'),
+        total: notificationRows.filter((row) => row.category === '技術アラート').length,
+      },
     };
+  }
+
+  async createTechnicalAlertRule(ticker: string, input: TechnicalAlertRuleCreateInput): Promise<TechnicalAlertRule> {
+    await wait(120);
+    const normalizedTicker = ticker.trim().toUpperCase();
+    _validateTechnicalRuleInput(input);
+    const nextRule: TechnicalAlertRule = {
+      rule_id: `mock-rule-${Date.now()}`,
+      ticker: normalizedTicker,
+      rule_name: input.rule_name.trim(),
+      field_key: input.field_key,
+      operator: input.operator,
+      threshold_value: input.threshold_value ?? null,
+      threshold_upper: input.threshold_upper ?? null,
+      is_active: input.is_active ?? true,
+      note: input.note?.trim() || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    mockTechnicalRules = {
+      ...mockTechnicalRules,
+      [normalizedTicker]: [nextRule, ...(mockTechnicalRules[normalizedTicker] ?? [])],
+    };
+    return nextRule;
+  }
+
+  async updateTechnicalAlertRule(
+    ticker: string,
+    ruleId: string,
+    input: TechnicalAlertRuleUpdateInput,
+  ): Promise<TechnicalAlertRule> {
+    await wait(120);
+    const normalizedTicker = ticker.trim().toUpperCase();
+    const currentRules = [...(mockTechnicalRules[normalizedTicker] ?? [])];
+    const index = currentRules.findIndex((row) => row.rule_id === ruleId);
+    if (index < 0) {
+      throw new ApiError(404, 'データなし');
+    }
+    const current = currentRules[index];
+    _validateTechnicalRuleInput({
+      rule_name: input.rule_name ?? current.rule_name,
+      field_key: input.field_key ?? current.field_key,
+      operator: input.operator ?? current.operator,
+      threshold_value: input.threshold_value ?? current.threshold_value,
+      threshold_upper: input.threshold_upper ?? current.threshold_upper,
+      is_active: input.is_active ?? current.is_active,
+      note: input.note ?? current.note,
+    });
+    const updated: TechnicalAlertRule = {
+      ...current,
+      ...input,
+      rule_name: input.rule_name?.trim() ?? current.rule_name,
+      note: input.note != null ? (input.note.trim() || null) : current.note,
+      updated_at: new Date().toISOString(),
+    };
+    currentRules[index] = updated;
+    mockTechnicalRules = {
+      ...mockTechnicalRules,
+      [normalizedTicker]: currentRules,
+    };
+    return updated;
   }
 
   async suggestIrUrlCandidates(input: IrUrlCandidateSuggestInput): Promise<IrUrlCandidateListResponse> {
@@ -473,8 +614,49 @@ export class MockWatchlistClient implements WatchlistClient {
 
 export const resetMockWatchlist = (): void => {
   mockStore = [...seedWatchlist];
+  mockTechnicalRules = {
+    '6501:TSE': [
+      {
+        rule_id: 'mock-rule-1',
+        ticker: '6501:TSE',
+        rule_name: '25日線回復',
+        field_key: 'close_vs_ma25',
+        operator: 'GTE',
+        threshold_value: 0,
+        threshold_upper: null,
+        is_active: true,
+        note: '終値ベース',
+        created_at: '2026-03-07T09:00:00+09:00',
+        updated_at: '2026-03-07T09:00:00+09:00',
+      },
+    ],
+  };
 };
 
 export const getMockWatchlistCount = (): number => {
   return mockStore.length;
+};
+
+const _validateTechnicalRuleInput = (
+  input: TechnicalAlertRuleCreateInput | Required<Omit<TechnicalAlertRule, 'rule_id' | 'ticker' | 'created_at' | 'updated_at'>>,
+): void => {
+  if (!input.rule_name.trim()) {
+    throw new ApiError(422, 'ルール名が不正です');
+  }
+  if (!TECHNICAL_FIELD_KEYS.has(input.field_key)) {
+    throw new ApiError(422, 'field_key が不正です');
+  }
+  if (!TECHNICAL_OPERATORS.has(input.operator)) {
+    throw new ApiError(422, 'operator が不正です');
+  }
+  if (input.operator === 'IS_TRUE' || input.operator === 'IS_FALSE') {
+    return;
+  }
+  if (input.threshold_value == null || Number.isNaN(input.threshold_value)) {
+    throw new ApiError(422, 'threshold_value が不正です');
+  }
+  if ((input.operator === 'BETWEEN' || input.operator === 'OUTSIDE')
+    && (input.threshold_upper == null || Number.isNaN(input.threshold_upper))) {
+    throw new ApiError(422, 'threshold_upper が不正です');
+  }
 };

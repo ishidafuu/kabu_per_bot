@@ -19,7 +19,7 @@ from kabu_per_bot.earnings import EarningsCalendarEntry
 from kabu_per_bot.metrics import DailyMetric, MetricMedians
 from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
 from kabu_per_bot.signal import NotificationLogEntry
-from kabu_per_bot.technical import TechnicalAlertRule
+from kabu_per_bot.technical import TechnicalAlertRule, TechnicalIndicatorsDaily
 from kabu_per_bot.settings import load_settings
 from kabu_per_bot.storage.firestore_daily_metrics_repository import FirestoreDailyMetricsRepository
 from kabu_per_bot.storage.firestore_earnings_calendar_repository import FirestoreEarningsCalendarRepository
@@ -29,6 +29,9 @@ from kabu_per_bot.storage.firestore_metric_medians_repository import FirestoreMe
 from kabu_per_bot.storage.firestore_notification_log_repository import FirestoreNotificationLogRepository
 from kabu_per_bot.storage.firestore_signal_state_repository import FirestoreSignalStateRepository
 from kabu_per_bot.storage.firestore_technical_alert_rules_repository import FirestoreTechnicalAlertRulesRepository
+from kabu_per_bot.storage.firestore_technical_indicators_daily_repository import (
+    FirestoreTechnicalIndicatorsDailyRepository,
+)
 from kabu_per_bot.storage.firestore_watchlist_history_repository import FirestoreWatchlistHistoryRepository
 from kabu_per_bot.storage.firestore_watchlist_repository import FirestoreWatchlistRepository
 from kabu_per_bot.watchlist import WatchlistHistoryRecord, WatchlistService
@@ -140,6 +143,14 @@ class TechnicalAlertRulesReader(Protocol):
         """List technical alert rules."""
 
 
+class TechnicalIndicatorsReader(Protocol):
+    def get(self, ticker: str, trade_date: str) -> TechnicalIndicatorsDaily | None:
+        """Get technical indicators by trade_date."""
+
+    def list_recent(self, ticker: str, *, limit: int) -> list[TechnicalIndicatorsDaily]:
+        """List recent technical indicators."""
+
+
 class AdminOpsReader(Protocol):
     def list_jobs(self) -> tuple[AdminOpsJob, ...]:
         """List available admin jobs."""
@@ -243,6 +254,11 @@ def create_earnings_calendar_repository() -> EarningsCalendarReader:
 def create_technical_alert_rules_repository() -> TechnicalAlertRulesReader:
     client = create_firestore_client()
     return FirestoreTechnicalAlertRulesRepository(client)
+
+
+def create_technical_indicators_repository() -> TechnicalIndicatorsReader:
+    client = create_firestore_client()
+    return FirestoreTechnicalIndicatorsDailyRepository(client)
 
 
 def create_admin_ops_service() -> AdminOpsReader:
@@ -361,6 +377,15 @@ def get_technical_alert_rules_repository(request: Request) -> TechnicalAlertRule
         value_key="technical_alert_rules_repository",
         factory_key="technical_alert_rules_repository_factory",
         missing_message="technical_alert_rules_repository が初期化されていません。",
+    )
+
+
+def get_technical_indicators_repository(request: Request) -> TechnicalIndicatorsReader:
+    return _resolve_dependency(
+        request,
+        value_key="technical_indicators_repository",
+        factory_key="technical_indicators_repository_factory",
+        missing_message="technical_indicators_repository が初期化されていません。",
     )
 
 

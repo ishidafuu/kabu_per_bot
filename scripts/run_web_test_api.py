@@ -15,6 +15,7 @@ from kabu_per_bot.immediate_schedule import ImmediateSchedule
 from kabu_per_bot.runtime_settings import GlobalRuntimeSettings
 from kabu_per_bot.signal import NotificationLogEntry
 from kabu_per_bot.storage.firestore_schema import normalize_ticker
+from kabu_per_bot.technical import TechnicalAlertOperator, TechnicalAlertRule, TechnicalIndicatorsDaily
 from kabu_per_bot.watchlist import (
     CreateResult,
     MetricType,
@@ -276,6 +277,58 @@ class InMemoryAdminOpsService:
         return datetime.now(timezone.utc).isoformat()
 
 
+@dataclass
+class InMemoryTechnicalAlertRulesRepository:
+    rows: list[TechnicalAlertRule] = field(default_factory=list)
+
+    def get(self, ticker: str, rule_id: str) -> TechnicalAlertRule | None:
+        normalized_ticker = normalize_ticker(ticker)
+        for row in self.rows:
+            if row.ticker == normalized_ticker and row.rule_id == rule_id:
+                return row
+        return None
+
+    def upsert(self, rule: TechnicalAlertRule) -> None:
+        current = self.get(rule.ticker, rule.rule_id)
+        if current is None:
+            self.rows.append(rule)
+            return
+        index = self.rows.index(current)
+        self.rows[index] = rule
+
+    def list_recent(self, ticker: str, *, limit: int) -> list[TechnicalAlertRule]:
+        normalized_ticker = normalize_ticker(ticker)
+        rows = [row for row in self.rows if row.ticker == normalized_ticker]
+        rows.sort(key=lambda row: row.updated_at or row.created_at or "", reverse=True)
+        return rows[:limit]
+
+
+@dataclass
+class InMemoryTechnicalIndicatorsRepository:
+    rows: list[TechnicalIndicatorsDaily] = field(default_factory=list)
+
+    def get(self, ticker: str, trade_date: str) -> TechnicalIndicatorsDaily | None:
+        normalized_ticker = normalize_ticker(ticker)
+        for row in self.rows:
+            if row.ticker == normalized_ticker and row.trade_date == trade_date:
+                return row
+        return None
+
+    def upsert(self, indicators: TechnicalIndicatorsDaily) -> None:
+        current = self.get(indicators.ticker, indicators.trade_date)
+        if current is None:
+            self.rows.append(indicators)
+            return
+        index = self.rows.index(current)
+        self.rows[index] = indicators
+
+    def list_recent(self, ticker: str, *, limit: int) -> list[TechnicalIndicatorsDaily]:
+        normalized_ticker = normalize_ticker(ticker)
+        rows = [row for row in self.rows if row.ticker == normalized_ticker]
+        rows.sort(key=lambda row: row.trade_date, reverse=True)
+        return rows[:limit]
+
+
 class WebE2ETokenVerifier:
     def verify(self, token: str) -> dict[str, object]:
         if token in {"mock-token", "valid-token"}:
@@ -478,6 +531,17 @@ def _seed_notification_logs() -> list[NotificationLogEntry]:
             is_strong=True,
         ),
         NotificationLogEntry(
+            entry_id="log-20260211-tech-01",
+            ticker="6501:TSE",
+            category="技術アラート",
+            condition_key="TECHNICAL:volume_ratio:GTE",
+            sent_at="2026-02-11T14:40:00+09:00",
+            channel="DISCORD",
+            payload_hash="tech8d1efaa0",
+            is_strong=False,
+            body="出来高倍率が2.00以上になりました。",
+        ),
+        NotificationLogEntry(
             entry_id="log-20260211-01",
             ticker="9432:TSE",
             category="データ不明",
@@ -500,6 +564,45 @@ def _seed_notification_logs() -> list[NotificationLogEntry]:
     ]
 
 
+def _seed_technical_alert_rules() -> list[TechnicalAlertRule]:
+    return [
+        TechnicalAlertRule.create(
+            ticker="6501:TSE",
+            rule_id="rule-volume-ratio",
+            rule_name="出来高急増",
+            field_key="volume_ratio",
+            operator=TechnicalAlertOperator.GTE,
+            threshold_value=2.0,
+            is_active=True,
+            note="20日中央値比で急増を監視",
+            created_at="2026-02-10T09:00:00+09:00",
+            updated_at="2026-02-11T14:35:00+09:00",
+        )
+    ]
+
+
+def _seed_technical_indicators() -> list[TechnicalIndicatorsDaily]:
+    return [
+        TechnicalIndicatorsDaily(
+            ticker="6501:TSE",
+            trade_date="2026-02-11",
+            schema_version=1,
+            calculated_at="2026-02-11T15:31:00+09:00",
+            values={
+                "close_vs_ma25": 4.21,
+                "close_vs_ma75": 8.45,
+                "close_vs_ma200": 18.22,
+                "volume_ratio": 2.31,
+                "turnover_ratio": 1.84,
+                "atr_pct_14": 2.18,
+                "volatility_20d": 24.7,
+                "cross_up_ma25": True,
+                "new_high_20d": True,
+            },
+        )
+    ]
+
+
 def create_web_e2e_app() -> Any:
     watchlist_repo = InMemoryWatchlistRepository()
     for item in _seed_watchlist_items():
@@ -509,6 +612,8 @@ def create_web_e2e_app() -> Any:
     notification_repo = InMemoryNotificationLogRepository(_seed_notification_logs(), failed_job_value=False)
     admin_ops_service = InMemoryAdminOpsService()
     global_settings_repo = InMemoryGlobalSettingsRepository()
+    technical_rules_repo = InMemoryTechnicalAlertRulesRepository(_seed_technical_alert_rules())
+    technical_indicators_repo = InMemoryTechnicalIndicatorsRepository(_seed_technical_indicators())
     watchlist_service = WatchlistService(
         watchlist_repo,
         max_items=100,
@@ -520,6 +625,8 @@ def create_web_e2e_app() -> Any:
         notification_log_repository=notification_repo,
         admin_ops_service=admin_ops_service,
         global_settings_repository=global_settings_repo,
+        technical_alert_rules_repository=technical_rules_repo,
+        technical_indicators_repository=technical_indicators_repo,
         token_verifier=WebE2ETokenVerifier(),
     )
 
